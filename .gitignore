@@ -1,0 +1,12 @@
+# Generated/runtime files
+*.log
+*.tmp
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+logs/
+settings.json
+settings.json.bak
+settings.json.tmp

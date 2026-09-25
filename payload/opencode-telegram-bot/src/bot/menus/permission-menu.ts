@@ -1,0 +1,192 @@
+import { Context, InlineKeyboard } from "grammy";
+import type { AppContainer } from "../../app/bootstrap/app-container.js";
+import { logger } from "../../utils/logger.js";
+import type { PermissionRequest } from "../../app/types/permission.js";
+import type { I18nKey } from "../../i18n/en.js";
+import { t } from "../../i18n/index.js";
+
+export type PermissionInteractionDeps = Pick<AppContainer, "interactionManager">;
+
+export type PermissionMenuDeps = Pick<
+  AppContainer,
+  "interactionManager" | "permissionManager" | "summaryAggregator"
+>;
+
+// Permission type display names
+const PERMISSION_NAME_KEYS: Record<string, I18nKey> = {
+  bash: "permission.name.bash",
+  edit: "permission.name.edit",
+  write: "permission.name.write",
+  read: "permission.name.read",
+  webfetch: "permission.name.webfetch",
+  websearch: "permission.name.websearch",
+  glob: "permission.name.glob",
+  grep: "permission.name.grep",
+  list: "permission.name.list",
+  task: "permission.name.task",
+  lsp: "permission.name.lsp",
+  external_directory: "permission.name.external_directory",
+};
+
+// Permission type emojis
+const PERMISSION_EMOJIS: Record<string, string> = {
+  bash: "⚡",
+  edit: "✏️",
+  write: "📝",
+  read: "📖",
+  webfetch: "🌐",
+  websearch: "🔍",
+  glob: "📁",
+  grep: "🔎",
+  list: "📂",
+  task: "⚙️",
+  lsp: "🔧",
+  external_directory: "📁",
+};
+
+export function clearPermissionInteraction(
+  reason: string,
+  deps: PermissionInteractionDeps,
+): void {
+  const state = deps.interactionManager.getSnapshot();
+  if (state?.kind === "permission") {
+    deps.interactionManager.clear(reason);
+  }
+}
+
+export function syncPermissionInteractionState(
+  deps: Pick<AppContainer, "interactionManager" | "permissionManager">,
+  metadata: Record<string, unknown> = {},
+): void {
+  const pendingCount = deps.permissionManager.getPendingCount();
+
+  if (pendingCount === 0) {
+    clearPermissionInteraction("permission_no_pending_requests", deps);
+    return;
+  }
+
+  const nextMetadata: Record<string, unknown> = {
+    pendingCount,
+    ...metadata,
+  };
+
+  // Pending prompts exist only while the slot holds permissions.
+  deps.interactionManager.transition({
+    expectedInput: "callback",
+    metadata: nextMetadata,
+  });
+}
+
+/**
+ * Show permission request message with inline buttons
+ */
+export async function showPermissionRequest(
+  bot: Context["api"],
+  chatId: number,
+  request: PermissionRequest,
+  deps: PermissionMenuDeps,
+  generation: number = deps.permissionManager.getGeneration(),
+): Promise<void> {
+  const { interactionManager, permissionManager, summaryAggregator } = deps;
+  logger.debug(`[PermissionHandler] Showing permission request: ${request.permission}`);
+
+  if (permissionManager.getDropReason(request, generation)) {
+    logger.debug(`[PermissionHandler] Skipping stale or already resolved request: ${request.id}`);
+    return;
+  }
+
+  const grouped = permissionManager.addEquivalentRequest(request, generation);
+  if (grouped) {
+    // Re-render the visible prompt so the user can see the answer will apply
+    // to more than one pending request.
+    await bot
+      .editMessageText(
+        chatId,
+        grouped.messageId,
+        formatPermissionText(grouped.request, grouped.count),
+        { reply_markup: buildPermissionKeyboard() },
+      )
+      .catch((err) => {
+        logger.warn("[PermissionHandler] Failed to update grouped permission message:", err);
+      });
+
+    syncPermissionInteractionState(deps, {
+      requestID: request.id,
+      messageId: grouped.messageId,
+      deduplicated: true,
+      groupedCount: grouped.count,
+    });
+    summaryAggregator.stopTypingIndicator();
+    return;
+  }
+
+  const text = formatPermissionText(request);
+  const keyboard = buildPermissionKeyboard();
+
+  try {
+    const message = await bot.sendMessage(chatId, text, {
+      reply_markup: keyboard,
+    });
+
+    logger.debug(`[PermissionHandler] Message sent, messageId=${message.message_id}`);
+    const result = permissionManager.startPermission(request, message.message_id, generation);
+    if (result !== "started") {
+      if (result === "question_active") {
+        // A poll took the slot while this prompt was being sent: it waits for the poll.
+        interactionManager.waitPermission(request);
+      }
+
+      await bot.deleteMessage(chatId, message.message_id).catch((err) => {
+        logger.warn(`[PermissionHandler] Failed to delete unregistered permission message:`, err);
+      });
+      return;
+    }
+
+    syncPermissionInteractionState(deps, {
+      requestID: request.id,
+      messageId: message.message_id,
+    });
+
+    summaryAggregator.stopTypingIndicator();
+  } catch (err) {
+    logger.error("[PermissionHandler] Failed to send permission message:", err);
+    throw err;
+  }
+}
+
+/**
+ * Format permission request text
+ */
+function formatPermissionText(request: PermissionRequest, groupedCount: number = 1): string {
+  const emoji = PERMISSION_EMOJIS[request.permission] || "🔐";
+  const nameKey = PERMISSION_NAME_KEYS[request.permission];
+  const name = nameKey ? t(nameKey) : request.permission;
+
+  let text = t("permission.header", { emoji, name });
+
+  // Show patterns (commands/files)
+  if (request.patterns.length > 0) {
+    request.patterns.forEach((pattern) => {
+      text += `• ${pattern}\n`;
+    });
+  }
+
+  if (groupedCount > 1) {
+    text += t("permission.grouped_count", { count: groupedCount });
+  }
+
+  return text;
+}
+
+/**
+ * Build inline keyboard with permission buttons
+ */
+function buildPermissionKeyboard(): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  keyboard.text(t("permission.button.allow"), "permission:once").row();
+  keyboard.text(t("permission.button.always"), "permission:always").row();
+  keyboard.text(t("permission.button.reject"), "permission:reject");
+
+  return keyboard;
+}
