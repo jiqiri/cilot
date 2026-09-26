@@ -75,13 +75,22 @@ Rules for WordPress posts:
 4. The featured image is separate: set `settings.main_image` as an object with the media `id`
    and the hosted `path`. Postiz uploads it into the WordPress media library and sets it as the
    featured image. Featured images are not affected by the content sanitizer.
-5. `title`, `type` and `status` are plain strings. Do not send `categories` or `tags` through
-   the schedule tool; it cannot carry numeric arrays, and the request is rejected. Leave them
-   out and let the user set them in the WordPress admin.
-6. Read the schema with `integrationSchema` before scheduling, and get the account id from
+5. `settings.type` must be a real WordPress post type, and it is the **plural REST base**, not
+   the singular name. Use `posts` for blog posts and `pages` for pages. Sending `post` builds
+   `wp-json/wp/v2/post`, which fails with HTTP 404 `rest_no_route`. The provider interpolates
+   this value straight into the URL path, so there is no correction step. Discover the valid
+   values with the `postTypes` trigger tool; it returns `id` (the REST base) and `name`, and
+   that `id` is exactly what belongs in `type`. `type` is required.
+6. `categories` and `tags` are supported. Pass them as arrays of numeric IDs and Postiz
+   forwards them to WordPress. Get real IDs from the `categoriesList` and `tagsList` trigger
+   tools rather than guessing. Leave a key out entirely when you have no IDs for it.
+7. `title` is required and must be at least 2 characters. `status` accepts `publish`, `draft`,
+   `pending` or `private`; Postiz defaults to `publish` when it is absent, so set `draft`
+   explicitly if the post is not ready.
+8. Read the schema with `integrationSchema` before scheduling, and get the account id from
    `integrationList`.
-7. After publishing, read the post back and confirm the image URLs are still in the stored
+9. After publishing, read the post back and confirm the image URLs are still in the stored
    content. If they are gone, the content was rewritten somewhere unexpected.
-8. Avoid re-editing the post body in the Postiz web editor. That editor applies its own
-   filtering, so a body edited there can lose the image URLs. If it has to be edited, re-check
-   that every image URL is still present.
+10. Avoid re-editing the post body in the Postiz web editor. That editor applies its own
+    filtering, so a body edited there can lose the image URLs. If it has to be edited, re-check
+    that every image URL is still present.
