@@ -7,9 +7,12 @@ TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-REPLACE_WITH_TELEGRAM_BOT_TOKEN}"
 TELEGRAM_ALLOWED_USER_ID="${TELEGRAM_ALLOWED_USER_ID:-REPLACE_WITH_TELEGRAM_ALLOWED_USER_ID}"
 CF_WORKERS_AI_ACCOUNT="${CF_WORKERS_AI_ACCOUNT:-REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID}"
 CF_WORKERS_AI_TOKEN="${CF_WORKERS_AI_TOKEN:-REPLACE_WITH_CLOUDFLARE_API_TOKEN}"
-POSTIZ_MCP_URL="${POSTIZ_MCP_URL:-https://contentv.ceonogy.com/api/mcp}"
+POSTIZ_MCP_URL="${POSTIZ_MCP_URL:-REPLACE_WITH_POSTIZ_MCP_URL}"
 POSTIZ_MCP_TOKEN="${POSTIZ_MCP_TOKEN:-REPLACE_WITH_POSTIZ_BEARER_TOKEN}"
-if [[ "$POSTIZ_MCP_TOKEN" == REPLACE_WITH_* ]]; then
+if [[ "$POSTIZ_MCP_URL" == *REPLACE_WITH* ]]; then
+  POSTIZ_MCP_URL=""
+fi
+if [[ "$POSTIZ_MCP_TOKEN" == *REPLACE_WITH* ]]; then
   POSTIZ_MCP_TOKEN=""
 fi
 OPENCODE_MODEL_PROVIDER="${OPENCODE_MODEL_PROVIDER:-opencode}"
@@ -35,7 +38,6 @@ OPENCODE_MAIN_URL="${OPENCODE_MAIN_URL:-http://127.0.0.1:5100}"
 OPENCODE_TELEGRAM_URL="${OPENCODE_TELEGRAM_URL:-http://127.0.0.1:4096}"
 OPENCODE_MAIN_VERSION="2.0.11"
 OPENCODE_TELEGRAM_VERSION="1.18.32"
-BOT_REF="${BOT_REF:-fac8c99ed8213d8a669a4cb2c864e97e6a5c613b}"
 
 log() { printf '[installer] %s\n' "$*"; }
 die() { printf '[installer] ERROR: %s\n' "$*" >&2; exit 1; }
@@ -49,6 +51,10 @@ validate_placeholders() {
     [[ -n "$value" ]] || die "$name cannot be empty."
   done
   [[ "$TELEGRAM_ALLOWED_USER_ID" =~ ^[0-9]+$ ]] || die "TELEGRAM_ALLOWED_USER_ID must contain only digits."
+  if [[ -n "$POSTIZ_MCP_URL" || -n "$POSTIZ_MCP_TOKEN" ]]; then
+    [[ -n "$POSTIZ_MCP_URL" && -n "$POSTIZ_MCP_TOKEN" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
+    [[ "$POSTIZ_MCP_URL" =~ ^https?:// ]] || die "POSTIZ_MCP_URL must be an absolute http(s) URL."
+  fi
 }
 
 check_platform() {
@@ -141,7 +147,7 @@ EOF
 CF_WORKERS_AI_ACCOUNT=$CF_WORKERS_AI_ACCOUNT
 CF_WORKERS_AI_TOKEN=$CF_WORKERS_AI_TOKEN
 EOF
-  if [[ -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
+  if [[ -n "${POSTIZ_MCP_TOKEN:-}" && -n "${POSTIZ_MCP_URL:-}" ]]; then
     printf 'POSTIZ_MCP_TOKEN=%s\n' "$POSTIZ_MCP_TOKEN" >"$INSTALL_ROOT/opencode-postiz.env"
   else
     : >"$INSTALL_ROOT/opencode-postiz.env"
@@ -190,8 +196,8 @@ EOF
 EOF
   fi
   # Add the optional Postiz MCP server without overwriting unrelated config.
-  if [[ -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
-    local postiz_url="${POSTIZ_MCP_URL:-https://contentv.ceonogy.com/api/mcp}"
+  if [[ -n "${POSTIZ_MCP_TOKEN:-}" && -n "${POSTIZ_MCP_URL:-}" ]]; then
+    local postiz_url="${POSTIZ_MCP_URL:-}"
     # Use the OpenCode CLI so existing JSONC settings and MCP entries are preserved.
     HOME="$HOME" OPENCODE_CONFIG_DIR="$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_MAIN_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
     HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' >/dev/null

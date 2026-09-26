@@ -18,6 +18,7 @@ The installer does not require root. It installs into the current user's home di
 - A Telegram bot token
 - Your Telegram numeric user ID
 - A Cloudflare account ID and an API token with Workers AI permission
+- Optional Postiz MCP URL and bearer token
 
 ## Usage
 
@@ -34,11 +35,11 @@ CF_WORKERS_AI_TOKEN="REPLACE_WITH_CLOUDFLARE_API_TOKEN"
 If you also use the optional Postiz MCP server, add these variables before running:
 
 ```bash
-POSTIZ_MCP_URL="${POSTIZ_MCP_URL:-https://contentv.ceonogy.com/api/mcp}"
-POSTIZ_MCP_TOKEN="${POSTIZ_MCP_TOKEN:-REPLACE_WITH_POSTIZ_BEARER_TOKEN}"
+POSTIZ_MCP_URL="REPLACE_WITH_POSTIZ_MCP_URL"
+POSTIZ_MCP_TOKEN="REPLACE_WITH_POSTIZ_BEARER_TOKEN"
 ```
 
-When `POSTIZ_MCP_TOKEN` is replaced, the installer adds Postiz to both OpenCode configurations and loads the token from a mode-`600` environment file. Leave the placeholder unchanged to skip Postiz.
+Replace `POSTIZ_MCP_URL` with an absolute `http://` or `https://` endpoint and set the matching token. When both values are replaced, the installer adds Postiz to both OpenCode configurations and loads the token from a mode-`600` environment file. Leave both placeholders unchanged to skip Postiz; setting only one is rejected.
 
 The model defaults are:
 
@@ -102,7 +103,17 @@ Generate a 1200x630 featured image for an article about website performance opti
 
 Do not commit a filled-in `install.sh`. The repository intentionally contains placeholders only. If a token was pasted into chat, logs, or a shell history, rotate it before using the installation. The PAT used to publish this repository is not needed by the installer and is never read by it.
 
-The script is safe to re-run: it replaces the managed bot source and generated service files, while leaving unrelated OpenCode configuration entries intact. It writes the bot to `~/.local/share/opencode-telegram-installer/opencode-telegram-bot` by default. A downloaded `install.sh` uses `PAYLOAD_ARCHIVE_URL` (overridable) to fetch the repository payload when needed.
+The generated service units use `Restart=always` with a restart delay, so the main OpenCode server, Telegram-side OpenCode server, and Telegram bot are automatically restarted after crashes. User lingering is required for services to keep running after logout; the installer checks for a user systemd session and the environment currently has lingering enabled.
+
+The stack includes an uninstaller:
+
+```bash
+./uninstall.sh
+```
+
+The default uninstall stops/disables the three user services and removes the generated service files and managed bot/runtime files, but preserves OpenCode data, configuration, and other user files. Review the script before using `--purge`; `--purge` also removes the managed OpenCode/bot configuration and data directories.
+
+A downloaded `install.sh` uses `PAYLOAD_ARCHIVE_URL` (overridable) to fetch the repository payload when needed.
 
 For unattended use, export the variables instead of editing the script. Environment values override the placeholders:
 
