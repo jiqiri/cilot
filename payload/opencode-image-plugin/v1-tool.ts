@@ -1,4 +1,7 @@
 import { tool } from "@opencode-ai/plugin"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
 
 const MODEL = "@cf/black-forest-labs/flux-2-klein-4b"
 
@@ -25,8 +28,7 @@ function parseSize(value: unknown): { width: number; height: number } | null {
 }
 
 function resolveDimensions(args: { size?: string; aspectRatio?: AspectRatio }) {
-  const aspectRatioSize = args.aspectRatio ? ASPECT_RATIO_SIZES[args.aspectRatio] : undefined
-  return parseSize(args.size) || parseSize(aspectRatioSize) || {
+  return parseSize(args.size) || parseSize(ASPECT_RATIO_SIZES[args.aspectRatio ?? ""]) || {
     width: 1200,
     height: 630,
   }
@@ -50,6 +52,13 @@ function resolveFilename(value: unknown, width: number, height: number): string 
   return `generated-image-${width}x${height}.jpg`
 }
 
+function resolveImageDir(): string {
+  const override = process.env.OPENCODE_IMAGE_DIR?.trim()
+  if (override) return override
+  const dataHome = process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), ".local", "share")
+  return path.join(dataHome, "opencode-generated-images")
+}
+
 function errorDetail(body: string): string {
   try {
     const parsed = JSON.parse(body) as { errors?: Array<{ message?: string }> }
@@ -70,7 +79,6 @@ async function generate(
   if (!account || !token) {
     throw new Error("Cloudflare image generation is not configured. Set CF_WORKERS_AI_ACCOUNT and CF_WORKERS_AI_TOKEN.")
   }
-
   const prompt = args.prompt.trim()
   if (!prompt) throw new Error("A non-empty image prompt is required.")
   const { width, height } = resolveDimensions(args)
@@ -78,7 +86,6 @@ async function generate(
   form.append("prompt", prompt)
   form.append("width", String(width))
   form.append("height", String(height))
-
   const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(account)}/ai/run/${MODEL}`
   const response = await fetch(endpoint, {
     method: "POST",
@@ -88,24 +95,37 @@ async function generate(
   })
   const body = await response.text()
   if (!response.ok) throw new Error(`Cloudflare image API ${response.status}: ${errorDetail(body)}`)
-
   let data: { result?: { image?: unknown } }
   try {
     data = JSON.parse(body) as { result?: { image?: unknown } }
   } catch {
     throw new Error("Cloudflare returned invalid JSON.")
   }
-
   const imageBase64 = data.result?.image
   if (typeof imageBase64 !== "string" || imageBase64.length === 0) {
     throw new Error("Cloudflare returned no image data.")
   }
-
   const filename = resolveFilename(args.filename, width, height)
+  const dir = resolveImageDir()
+  await fs.mkdir(dir, { recursive: true })
+  const localPath = path.join(dir, filename)
+  await fs.writeFile(localPath, Buffer.from(imageBase64, "base64"))
+
   return {
     title: "Cloudflare image generated",
-    output: `Generated a ${width}x${height} JPEG image using Cloudflare Workers AI (${MODEL}).`,
-    metadata: { provider: "cloudflare", model: MODEL, width, height, filename, mime: "image/jpeg" },
+    output:
+      `Generated a ${width}x${height} JPEG image using Cloudflare Workers AI (${MODEL}).\n` +
+      `Saved to: ${localPath}\n` +
+      `To attach it to a Postiz post, upload the file first: postiz_upload_image({ path: "${localPath}" }).`,
+    metadata: {
+      provider: "cloudflare",
+      model: MODEL,
+      width,
+      height,
+      filename,
+      mime: "image/jpeg",
+      localPath,
+    },
     attachments: [
       {
         type: "file" as const,
@@ -119,7 +139,7 @@ async function generate(
 
 export default tool({
   description:
-    "Generate one JPEG image with Cloudflare Workers AI. Use this for illustrations, thumbnails, featured images, and other raster image requests. Supports explicit WIDTHxHEIGHT sizes and common aspect ratios.",
+    "Generate one JPEG image with Cloudflare Workers AI and save it to disk. Use this for illustrations, thumbnails, featured images, and other raster image requests. Returns the saved local file path; pass that path to postiz_upload_image to attach it to a Postiz post. Supports explicit WIDTHxHEIGHT sizes and common aspect ratios.",
   args: {
     prompt: tool.schema.string().describe("A detailed description of the image to generate."),
     size: tool.schema.string().optional().describe("Optional exact JPEG size, for example 1200x630 or 1080x1920 (256-1920 per side)."),

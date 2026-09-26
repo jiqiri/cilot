@@ -5,7 +5,20 @@ metadata:
   opencode/autoinvoke: true
 ---
 
-Use the `image_generate` tool for image requests.
+Use the `image_generate` tool for all image requests. It is the only Cloudflare Workers AI
+image generator.
+
+The tool returns the generated JPEG as an attachment and saves it to disk. Its output text
+reports the absolute `localPath` of the saved file, and the same path is in the `localPath`
+metadata field. Keep that path: it is the only way to reach the bytes later.
+
+The `data:image/jpeg;base64,...` URL on the attachment is for preview and Telegram delivery
+only. It is not a hosted URL and must never be passed to Postiz.
+
+To attach a generated image to a Postiz post, pass the saved `localPath` to
+`postiz_upload_image`, which uploads it to the Postiz media library and returns a hosted
+`path`. Do not use `postiz_generateImageTool`; it is not configured on this instance. See
+the `postiz-guidance` skill. Never invent a different image tool.
 
 Choose dimensions from the user's request first. If no size is supplied, use these defaults:
 
@@ -21,4 +34,4 @@ Choose dimensions from the user's request first. If no size is supplied, use the
 
 Always provide a concise, descriptive, lowercase filename with words separated by hyphens. Describe the subject and purpose, not the full prompt. Do not use generic names such as `image`, `photo`, `generated-image`, or random IDs.
 
-The tool returns the generated JPEG as an attachment. After generating, tell the user what was created and mention the filename.
+The tool returns the generated JPEG as an attachment and reports the saved file path. After generating, tell the user what was created, mention the filename, and mention the saved path.

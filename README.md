@@ -66,6 +66,10 @@ By default:
 ~/.local/share/opencode-telegram-installer/opencode-telegram-bot
 ~/.config/opencode/plugins/cloudflare-image/index.js
 ~/.config/opencode-telegram-server/opencode/tools/image_generate.ts
+~/.config/opencode-telegram-server/opencode/tools/postiz_upload_image.ts
+~/.config/opencode-telegram-server/opencode/AGENTS.md
+~/.config/opencode-telegram-server/opencode/agents/postiz-social.md
+~/.config/opencode-telegram-server/opencode/skills/postiz-guidance/SKILL.md
 ~/.config/systemd/user/opencode.service
 ~/.config/systemd/user/opencode-telegram-server.service
 ~/.config/systemd/user/opencode-telegram-bot.service
@@ -82,6 +86,66 @@ If Postiz is enabled, its token is stored separately in:
 ```text
 ~/.local/share/opencode-telegram-installer/opencode-postiz.env
 ```
+
+## Telegram agent configuration
+
+The Telegram bot talks to its own OpenCode instance whose global config root is
+`~/.config/opencode-telegram-server/opencode` (the service sets `XDG_CONFIG_HOME` to
+`~/.config/opencode-telegram-server`). Edit these files to change agent behaviour:
+
+| Purpose | File |
+| --- | --- |
+| Rules applied to every agent | `~/.config/opencode-telegram-server/opencode/AGENTS.md` |
+| Dedicated social-publishing agent | `~/.config/opencode-telegram-server/opencode/agents/postiz-social.md` |
+| Postiz workflow reference | `~/.config/opencode-telegram-server/opencode/skills/postiz-guidance/SKILL.md` |
+| Cloudflare image guidance | `~/.config/opencode-telegram-server/opencode/skills/cf-image-guidance/SKILL.md` |
+
+`postiz-social` is a `primary` agent, so it appears in the bot's agent switcher. To make it
+the default, add `"default_agent": "postiz-social"` to
+`~/.config/opencode-telegram-server/opencode/opencode.jsonc`. Restart the service to pick up
+changes:
+
+```bash
+systemctl --user restart opencode-telegram-server.service
+```
+
+### Image attachments and Postiz
+
+`image_generate` (Cloudflare Workers AI) generates the JPEG and saves it to disk, returning
+the absolute path in `localPath`. Postiz schedules posts with
+`postsAndComments[].attachments` as an array of hosted HTTPS URLs, so a local file cannot be
+attached directly. The sequence is:
+
+1. `image_generate` -> returns `localPath`
+2. `postiz_upload_image` with that `localPath` -> returns a hosted `path`
+3. `postiz_integrationSchedulePostTool` with that `path` in `attachments`
+
+`postiz_upload_image` exists because the Postiz MCP surface only exposes
+`uploadFromUrlTool(url)`, which makes Postiz fetch a **public** URL itself. Locally generated
+files have no public URL and there is no inbound port, so the upload goes through the Postiz
+public API at `POST $POSTIZ_API_URL/public/v1/upload` instead.
+
+That endpoint uses a different auth header format than the MCP transport:
+
+| Destination | Header |
+| --- | --- |
+| Postiz MCP (`$POSTIZ_MCP_URL`) | `Authorization: Bearer $POSTIZ_MCP_TOKEN` |
+| Postiz public API (`$POSTIZ_API_URL`) | `Authorization: $POSTIZ_MCP_TOKEN` |
+
+Both use the same API key. `install.sh` derives `POSTIZ_API_URL` from `POSTIZ_MCP_URL` by
+stripping the trailing `/mcp` and writes all three variables to
+`~/.local/share/opencode-telegram-installer/opencode-postiz.env` (mode `600`), which is
+loaded by both OpenCode services.
+
+Generated images are written to `$XDG_DATA_HOME/opencode-generated-images`, which differs per
+service. Override with `OPENCODE_IMAGE_DIR`.
+
+`postiz_generateImageTool` is intentionally unused. It needs an AI provider key configured on
+the Postiz instance and returns `500` without one.
+
+The main V2 server at `~/.config/opencode` uses the same persistent `image_generate` plugin
+but does not get the Postiz tools.
+
 
 ## Verify
 

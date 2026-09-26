@@ -148,7 +148,12 @@ CF_WORKERS_AI_ACCOUNT=$CF_WORKERS_AI_ACCOUNT
 CF_WORKERS_AI_TOKEN=$CF_WORKERS_AI_TOKEN
 EOF
   if [[ -n "${POSTIZ_MCP_TOKEN:-}" && -n "${POSTIZ_MCP_URL:-}" ]]; then
-    printf 'POSTIZ_MCP_TOKEN=%s\n' "$POSTIZ_MCP_TOKEN" >"$INSTALL_ROOT/opencode-postiz.env"
+    local postiz_api_url="${POSTIZ_MCP_URL%/mcp}"
+    cat >"$INSTALL_ROOT/opencode-postiz.env" <<EOF
+POSTIZ_MCP_TOKEN=$POSTIZ_MCP_TOKEN
+POSTIZ_MCP_URL=$POSTIZ_MCP_URL
+POSTIZ_API_URL=$postiz_api_url
+EOF
   else
     : >"$INSTALL_ROOT/opencode-postiz.env"
   fi
@@ -159,6 +164,18 @@ OPENCODE_SERVER_PASSWORD=$(awk -F= '$1=="OPENCODE_SERVER_PASSWORD" {print $2}' "
 EOF
   chmod 600 "$telegram_env" "$main_env" "$cloudflare_env" "$telegram_server_env"
   unset OPENCODE_SERVER_PASSWORD
+}
+
+install_postiz_agent() {
+  local telegram_root="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
+  local src="$PAYLOAD_DIR/postiz-agent"
+  [[ -d "$src" ]] || return 0
+  mkdir -p "$telegram_root/agents" "$telegram_root/skills/postiz-guidance" "$telegram_root/tools"
+  cp "$src/AGENTS.md" "$telegram_root/AGENTS.md"
+  cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md"
+  cp "$src/skills/postiz-guidance/SKILL.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
+  cp "$src/postiz_upload_image.ts" "$telegram_root/tools/postiz_upload_image.ts"
+  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/skills/postiz-guidance/SKILL.md" "$telegram_root/tools/postiz_upload_image.ts"
 }
 
 install_image_plugin() {
@@ -172,6 +189,7 @@ install_image_plugin() {
   cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.md" "$skill_dir/SKILL.md"
   cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.md" "$telegram_skill_dir/SKILL.md"
   chmod 644 "$plugin_dir/index.js" "$telegram_plugin_dir/image_generate.ts" "$skill_dir/SKILL.md" "$telegram_skill_dir/SKILL.md"
+  install_postiz_agent
   mkdir -p "$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/package.json" ]]; then
     printf '%s\n' '{"private":true,"type":"module"}' >"$OPENCODE_MAIN_CONFIG_DIR/package.json"

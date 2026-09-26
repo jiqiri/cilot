@@ -1,4 +1,7 @@
 import { Plugin } from "@opencode/plugin"
+import fs from "fs/promises"
+import os from "os"
+import path from "path"
 
 const MODEL = "@cf/black-forest-labs/flux-2-klein-4b"
 const ASPECT_RATIO_SIZES = {
@@ -41,6 +44,13 @@ function resolveFilename(value, width, height) {
   const requested = slugify(value)
   if (requested) return requested.toLowerCase().endsWith(".jpg") ? requested : `${requested}.jpg`
   return `generated-image-${width}x${height}.jpg`
+}
+
+function resolveImageDir() {
+  const override = process.env.OPENCODE_IMAGE_DIR?.trim()
+  if (override) return override
+  const dataHome = process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), ".local", "share")
+  return path.join(dataHome, "opencode-generated-images")
 }
 
 function errorDetail(body) {
@@ -90,13 +100,21 @@ async function generate(args, signal) {
     throw new Error("Cloudflare returned no image data.")
   }
 
-  const filename = resolveFilename(input.filename, width, height)
+  const filename = resolveFilename(args.filename, width, height)
+  const dir = resolveImageDir()
+  await fs.mkdir(dir, { recursive: true })
+  const localPath = path.join(dir, filename)
+  await fs.writeFile(localPath, Buffer.from(imageBase64, "base64"))
+
   return {
     filename,
     width,
     height,
     imageBase64,
-    text: `Generated a ${width}x${height} JPEG image using Cloudflare Workers AI (${MODEL}).`,
+    localPath,
+    text:
+      `Generated a ${width}x${height} JPEG image using Cloudflare Workers AI (${MODEL}).\n` +
+      `Saved to: ${localPath}`,
   }
 }
 
@@ -107,7 +125,7 @@ export default Plugin.define({
       editor.add({
         name: "image_generate",
         description:
-          "Generate one JPEG image with Cloudflare Workers AI. Use this for illustrations, thumbnails, featured images, and other raster image requests. Supports exact WIDTHxHEIGHT sizes and common aspect ratios.",
+          "Generate one JPEG image with Cloudflare Workers AI and save it to disk. Use this for illustrations, thumbnails, featured images, and other raster image requests. Returns the saved local file path in metadata. Supports exact WIDTHxHEIGHT sizes and common aspect ratios.",
         input: {
           type: "object",
           properties: {
@@ -149,6 +167,7 @@ export default Plugin.define({
               height: result.height,
               filename: result.filename,
               mime: "image/jpeg",
+              localPath: result.localPath,
             },
           }
         },
