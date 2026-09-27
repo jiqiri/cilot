@@ -675,8 +675,7 @@ export const vi: I18nDictionary = {
   "persona.button.delete_cancel": "↩️ Giữ lại",
   "persona.menu.text_active": "Persona đang dùng: {name}",
   "persona.menu.text_inactive": "Chưa dùng persona nào. Trợ lý dùng giọng mặc định.",
-  "persona.menu.hint":
-    "Chọn một persona để chuyển. Thay đổi có hiệu lực từ tin nhắn tiếp theo; chạy /new để có phiên sạch.",
+  "persona.menu.hint": "Chọn một persona để chuyển. Nó sẽ có hiệu lực từ tin nhắn tiếp theo của bạn.",
   "persona.menu.error": "Không tải được danh sách persona.",
   "persona.create.ask_name": "Gửi tên persona (chữ thường, chữ số và dấu gạch ngang).",
   'persona.create.ask_body':
@@ -688,7 +687,6 @@ export const vi: I18nDictionary = {
   'persona.edit.ask_body':
     'Gửi nội dung mới cho "{name}". Nội dung này sẽ thay thế nội dung hiện tại và vẫn được dùng.',
   'persona.saved': 'Đã lưu và kích hoạt persona "{name}".',
-  "persona.restart_hint": "Chạy /new để mở phiên dùng persona mới.",
   "persona.cancelled": "Đã hủy. Không có gì được lưu.",
   'persona.delete.confirm':
     'Xoá persona đang dùng "{name}"? Việc này không thể hoàn tác và trợ lý sẽ trở về giọng mặc định.',

@@ -393,7 +393,6 @@ export async function handlePersonaTextArguments(
     clearPersonaInteraction(deps, "persona_saved");
 
     await ctx.reply(t("persona.saved", { name: display }));
-    await ctx.reply(t("persona.restart_hint"));
     return true;
   } catch (error) {
     logger.error("[Persona] Error handling persona text input:", error);
