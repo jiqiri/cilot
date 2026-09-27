@@ -90,3 +90,26 @@ and character limits.
 `postiz_generateImageTool` is unusable on this instance. It requires an AI provider key
 configured in Postiz settings and returns `500 AI generation failed` with an empty model.
 Never plan a workflow around it.
+
+## WordPress specifics
+
+`settings.type` is interpolated directly into the endpoint:
+
+```
+${domain}/wp-json/wp/v2/${settings.type}
+```
+
+So it is the plural REST base. `posts` for blog posts, `pages` for pages. The singular `post`
+produces `wp-json/wp/v2/post` and a 404 `rest_no_route`, with no correction step. Use the
+`postTypes` trigger tool and pass back the `id` it returns.
+
+`categories` and `tags` are read, coerced with `Number()`, filtered for `NaN`, and forwarded to
+WordPress when non-empty. Use `categoriesList` and `tagsList` to get real numeric IDs.
+
+`title` is required with a minimum length of 2. `status` is one of `publish`, `draft`,
+`pending`, `private` and defaults to `publish` when absent. The slug is generated from the
+title.
+
+`main_image.path` is fetched and re-uploaded to `wp-json/wp/v2/media` by the provider, and the
+resulting media id becomes `featured_media`. The `id` field in `main_image` is required by the
+schema but is not read by the provider; `alt` is not forwarded either.

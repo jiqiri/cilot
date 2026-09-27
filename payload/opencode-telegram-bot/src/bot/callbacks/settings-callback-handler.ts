@@ -1,5 +1,6 @@
 import type { Context } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
+import { showPersonaMenu } from "./persona-callback-handler.js";
 import { isTtsConfigured } from "../../app/services/tts-service.js";
 import {
   getCompactOutputMode,
@@ -25,7 +26,11 @@ import {
 } from "../../app/stores/settings-store.js";
 import { t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
-import { appendInlineMenuCancelButton, ensureActiveInlineMenu } from "../menus/inline-menu.js";
+import {
+  appendInlineMenuCancelButton,
+  clearActiveInlineMenu,
+  ensureActiveInlineMenu,
+} from "../menus/inline-menu.js";
 import {
   buildSettingsMenuView,
   SETTINGS_ASSISTANT_FOOTER_CALLBACK,
@@ -38,6 +43,7 @@ import {
   SETTINGS_RESPONSE_STREAMING_CALLBACK,
   SETTINGS_THINKING_CONTENT_CALLBACK,
   SETTINGS_TTS_CALLBACK,
+  SETTINGS_PERSONA_CALLBACK,
 } from "../menus/settings-menu.js";
 
 function getTtsSavedMessageKey(mode: TtsMode): "tts.off" | "tts.all" | "tts.auto" {
@@ -82,6 +88,13 @@ export async function handleSettingsCallback(
 
   const isActiveMenu = await ensureActiveInlineMenu(ctx, "settings", deps);
   if (!isActiveMenu) {
+    return true;
+  }
+
+  if (callbackData === SETTINGS_PERSONA_CALLBACK) {
+    clearActiveInlineMenu("settings_to_persona", deps);
+    await ctx.answerCallbackQuery();
+    await showPersonaMenu(ctx);
     return true;
   }
 

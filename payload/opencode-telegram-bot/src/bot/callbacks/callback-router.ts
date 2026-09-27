@@ -17,6 +17,7 @@ import {
   handleModelSelect,
 } from "./model-selection-callback-handler.js";
 import { handlePermissionCallback } from "./permission-callback-handler.js";
+import { handlePersonaCallback } from "./persona-callback-handler.js";
 import { handleProjectSelect } from "./project-callback-handler.js";
 import { handlePromptAttachmentCancel } from "./prompt-attachment-callback-handler.js";
 import { handleQuestionCallback } from "./question-callback-handler.js";
@@ -139,6 +140,14 @@ export function registerCallbackRouter(bot: Bot<Context>, deps: CallbackRouterDe
         name: "permission",
         handlers: [(ctx) => handlePermissionCallback(ctx, container)],
         errorScope: "permission",
+      },
+    ],
+    [
+      "persona",
+      {
+        name: "persona",
+        handlers: [(ctx) => handlePersonaCallback(ctx, container)],
+        errorScope: "interaction",
       },
     ],
     [

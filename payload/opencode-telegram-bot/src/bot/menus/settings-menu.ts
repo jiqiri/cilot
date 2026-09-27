@@ -15,6 +15,7 @@ import {
 import { t } from "../../i18n/index.js";
 
 export const SETTINGS_CALLBACK_PREFIX = "settings:";
+export const SETTINGS_PERSONA_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}persona`;
 export const SETTINGS_COMPACT_OUTPUT_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}compact_output`;
 export const SETTINGS_DELETE_PROGRESS_ON_FINISH_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}delete_progress_on_finish`;
 export const SETTINGS_THINKING_CONTENT_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}thinking_content`;
@@ -103,6 +104,8 @@ export function buildSettingsMenuView(): { text: string; keyboard: InlineKeyboar
       `${t("settings.prompt_queue.label")}: ${formatBooleanSettingValue(promptQueueEnabled)}`,
       SETTINGS_PROMPT_QUEUE_CALLBACK,
     );
+
+  keyboard.row().text(t("persona.settings_entry"), SETTINGS_PERSONA_CALLBACK);
 
   return {
     text: t("settings.menu.title"),

@@ -11,6 +11,7 @@ import {
   executeSkill,
   parseSkillsMetadata,
 } from "../callbacks/skills-catalog-callback-handler.js";
+import { handlePersonaTextArguments } from "../callbacks/persona-callback-handler.js";
 
 export async function handleCommandTextArguments(
   ctx: Context,
@@ -91,5 +92,10 @@ export async function handleCatalogTextArguments(
     return true;
   }
 
-  return handleSkillTextArguments(ctx, deps);
+  const handledSkillArgs = await handleSkillTextArguments(ctx, deps);
+  if (handledSkillArgs) {
+    return true;
+  }
+
+  return handlePersonaTextArguments(ctx, deps);
 }

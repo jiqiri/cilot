@@ -166,6 +166,31 @@ EOF
   unset OPENCODE_SERVER_PASSWORD
 }
 
+install_personas() {
+  local telegram_root="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
+  local src="$PAYLOAD_DIR/personas"
+  [[ -d "$src" ]] || return 0
+  mkdir -p "$telegram_root/personas"
+  cp "$src"/*.md "$telegram_root/personas/"
+
+  # `instructions` is the hook that puts the active persona into the system prompt.
+  # The path must be resolvable by the OpenCode server: a relative entry is globbed
+  # from the session working directory, not the config dir, so a home-relative path
+  # is used instead.
+  local persona_ref="~/$telegram_root/PERSONA.md"
+  : >"$telegram_root/PERSONA.md"
+  chmod 600 "$telegram_root/PERSONA.md"
+  chmod 644 "$telegram_root/personas"/*.md
+
+  if ! grep -q '"instructions"' "$telegram_root/opencode.jsonc" 2>/dev/null; then
+    if grep -q '"\$schema"' "$telegram_root/opencode.jsonc" 2>/dev/null; then
+      sed -i "0,\"\$schema\"/s||\"\$schema\": \"https://opencode.ai/config.json\",|\"\$schema\": \"https://opencode.ai/config.json\",\n  \"instructions\": [\"$persona_ref\"],|" "$telegram_root/opencode.jsonc"
+    fi
+  fi
+  log "Persona library installed at $telegram_root/personas"
+  log "Persona hook: config.instructions -> $persona_ref"
+}
+
 install_postiz_agent() {
   local telegram_root="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
   local src="$PAYLOAD_DIR/postiz-agent"
@@ -190,6 +215,7 @@ install_image_plugin() {
   cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.md" "$telegram_skill_dir/SKILL.md"
   chmod 644 "$plugin_dir/index.js" "$telegram_plugin_dir/image_generate.ts" "$skill_dir/SKILL.md" "$telegram_skill_dir/SKILL.md"
   install_postiz_agent
+  install_personas
   mkdir -p "$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/package.json" ]]; then
     printf '%s\n' '{"private":true,"type":"module"}' >"$OPENCODE_MAIN_CONFIG_DIR/package.json"

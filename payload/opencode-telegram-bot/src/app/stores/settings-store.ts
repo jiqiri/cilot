@@ -257,6 +257,15 @@ export function setPromptQueueEnabled(enabled: boolean): void {
   void writeSettingsFile(currentSettings);
 }
 
+export function getActivePersonaId(): string | undefined {
+  return currentSettings.activePersonaId;
+}
+
+export function setActivePersonaId(personaId: string | undefined): void {
+  currentSettings.activePersonaId = personaId;
+  void writeSettingsFile(currentSettings);
+}
+
 export function getCurrentAgent(): string | undefined {
   return currentSettings.currentAgent;
 }
