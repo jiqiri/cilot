@@ -181,6 +181,11 @@ export const en = {
   "projects.selected":
     "✅ Project selected: {project}\n\n📋 Session was reset. Use /sessions or /new for this project.",
   "projects.select_error": "🔴 Failed to select project.",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected":
     "🏗 Project is not selected.\n\nFirst select a project with /projects.",

@@ -184,6 +184,11 @@ export const tr: I18nDictionary = {
   "projects.selected":
     "✅ Proje seçildi: {project}\n\n📋 Oturum sıfırlandı. Bu proje için /sessions veya /new kullanın.",
   "projects.select_error": "🔴 Proje seçilemedi.",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected": "🏗 Proje seçilmedi.\n\nÖnce /projects ile bir proje seçin.",
   "sessions.empty": "📭 Oturum bulunamadı.\n\n/new ile yeni bir oturum oluşturun.",

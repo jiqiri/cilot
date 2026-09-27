@@ -184,6 +184,11 @@ export const vi: I18nDictionary = {
   "projects.selected":
     "✅ Đã chọn dự án: {project}\n\n📋 Phiên đã được đặt lại. Dùng /sessions hoặc /new cho dự án này.",
   "projects.select_error": "🔴 Không chọn được dự án.",
+  "projects.button.hide": "🗑 ẫ độ án",
+  "projects.hide.choose": "Chọn đe ẫ ẫ địa đệ ẫ ản khỏi. Thao tác này chỉ ẽ gỡ khỏi khỏi độ, không xóa phiên hay tái đượ nào.",
+  "projects.hide.hidden": "Đã ẫ độ án: {path}",
+  "projects.hide.undone": "Đã ẫ ẫ độ án từ đặ",
+  "projects.hide.cancel": "↩️ Hủy",
 
   "sessions.project_not_selected":
     "🏗 Chưa chọn dự án.\n\nHãy chọn dự án bằng /projects trước.",

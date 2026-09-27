@@ -8,6 +8,24 @@ import type { ProjectInfo } from "../../app/types/project.js";
 
 const MAX_INLINE_BUTTON_LABEL_LENGTH = 64;
 export const PROJECT_PAGE_CALLBACK_PREFIX = "projects:page:";
+export const PROJECT_HIDE_CALLBACK = "projects:hide";
+export const PROJECT_HIDE_CANCEL_CALLBACK = "projects:hide_cancel";
+export const PROJECT_HIDE_CONFIRM_PREFIX = "projects:hide_confirm:";
+
+export function projectHideConfirmCallback(worktree: string): string {
+  return `${PROJECT_HIDE_CONFIRM_PREFIX}${encodeURIComponent(worktree)}`;
+}
+
+export function parseProjectHideConfirmCallback(data: string): string | null {
+  if (!data.startsWith(PROJECT_HIDE_CONFIRM_PREFIX)) {
+    return null;
+  }
+  try {
+    return decodeURIComponent(data.slice(PROJECT_HIDE_CONFIRM_PREFIX.length));
+  } catch {
+    return null;
+  }
+}
 
 interface ProjectsPaginationRange {
   page: number;

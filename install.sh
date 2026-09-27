@@ -144,6 +144,10 @@ BOT_LOCALE=vi
 PROJECTS_EXCLUDED_PATHS=/
 OPEN_BROWSER_ROOTS=$HOME
 LOG_LEVEL=info
+# Projects can also be hidden from the /projects menu, which stores the path in
+# settings.dismissedProjects. Hiding is applied when the list is read, not by
+# deleting the session-cache entry, because that cache is rebuilt from the
+# OpenCode server on every ready refresh.
 EOF
   cat >"$main_env" <<EOF
 OPENCODE_SERVER_USERNAME=opencode

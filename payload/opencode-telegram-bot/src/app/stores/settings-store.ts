@@ -257,6 +257,30 @@ export function setPromptQueueEnabled(enabled: boolean): void {
   void writeSettingsFile(currentSettings);
 }
 
+export function getDismissedProjects(): string[] {
+  return currentSettings.dismissedProjects ?? [];
+}
+
+export function dismissProject(worktree: string): boolean {
+  const current = getDismissedProjects();
+  if (current.includes(worktree)) {
+    return false;
+  }
+  currentSettings.dismissedProjects = [...current, worktree];
+  void writeSettingsFile(currentSettings);
+  return true;
+}
+
+export function undismissProject(worktree: string): boolean {
+  const current = getDismissedProjects();
+  if (!current.includes(worktree)) {
+    return false;
+  }
+  currentSettings.dismissedProjects = current.filter((item) => item !== worktree);
+  void writeSettingsFile(currentSettings);
+  return true;
+}
+
 export function getActivePersonaId(): string | undefined {
   return currentSettings.activePersonaId;
 }

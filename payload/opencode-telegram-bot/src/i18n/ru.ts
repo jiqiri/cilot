@@ -181,6 +181,11 @@ export const ru: I18nDictionary = {
   "projects.selected":
     "✅ Проект выбран: {project}\n\n📋 Сессия сброшена. Используйте /sessions или /new для работы с этим проектом.",
   "projects.select_error": "🔴 Ошибка при выборе проекта.",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected":
     "🏗 Проект не выбран.\n\nСначала выберите проект командой /projects.",

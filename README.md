@@ -166,6 +166,28 @@ The main V2 server at `~/.config/opencode` uses the same persistent `image_gener
 but does not get the Postiz tools.
 
 
+### Hiding a project
+
+`/projects` lists directories that the OpenCode server has sessions for, merged with a local
+cache of directories the bot has seen. It is derived state, not configuration, and there is no
+list to edit.
+
+Two ways to make a project disappear from the menu:
+
+- `PROJECTS_EXCLUDED_PATHS` in the bot `.env`, comma separated. The shipped default is `/`,
+  because that is the OpenCode server's working directory and it would otherwise offer the
+  whole filesystem as a project.
+- `🗑 Hide a project` at the bottom of the `/projects` menu, which stores the path in
+  `settings.dismissedProjects` in `settings.json`.
+
+Both are applied when the list is read, in `getProjects()`. Neither deletes the session cache
+entry, and that is deliberate: `warmupSessionDirectoryCache()` re-ingests from the sqlite
+database and the global session storage on every OpenCode-ready refresh, so a removed entry
+reappears within seconds. Filtering at read time is the only durable approach, and it deletes
+nothing.
+
+To bring a hidden project back, remove its path from whichever of the two holds it.
+
 ## Translations
 
 Every user-facing string in the Telegram bot goes through `t("key")` and lives in

@@ -189,6 +189,11 @@ export const id: I18nDictionary = {
   "projects.selected":
     "✅ Proyek dipilih: {project}\n\n📋 Sesi direset. Gunakan /sessions atau /new untuk proyek ini.",
   "projects.select_error": "🔴 Gagal memilih proyek.",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected": "🏗 Proyek belum dipilih.\n\nPilih dulu proyek dengan /projects.",
   "sessions.empty": "📭 Tidak ada sesi.\n\nBuat sesi baru dengan /new.",

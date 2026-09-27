@@ -14,6 +14,7 @@ export interface Settings {
   currentProject?: ProjectInfo | undefined;
   currentSession?: SessionInfo | undefined;
   currentAgent?: string | undefined;
+  dismissedProjects?: string[] | undefined;
   activePersonaId?: string | undefined;
   currentModel?: ModelInfo | undefined;
   pinnedMessageId?: number | undefined;

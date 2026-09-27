@@ -182,6 +182,11 @@ export const ar: I18nDictionary = {
   "projects.selected":
     "✅ تم اختيار المشروع: {project}\n\n📋 تمت إعادة ضبط الجلسة الحالية. استخدم /sessions لاختيار جلسة أو /new لبدء جلسة جديدة.",
   "projects.select_error": "🔴 تعذر اختيار المشروع.",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected":
     "🏗 لم تحدد مشروعًا بعد.\n\nاختر مشروعًا أولًا باستخدام /projects.",

@@ -169,6 +169,11 @@ export const zh: I18nDictionary = {
   "projects.selected":
     "✅ 已选择项目：{project}\n\n📋 会话已重置。请在此项目中使用 /sessions 或 /new。",
   "projects.select_error": "🔴 选择项目失败。",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected": "🏗 未选择项目。\n\n请先使用 /projects 选择一个项目。",
   "sessions.empty": "📭 未找到会话。\n\n使用 /new 创建新会话。",

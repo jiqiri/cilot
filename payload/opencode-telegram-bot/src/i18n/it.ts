@@ -194,6 +194,11 @@ export const it: I18nDictionary = {
   "projects.selected":
     "✅ Progetto selezionato: {project}\n\n📋 La sessione è stata reimpostata. Usa /sessions o /new per questo progetto.",
   "projects.select_error": "🔴 Selezione del progetto non riuscita.",
+  "projects.button.hide": "🗑 Hide a project",
+  "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
+  "projects.hide.hidden": "Hidden: {path}",
+  "projects.hide.undone": "Already hidden",
+  "projects.hide.cancel": "↩️ Cancel",
 
   "sessions.project_not_selected":
     "🏗 Nessun progetto selezionato.\n\nSeleziona prima un progetto con /projects.",

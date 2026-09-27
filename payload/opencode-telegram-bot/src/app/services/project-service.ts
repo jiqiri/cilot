@@ -3,6 +3,7 @@ import path from "node:path";
 import { opencodeClient } from "../../opencode/client.js";
 import { config } from "../../config.js";
 import { getCachedSessionProjects } from "./session-cache-service.js";
+import { getDismissedProjects } from "../stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
 import type { ProjectInfo } from "../types/project.js";
 
@@ -68,15 +69,20 @@ async function getResolvedProjects(options?: {
   const visibleProjects = projectList.filter((_, index) => !linkedWorktreeFlags[index]);
   const hiddenLinkedWorktrees = projectList.length - visibleProjects.length;
 
-  const excludedPaths = config.bot.excludedProjectPaths;
+  // Two independent ways for a project to disappear from /projects: PROJECTS_EXCLUDED_PATHS
+  // in the env, and paths the user dismissed from the menu. Both are applied at read time
+  // rather than by deleting the underlying entry, because the session cache is repopulated
+  // from the server on every OpenCode-ready refresh and would just bring them back.
+  const excludedPaths = [...config.bot.excludedProjectPaths, ...getDismissedProjects()];
   const excludedKeys = new Set(excludedPaths.map((excluded) => worktreeKey(excluded)));
   const filteredProjects = excludedKeys.size > 0
     ? visibleProjects.filter((p) => !excludedKeys.has(worktreeKey(p.worktree)))
     : visibleProjects;
   const hiddenExcluded = visibleProjects.length - filteredProjects.length;
+  const dismissedCount = getDismissedProjects().length;
 
   logger.debug(
-    `[ProjectManager] Projects resolved: api=${projects.length}, cached=${cachedProjects.length}, hiddenLinkedWorktrees=${hiddenLinkedWorktrees}, hiddenExcluded=${hiddenExcluded}, total=${filteredProjects.length}`,
+    `[ProjectManager] Projects resolved: api=${projects.length}, cached=${cachedProjects.length}, hiddenLinkedWorktrees=${hiddenLinkedWorktrees}, hiddenExcluded=${hiddenExcluded}, dismissed=${dismissedCount}, total=${filteredProjects.length}`,
   );
 
   return filteredProjects;
@@ -129,6 +135,10 @@ function worktreeKey(worktree: string): string {
 
 function isWindowsWorktreePath(worktree: string): boolean {
   return process.platform === "win32" || /^[a-zA-Z]:[\\/]/.test(worktree) || /^\\\\/.test(worktree);
+}
+
+export function getHiddenProjectWorktrees(): string[] {
+  return [...config.bot.excludedProjectPaths, ...getDismissedProjects()];
 }
 
 export async function getProjects(): Promise<ProjectInfo[]> {
