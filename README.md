@@ -166,6 +166,50 @@ The main V2 server at `~/.config/opencode` uses the same persistent `image_gener
 but does not get the Postiz tools.
 
 
+## Translations
+
+Every user-facing string in the Telegram bot goes through `t("key")` and lives in
+`payload/opencode-telegram-bot/src/i18n/<locale>.ts`. `en.ts` is the source of truth and defines
+the `I18nKey` union; every other file is typed as `I18nDictionary = Record<I18nKey, string>`.
+
+That type is the guard. If a locale is missing a key, `npm run build` inside the bot package
+fails with the key name:
+
+```
+error TS2741: Property '"persona.button.back"' is missing in type '{ ... }'
+              but required in type 'I18nDictionary'.
+```
+
+So a new feature cannot ship with a locale silently missing strings. When you add a key to
+`en.ts`, add it to all other locales too, seeded with the English text, and let translators
+fill them in.
+
+### Adding a language
+
+1. Copy `src/i18n/en.ts` to `src/i18n/<code>.ts`.
+2. Translate every value. Leave `{placeholders}` exactly as they are, including the name.
+3. Register it in `src/i18n/index.ts`: add the import and an entry in `LOCALE_DEFINITIONS`
+   with `code`, `label`, and a BCP 47 `dateLocale`. Keep the array alphabetical by `code`.
+4. Add the code to the supported-locale comment in `.env.example`.
+5. Activate with `BOT_LOCALE=<code>` and restart the bot.
+
+### Checking coverage
+
+```bash
+node tools/i18n-status.mjs                 # coverage table for every locale
+node tools/i18n-status.mjs --locale vi     # list what vi still has in English
+node tools/i18n-status.mjs --locale vi --all
+```
+
+No dependencies, so a translator can run it without installing anything. A non-zero `missing`
+column means the build is currently broken for that locale.
+
+Two caveats on the numbers. A value identical to English is counted as untranslated, which is
+correct for most keys but wrong for pure placeholders such as `📊 {used} / {limit} ({percent}%)`
+or technical tokens like `Cron:` and `PID:`. And coverage counts keys, not quality: 96% can
+still hide a mistranslation. Vietnamese currently sits at 554/576, of which 4 are identical by
+design.
+
 ## Verify
 
 ```bash
