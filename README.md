@@ -143,6 +143,25 @@ service. Override with `OPENCODE_IMAGE_DIR`.
 `postiz_generateImageTool` is intentionally unused. It needs an AI provider key configured on
 the Postiz instance and returns `500` without one.
 
+### Personas are personal data
+
+Personas live in two places, and only one of them is in this repository:
+
+| Path | Contents | In git? |
+| --- | --- | --- |
+| `payload/personas/*.md` | Starter templates shipped to a new install | Yes, version controlled |
+| `~/.config/opencode-telegram-server/opencode/personas/*.md` | Your actual library, edited by the bot | No, outside any repo |
+| `~/.config/opencode-telegram-server/opencode/PERSONA.md` | The active persona, rewritten on every switch | No, mode `600` |
+
+The live library is not a git repository, so there is nothing to ignore. Editing a persona with
+`/persona` → Edit text, or creating one with Create, only ever touches the live path. Do not
+edit `payload/personas/` for personal changes: that directory is the seed, and everything in it
+is pushed to the repository.
+
+The installer is deliberately non-destructive here. It only adds starter templates that are
+missing, and it creates `PERSONA.md` only when absent, so re-running it cannot overwrite an
+edited persona or reset the active voice.
+
 The main V2 server at `~/.config/opencode` uses the same persistent `image_generate` plugin
 but does not get the Postiz tools.
 

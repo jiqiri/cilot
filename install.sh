@@ -171,23 +171,44 @@ install_personas() {
   local src="$PAYLOAD_DIR/personas"
   [[ -d "$src" ]] || return 0
   mkdir -p "$telegram_root/personas"
-  cp "$src"/*.md "$telegram_root/personas/"
+
+  # Personas are personal data, not deployment artefacts. The payload holds starter
+  # templates; anything the user has already created or edited in the live library
+  # is left untouched, so re-running the installer never clobbers their voice.
+  local seeded=0
+  local template
+  for template in "$src"/*.md; do
+    [[ -e "$template" ]] || continue
+    local target="$telegram_root/personas/$(basename "$template")"
+    if [[ -e "$target" ]]; then
+      log "Persona exists, keeping your copy: $(basename "$template")"
+      continue
+    fi
+    cp "$template" "$target"
+    seeded=$((seeded + 1))
+  done
 
   # `instructions` is the hook that puts the active persona into the system prompt.
   # The path must be resolvable by the OpenCode server: a relative entry is globbed
   # from the session working directory, not the config dir, so a home-relative path
   # is used instead.
   local persona_ref="~/$telegram_root/PERSONA.md"
-  : >"$telegram_root/PERSONA.md"
-  chmod 600 "$telegram_root/PERSONA.md"
-  chmod 644 "$telegram_root/personas"/*.md
+  # Only create the overlay when absent. It holds the active persona, which the bot
+  # rewrites on every switch, so truncating it here would reset the chosen voice.
+  if [[ ! -e "$telegram_root/PERSONA.md" ]]; then
+    : >"$telegram_root/PERSONA.md"
+    chmod 600 "$telegram_root/PERSONA.md"
+  fi
+  if compgen -G "$telegram_root/personas/*.md" >/dev/null; then
+    chmod 644 "$telegram_root/personas"/*.md
+  fi
 
   if ! grep -q '"instructions"' "$telegram_root/opencode.jsonc" 2>/dev/null; then
     if grep -q '"\$schema"' "$telegram_root/opencode.jsonc" 2>/dev/null; then
       sed -i "0,\"\$schema\"/s||\"\$schema\": \"https://opencode.ai/config.json\",|\"\$schema\": \"https://opencode.ai/config.json\",\n  \"instructions\": [\"$persona_ref\"],|" "$telegram_root/opencode.jsonc"
     fi
   fi
-  log "Persona library installed at $telegram_root/personas"
+  log "Persona library at $telegram_root/personas ($seeded starter(s) added, existing kept)"
   log "Persona hook: config.instructions -> $persona_ref"
 }
 
