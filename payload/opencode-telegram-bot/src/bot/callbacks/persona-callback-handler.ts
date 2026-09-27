@@ -362,14 +362,17 @@ export async function handlePersonaTextArguments(
       return true;
     }
 
-    const existing = await readPersona(targetId);
-    if (!existing) {
+    // The create stage runs before the file exists, so it must not require one.
+    // Edit stages operate on an existing persona and bail out if it has vanished.
+    const isCreating = metadata.stage === "await_body";
+    const existing = isCreating ? null : await readPersona(targetId);
+    if (!isCreating && !existing) {
       clearPersonaInteraction(deps, "persona_target_missing");
       await ctx.reply(t("persona.callback.missing"));
       return true;
     }
 
-    if (metadata.stage === "await_edit_name") {
+    if (metadata.stage === "await_edit_name" && existing) {
       const name = trimmed.slice(0, 60);
       await savePersona(targetId, { name, description: existing.description, body: existing.body });
       clearPersonaInteraction(deps, "persona_renamed");
@@ -378,22 +381,18 @@ export async function handlePersonaTextArguments(
       return true;
     }
 
-    // Create flow derives the display name from the id the user picked; the edit
-    // flow only replaces the body and leaves the name alone.
-    const isCreating = metadata.stage === "await_body";
+    // Create derives the display name from the id the user picked; edit only
+    // replaces the body and leaves the name and description alone.
+    const display = existing?.name ?? displayName(targetId);
     await savePersona(targetId, {
-      name: isCreating ? displayName(targetId) : existing.name,
-      description: existing.description,
+      name: display,
+      description: existing?.description,
       body: trimmed,
     });
     await applyActivation(targetId);
     clearPersonaInteraction(deps, "persona_saved");
 
-    await ctx.reply(
-      isCreating
-        ? t("persona.saved", { name: displayName(targetId) })
-        : t("persona.saved", { name: existing.name }),
-    );
+    await ctx.reply(t("persona.saved", { name: display }));
     await ctx.reply(t("persona.restart_hint"));
     return true;
   } catch (error) {
