@@ -10,6 +10,7 @@ import { flushSettings, loadSettings } from "../stores/settings-store.js";
 import { LocalCommandRegistry } from "../services/local-command-registry.js";
 import { BUILT_IN_COMMAND_NAMES } from "../../bot/commands/definitions.js";
 import { reconcileStoredModelSelection } from "../services/model-selection-service.js";
+import { reconcileActivePersona } from "../services/persona-service.js";
 import { getBotVersion } from "../../runtime/bot-version.js";
 import { getRuntimeMode } from "../../runtime/mode.js";
 import { getRuntimePaths } from "../../runtime/paths.js";
@@ -204,6 +205,7 @@ export async function startBotApp(): Promise<void> {
 
   await loadSettings();
   await reconcileStoredModelSelection();
+  await reconcileActivePersona();
   const container = createAppContainer();
   registerOpenCodeReadyRefreshHandler(container);
   const { opencodeAutoRestartService, scheduledTaskRuntime } = container;

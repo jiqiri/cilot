@@ -1,6 +1,7 @@
 import fs from "fs/promises";
 import path from "path";
 import { logger } from "../../utils/logger.js";
+import { getActivePersonaId, setActivePersonaId } from "../stores/settings-store.js";
 
 /**
  * Persona library.
@@ -16,11 +17,69 @@ import { logger } from "../../utils/logger.js";
  * personas never puts the other personas into the context window.
  */
 
+/**
+ * Ensures the PERSONA.md overlay matches the stored active persona.
+ *
+ * The overlay is derived state: the bot only rewrites it when someone switches
+ * persona, so it can drift from settings.json. That drift is silent and bad, the
+ * settings panel shows a persona as active while the model is not using it.
+ * Rebuilding it at startup makes the two agree.
+ */
+export async function reconcileActivePersona(): Promise<void> {
+  const activeId = getActivePersonaId();
+
+  if (!activeId) {
+    // No persona selected: make sure a leftover overlay cannot leak in.
+    const existing = await fs.readFile(getActivePersonaFile(), "utf8").catch(() => "");
+    if (existing.trim().length > 0) {
+      logger.info("[Persona] No active persona stored, clearing a stale overlay");
+      await materializeActivePersona(null);
+    }
+    return;
+  }
+
+  if (!(await personaExists(activeId))) {
+    logger.warn(`[Persona] Stored active persona "${activeId}" no longer exists, clearing it`);
+    setActivePersonaId(undefined);
+    await materializeActivePersona(null);
+    return;
+  }
+
+  const { body } = parseFrontmatter(
+    await fs.readFile(path.join(getPersonaDir(), `${activeId}.md`), "utf8"),
+  );
+  const target = getActivePersonaFile();
+  const current = await fs.readFile(target, "utf8").catch(() => "");
+
+  if (current.trim() !== body.trim()) {
+    logger.info(`[Persona] Restoring overlay for active persona "${activeId}"`);
+    await materializeActivePersona(activeId);
+  }
+}
+
+/**
+ * Personas shipped with the installer. This is not the "default persona" marker
+ * that was removed earlier: nothing is locked, nothing is flagged in a file, and
+ * every one of these can be edited, renamed or deleted like any other. The list
+ * only controls where a persona appears in the menu.
+ *
+ * Keep it in step with payload/personas in the installer repository.
+ */
+export const STARTER_PERSONA_IDS: readonly string[] = [
+  "chill",
+  "friendly",
+  "no-bs",
+  "professional",
+  "sarcastic",
+  "witty",
+];
+
 export interface PersonaInfo {
   id: string;
   name: string;
   description?: string | undefined;
   body: string;
+  isStarter: boolean;
   isActive: boolean;
 }
 
@@ -134,11 +193,18 @@ export async function listPersonas(activeId?: string | undefined): Promise<Perso
       name: data.name || displayName(id),
       description: data.description,
       body,
+      isStarter: STARTER_PERSONA_IDS.includes(id),
       isActive: id === activeId,
     });
   }
 
-  return personas;
+  // Starters first, then anything the user created, alphabetical inside each group.
+  return personas.sort((left, right) => {
+    if (left.isStarter !== right.isStarter) {
+      return left.isStarter ? -1 : 1;
+    }
+    return left.id.localeCompare(right.id);
+  });
 }
 
 export async function personaExists(id: string): Promise<boolean> {
@@ -173,6 +239,7 @@ export async function readPersona(id: string): Promise<PersonaInfo | null> {
       name: data.name || displayName(id),
       description: data.description,
       body,
+      isStarter: STARTER_PERSONA_IDS.includes(id),
       isActive: false,
     };
   } catch {
