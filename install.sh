@@ -136,7 +136,13 @@ OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$(awk -F= '$1==\"OPENCODE_SERVER_PASSWORD\" {print $2}' \"$INSTALL_ROOT/opencode-main.env\" 2>/dev/null || true)
 OPENCODE_MODEL_PROVIDER=$OPENCODE_MODEL_PROVIDER
 OPENCODE_MODEL_ID=$OPENCODE_MODEL_ID
-BOT_LOCALE=en
+BOT_LOCALE=vi
+# "/" is the OpenCode server's default working directory and always shows up in
+# /projects as the whole filesystem. Hiding it keeps the agent from running at the
+# root when a real project is available. Add more paths, comma separated, to hide
+# those too.
+PROJECTS_EXCLUDED_PATHS=/
+OPEN_BROWSER_ROOTS=$HOME
 LOG_LEVEL=info
 EOF
   cat >"$main_env" <<EOF
