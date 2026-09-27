@@ -705,5 +705,11 @@ export const vi: I18nDictionary = {
   "persona.manage.header_empty": "Chưa có persona nào đang dùng.",
   'persona.edit.ask_name':
     'Gửi tên hiển thị mới cho "{name}". Id của file sẽ giữ nguyên.',
+  "persona.desc.professional": "Rõ ràng, chính xác, không lờ đạo",
+  "persona.desc.friendly": "ăm áp, khuyến khích, dễ trò chuyện",
+  "persona.desc.witty": "Vui vẻ và dí dọm, hoan nghénh trò đùa",
+  "persona.desc.sarcastic": "Khô khốc và sắc, không cảm xúc",
+  "persona.desc.no-bs": "Thẳng thắn, không vòng vo, không lờ đạo",
+  "persona.desc.chill": "Thong thả, thoải mái, dễ chịu",
   'persona.renamed': 'Đã đổi tên persona thành "{name}".',
 };

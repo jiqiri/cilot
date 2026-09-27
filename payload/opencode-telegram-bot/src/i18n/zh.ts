@@ -646,5 +646,11 @@ export const zh: I18nDictionary = {
   "persona.manage.header": "Managing persona: {name}",
   "persona.manage.header_empty": "No persona is active.",
   "persona.edit.ask_name": "Send the new display name for \"{name}\". The file id stays the same.",
+  "persona.desc.professional": "Clear, precise, no filler",
+  "persona.desc.friendly": "Warm, encouraging, easy to talk to",
+  "persona.desc.witty": "Playful and clever, jokes welcome",
+  "persona.desc.sarcastic": "Dry and pointed, deadpan",
+  "persona.desc.no-bs": "Blunt, no hedging, no filler",
+  "persona.desc.chill": "Relaxed, laid back, easy",
   "persona.renamed": "Persona renamed to \"{name}\".",
 };

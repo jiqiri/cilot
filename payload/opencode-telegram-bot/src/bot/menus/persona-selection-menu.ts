@@ -1,6 +1,10 @@
 import { InlineKeyboard } from "grammy";
 import { t } from "../../i18n/index.js";
+import type { I18nKey } from "../../i18n/en.js";
 import type { PersonaInfo } from "../../app/services/persona-service.js";
+
+/** i18n keys for starter persona blurbs are `persona.desc.<persona-id>`. */
+export const PERSONA_DESCRIPTION_KEY_PREFIX = "persona.desc.";
 
 export const PERSONA_CALLBACK_PREFIX = "persona:";
 export const PERSONA_CLOSE_CALLBACK = `${PERSONA_CALLBACK_PREFIX}close`;
@@ -33,15 +37,31 @@ export function personaLabel(persona: PersonaInfo): string {
   return `${persona.isActive ? PERSONA_ACTIVE_MARK : "▫️"} ${persona.name}`;
 }
 
+/**
+ * Starter personas get their blurb from the active locale, so the list reads in
+ * the same language as the rest of the interface. Anything the user created
+ * falls back to the description stored in its own file, which is their data and
+ * must not be rewritten.
+ */
+function localizedDescription(persona: PersonaInfo): string | undefined {
+  const key = `${PERSONA_DESCRIPTION_KEY_PREFIX}${persona.id}` as I18nKey;
+  const localized = t(key);
+  if (localized !== key) {
+    return localized;
+  }
+  return persona.description;
+}
+
 export function formatPersonaListText(personas: PersonaInfo[], activeId: string | undefined): string {
   const active = personas.find((persona) => persona.id === activeId);
   const header = active
     ? t("persona.menu.text_active", { name: active.name })
     : t("persona.menu.text_inactive");
 
-  const lines = personas.map((persona) =>
-    persona.description ? `${personaLabel(persona)} — ${persona.description}` : personaLabel(persona),
-  );
+  const lines = personas.map((persona) => {
+    const description = localizedDescription(persona);
+    return description ? `${personaLabel(persona)} — ${description}` : personaLabel(persona);
+  });
 
   return [header, "", ...lines, "", t("persona.menu.hint")].join("\n");
 }
