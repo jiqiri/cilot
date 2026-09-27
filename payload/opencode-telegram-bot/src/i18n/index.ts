@@ -9,6 +9,7 @@ import { ko } from "./ko.js";
 import { pt } from "./pt.js";
 import { ru } from "./ru.js";
 import { tr } from "./tr.js";
+import { vi } from "./vi.js";
 import { zh } from "./zh.js";
 
 interface LocaleDefinition {
@@ -84,6 +85,12 @@ const LOCALE_DEFINITIONS = [
     label: "Türkçe",
     dateLocale: "tr-TR",
     dictionary: tr,
+  },
+  {
+    code: "vi",
+    label: "Tiếng Việt",
+    dateLocale: "vi-VN",
+    dictionary: vi,
   },
   {
     code: "zh",
