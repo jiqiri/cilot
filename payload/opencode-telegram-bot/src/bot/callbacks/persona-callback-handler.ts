@@ -3,66 +3,79 @@ import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import { t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
 import {
+  clearDefaultFlag,
   deletePersona,
   displayName,
   listPersonas,
   materializeActivePersona,
   normalizePersonaId,
   personaExists,
+  readPersona,
   savePersona,
+  setDefaultPersona,
   type PersonaInfo,
 } from "../../app/services/persona-service.js";
 import { getActivePersonaId, setActivePersonaId } from "../../app/stores/settings-store.js";
 import {
+  PERSONA_ACTIVE_MARK,
+  PERSONA_BACK_CALLBACK,
   PERSONA_CALLBACK_PREFIX,
   PERSONA_CLOSE_CALLBACK,
   PERSONA_CREATE_CALLBACK,
   PERSONA_DELETE_CALLBACK,
   PERSONA_DELETE_CANCEL_CALLBACK,
   PERSONA_DELETE_CONFIRM_CALLBACK,
-  PERSONA_EDIT_CALLBACK,
+  PERSONA_EDIT_NAME_CALLBACK,
+  PERSONA_EDIT_TEXT_CALLBACK,
+  PERSONA_MAKE_DEFAULT_CALLBACK,
+  PERSONA_MANAGE_CALLBACK,
   PERSONA_NONE_CALLBACK,
+  PERSONA_UNSET_DEFAULT_CALLBACK,
   buildPersonaDeleteKeyboard,
   buildPersonaListKeyboard,
+  buildPersonaManageKeyboard,
   formatPersonaListText,
   parsePersonaSelectCallback,
 } from "../menus/persona-selection-menu.js";
 
 type PersonaDeps = Pick<AppContainer, "interactionManager">;
 
+type PersonaStage = "await_name" | "await_body" | "await_edit_name" | "await_edit_text" | "delete_confirm";
+
 interface PersonaMetadata {
   flow: "persona";
-  stage: "await_name" | "await_body" | "delete_confirm";
+  stage: PersonaStage;
   messageId?: number;
   targetId?: string;
   targetName?: string;
-  mode: "create" | "edit";
 }
 
-const RESTART_HINT = "persona.restart_hint";
+const VALID_STAGES: readonly PersonaStage[] = [
+  "await_name",
+  "await_body",
+  "await_edit_name",
+  "await_edit_text",
+  "delete_confirm",
+];
 
 export function parsePersonaMetadata(state: unknown): PersonaMetadata | null {
   if (!state || typeof state !== "object") {
     return null;
   }
   const snapshot = state as { kind?: string; metadata?: Record<string, unknown> };
-  if (snapshot.kind !== "custom") {
+  if (snapshot.kind !== "custom" || !snapshot.metadata) {
     return null;
   }
   const metadata = snapshot.metadata;
-  if (!metadata || metadata.flow !== "persona") {
+  if (metadata.flow !== "persona" || typeof metadata.stage !== "string") {
     return null;
   }
-  const stage = metadata.stage;
-  const mode = metadata.mode;
-  if (stage !== "await_name" && stage !== "await_body" && stage !== "delete_confirm") {
-    return null;
-  }
-  if (mode !== "create" && mode !== "edit") {
+  const stage = metadata.stage as PersonaStage;
+  if (!VALID_STAGES.includes(stage)) {
     return null;
   }
 
-  const parsed: PersonaMetadata = { flow: "persona", stage, mode };
+  const parsed: PersonaMetadata = { flow: "persona", stage };
 
   if (typeof metadata.messageId === "number") {
     parsed.messageId = metadata.messageId;
@@ -73,13 +86,11 @@ export function parsePersonaMetadata(state: unknown): PersonaMetadata | null {
   if (typeof metadata.targetName === "string") {
     parsed.targetName = metadata.targetName;
   }
-
   return parsed;
 }
 
 function clearPersonaInteraction(deps: PersonaDeps, reason: string): void {
-  const metadata = parsePersonaMetadata(deps.interactionManager.getSnapshot());
-  if (metadata) {
+  if (parsePersonaMetadata(deps.interactionManager.getSnapshot())) {
     deps.interactionManager.clear(reason as never);
   }
 }
@@ -95,6 +106,21 @@ async function renderList(ctx: Context, messageId?: number): Promise<void> {
     return;
   }
   await ctx.reply(text, { reply_markup: keyboard });
+}
+
+async function renderManage(ctx: Context, messageId?: number): Promise<void> {
+  const activeId = getActivePersonaId();
+  const persona = activeId ? await readPersona(activeId) : null;
+  const header = persona
+    ? t("persona.manage.header", { name: persona.name })
+    : t("persona.manage.header_empty");
+  const keyboard = buildPersonaManageKeyboard(persona);
+
+  if (messageId !== undefined) {
+    await ctx.editMessageText(header, { reply_markup: keyboard });
+    return;
+  }
+  await ctx.reply(header, { reply_markup: keyboard });
 }
 
 async function applyActivation(id: string | null): Promise<void> {
@@ -117,6 +143,8 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
     return false;
   }
 
+  const activeId = getActivePersonaId();
+
   try {
     if (data === PERSONA_CLOSE_CALLBACK) {
       await ctx.answerCallbackQuery();
@@ -132,60 +160,110 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
       return true;
     }
 
+    if (data === PERSONA_BACK_CALLBACK) {
+      clearPersonaInteraction(deps, "persona_back");
+      await ctx.answerCallbackQuery();
+      await renderList(ctx, ctx.callbackQuery?.message?.message_id);
+      return true;
+    }
+
     if (data === PERSONA_CREATE_CALLBACK) {
       await ctx.answerCallbackQuery();
       const prompt = await ctx.reply(t("persona.create.ask_name"));
       deps.interactionManager.start({
         kind: "custom",
         expectedInput: "text",
-        metadata: {
-          flow: "persona",
-          stage: "await_name",
-          mode: "create",
-          messageId: prompt.message_id,
-        },
+        metadata: { flow: "persona", stage: "await_name", messageId: prompt.message_id },
       });
       return true;
     }
 
-    if (data === PERSONA_EDIT_CALLBACK) {
-      const activeId = getActivePersonaId();
-      if (!activeId) {
+    if (data === PERSONA_MANAGE_CALLBACK) {
+      await ctx.answerCallbackQuery();
+      await renderManage(ctx, ctx.callbackQuery?.message?.message_id);
+      return true;
+    }
+
+    if (data === PERSONA_EDIT_TEXT_CALLBACK) {
+      const persona = activeId ? await readPersona(activeId) : null;
+      if (!persona) {
         await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
         return true;
       }
-      const personas = await listPersonas(activeId);
-      const active = personas.find((persona) => persona.id === activeId);
+      if (persona.isDefault) {
+        await ctx.answerCallbackQuery({ text: t("persona.callback.default_locked"), show_alert: true });
+        return true;
+      }
       await ctx.answerCallbackQuery();
-      const prompt = await ctx.reply(
-        t("persona.edit.ask_body", { name: active?.name ?? displayName(activeId) }),
-      );
+      const prompt = await ctx.reply(t("persona.edit.ask_body", { name: persona.name }));
       deps.interactionManager.start({
         kind: "custom",
         expectedInput: "text",
         metadata: {
           flow: "persona",
-          stage: "await_body",
-          mode: "edit",
-          targetId: activeId,
-          targetName: active?.name ?? displayName(activeId),
+          stage: "await_edit_text",
+          targetId: persona.id,
+          targetName: persona.name,
           messageId: prompt.message_id,
         },
       });
       return true;
     }
 
-    if (data === PERSONA_DELETE_CALLBACK) {
-      const activeId = getActivePersonaId();
+    if (data === PERSONA_EDIT_NAME_CALLBACK) {
+      const persona = activeId ? await readPersona(activeId) : null;
+      if (!persona) {
+        await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
+        return true;
+      }
+      if (persona.isDefault) {
+        await ctx.answerCallbackQuery({ text: t("persona.callback.default_locked"), show_alert: true });
+        return true;
+      }
+      await ctx.answerCallbackQuery();
+      const prompt = await ctx.reply(t("persona.edit.ask_name", { name: persona.name }));
+      deps.interactionManager.start({
+        kind: "custom",
+        expectedInput: "text",
+        metadata: {
+          flow: "persona",
+          stage: "await_edit_name",
+          targetId: persona.id,
+          targetName: persona.name,
+          messageId: prompt.message_id,
+        },
+      });
+      return true;
+    }
+
+    if (data === PERSONA_MAKE_DEFAULT_CALLBACK || data === PERSONA_UNSET_DEFAULT_CALLBACK) {
       if (!activeId) {
         await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
         return true;
       }
-      const personas = await listPersonas(activeId);
-      const active = personas.find((persona) => persona.id === activeId);
-      const name = active?.name ?? displayName(activeId);
+      if (data === PERSONA_MAKE_DEFAULT_CALLBACK) {
+        await setDefaultPersona(activeId);
+        await ctx.answerCallbackQuery({ text: t("persona.callback.default_set") });
+      } else {
+        await clearDefaultFlag(null);
+        await ctx.answerCallbackQuery({ text: t("persona.callback.default_unset") });
+      }
+      await renderManage(ctx, ctx.callbackQuery?.message?.message_id);
+      return true;
+    }
+
+    if (data === PERSONA_DELETE_CALLBACK) {
+      const persona = activeId ? await readPersona(activeId) : null;
+      if (!persona) {
+        await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
+        return true;
+      }
+      if (persona.isDefault) {
+        await ctx.answerCallbackQuery({ text: t("persona.callback.default_locked"), show_alert: true });
+        return true;
+      }
       await ctx.answerCallbackQuery();
-      await ctx.editMessageText(t("persona.delete.confirm", { name }), {
+      await ctx.editMessageText(t("persona.delete.confirm", { name: persona.name }), {
         reply_markup: buildPersonaDeleteKeyboard(),
       });
       deps.interactionManager.transition({
@@ -193,9 +271,8 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
         metadata: {
           flow: "persona",
           stage: "delete_confirm",
-          mode: "edit",
-          targetId: activeId,
-          targetName: name,
+          targetId: persona.id,
+          targetName: persona.name,
           ...(ctx.callbackQuery?.message?.message_id !== undefined
             ? { messageId: ctx.callbackQuery.message.message_id }
             : {}),
@@ -205,9 +282,8 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
     }
 
     if (data === PERSONA_DELETE_CONFIRM_CALLBACK) {
-      const targetId = getActivePersonaId();
-      if (targetId && (await personaExists(targetId))) {
-        await deletePersona(targetId);
+      if (activeId && (await personaExists(activeId))) {
+        await deletePersona(activeId);
         await applyActivation(null);
       }
       clearPersonaInteraction(deps, "persona_deleted");
@@ -232,7 +308,10 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
       await applyActivation(selectedId);
       const personas: PersonaInfo[] = await listPersonas(selectedId);
       const selected = personas.find((persona) => persona.id === selectedId);
-      await ctx.answerCallbackQuery({ text: t("persona.callback.selected", { name: selected?.name ?? selectedId }) });
+      const mark = selected?.isDefault ? `${PERSONA_ACTIVE_MARK} ` : "";
+      await ctx.answerCallbackQuery({
+        text: t("persona.callback.selected", { name: `${mark}${selected?.name ?? selectedId}` }),
+      });
       await renderList(ctx, ctx.callbackQuery?.message?.message_id);
       return true;
     }
@@ -276,7 +355,7 @@ export async function handlePersonaTextArguments(
         await ctx.reply(t("persona.create.name_invalid"));
         return true;
       }
-      if (metadata.mode === "create" && (await personaExists(id))) {
+      if (await personaExists(id)) {
         await ctx.reply(t("persona.create.name_exists", { name: id }));
         return true;
       }
@@ -286,7 +365,6 @@ export async function handlePersonaTextArguments(
         metadata: {
           flow: "persona",
           stage: "await_body",
-          mode: metadata.mode,
           targetId: id,
           targetName: id,
           messageId: prompt.message_id,
@@ -296,7 +374,11 @@ export async function handlePersonaTextArguments(
     }
 
     if (!trimmed) {
-      await ctx.reply(t("persona.create.body_empty"));
+      await ctx.reply(
+        metadata.stage === "await_edit_name"
+          ? t("persona.create.name_empty")
+          : t("persona.create.body_empty"),
+      );
       return true;
     }
 
@@ -307,16 +389,50 @@ export async function handlePersonaTextArguments(
       return true;
     }
 
-    const existing = (await listPersonas(getActivePersonaId())).find(
-      (persona) => persona.id === targetId,
-    );
-    const name = existing?.name ?? metadata.targetName ?? displayName(targetId);
-    await savePersona(targetId, name, existing?.description, trimmed);
+    const existing = await readPersona(targetId);
+    if (!existing) {
+      clearPersonaInteraction(deps, "persona_target_missing");
+      await ctx.reply(t("persona.callback.missing"));
+      return true;
+    }
+    if (existing.isDefault) {
+      clearPersonaInteraction(deps, "persona_default_locked");
+      await ctx.reply(t("persona.callback.default_locked"));
+      return true;
+    }
+
+    if (metadata.stage === "await_edit_name") {
+      const name = trimmed.slice(0, 60);
+      await savePersona(targetId, {
+        name,
+        description: existing.description,
+        isDefault: false,
+        body: existing.body,
+      });
+      clearPersonaInteraction(deps, "persona_renamed");
+      await ctx.reply(t("persona.renamed", { name }));
+      await renderList(ctx);
+      return true;
+    }
+
+    // Create flow derives the display name from the id the user picked; the edit
+    // flow only replaces the body and leaves the name alone.
+    const isCreating = metadata.stage === "await_body";
+    await savePersona(targetId, {
+      name: isCreating ? displayName(targetId) : existing.name,
+      description: existing.description,
+      isDefault: false,
+      body: trimmed,
+    });
     await applyActivation(targetId);
     clearPersonaInteraction(deps, "persona_saved");
 
-    await ctx.reply(t("persona.saved", { name }));
-    await ctx.reply(t(RESTART_HINT));
+    await ctx.reply(
+      isCreating
+        ? t("persona.saved", { name: displayName(targetId) })
+        : t("persona.saved", { name: existing.name }),
+    );
+    await ctx.reply(t("persona.restart_hint"));
     return true;
   } catch (error) {
     logger.error("[Persona] Error handling persona text input:", error);

@@ -24,6 +24,7 @@ export interface PersonaInfo {
   description?: string | undefined;
   body: string;
   isStarter: boolean;
+  isDefault: boolean;
   isActive: boolean;
 }
 
@@ -69,7 +70,12 @@ export function normalizePersonaId(raw: string): string | null {
   return ID_PATTERN.test(id) ? id : null;
 }
 
-function parseFrontmatter(source: string): { data: Record<string, string>; body: string } {
+interface Frontmatter {
+  data: Record<string, string | boolean>;
+  body: string;
+}
+
+function parseFrontmatter(source: string): Frontmatter {
   const normalized = source.replace(/^﻿/, "").replace(/\r\n/g, "\n");
   const match = normalized.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
 
@@ -78,30 +84,43 @@ function parseFrontmatter(source: string): { data: Record<string, string>; body:
   }
 
   const [, rawFrontmatter = "", rawBody = ""] = match;
-  const data: Record<string, string> = {};
+  const data: Record<string, string | boolean> = {};
   for (const line of rawFrontmatter.split("\n")) {
     const separator = line.indexOf(":");
     if (separator <= 0) {
       continue;
     }
     const key = line.slice(0, separator).trim();
-    const value = line.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
-    if (key) {
-      data[key] = value;
+    const raw = line.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
+    if (!key) {
+      continue;
     }
+    data[key] = raw === "true" ? true : raw === "false" ? false : raw;
   }
 
   return { data, body: rawBody.trim() };
 }
 
-function renderPersonaFile(name: string, description: string | undefined, body: string): string {
-  const header = ["---", `name: ${name}`];
-  if (description) {
-    header.push(`description: ${description}`);
+function asString(value: string | boolean | undefined): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function renderPersonaFile(persona: {
+  name: string;
+  description?: string | undefined;
+  isDefault: boolean;
+  body: string;
+}): string {
+  const header = ["---", `name: ${persona.name}`];
+  if (persona.description) {
+    header.push(`description: ${persona.description}`);
+  }
+  if (persona.isDefault) {
+    header.push("default: true");
   }
   header.push("---", "");
 
-  return `${header.join("\n")}${body}\n`;
+  return `${header.join("\n")}${persona.body}\n`;
 }
 
 export function displayName(id: string): string {
@@ -133,10 +152,11 @@ export async function listPersonas(activeId?: string | undefined): Promise<Perso
     const { data, body } = parseFrontmatter(await fs.readFile(path.join(dir, entry), "utf8"));
     personas.push({
       id,
-      name: data.name || displayName(id),
-      description: data.description,
+      name: asString(data.name) ?? displayName(id),
+      description: asString(data.description),
       body,
       isStarter: isReservedPersonaId(id),
+      isDefault: data.default === true,
       isActive: id === activeId,
     });
   }
@@ -153,16 +173,74 @@ export async function personaExists(id: string): Promise<boolean> {
   }
 }
 
-export async function savePersona(id: string, name: string, description: string | undefined, body: string): Promise<void> {
+export async function savePersona(
+  id: string,
+  update: { name: string; description?: string | undefined; isDefault: boolean; body: string },
+): Promise<void> {
   const dir = getPersonaDir();
   await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(path.join(dir, `${id}.md`), renderPersonaFile(name, description, body), {
+  await fs.writeFile(path.join(dir, `${id}.md`), renderPersonaFile(update), {
     encoding: "utf8",
     mode: 0o600,
   });
 }
 
+/** Reads a persona without going through listPersonas. */
+export async function readPersona(id: string): Promise<PersonaInfo | null> {
+  try {
+    const { data, body } = parseFrontmatter(
+      await fs.readFile(path.join(getPersonaDir(), `${id}.md`), "utf8"),
+    );
+    return {
+      id,
+      name: asString(data.name) ?? displayName(id),
+      description: asString(data.description),
+      body,
+      isStarter: isReservedPersonaId(id),
+      isDefault: data.default === true,
+      isActive: false,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Exactly one persona may carry `default: true`; this clears it on all others. */
+export async function clearDefaultFlag(exceptId: string | null): Promise<void> {
+  const personas = await listPersonas();
+
+  for (const persona of personas) {
+    if (!persona.isDefault || persona.id === exceptId) {
+      continue;
+    }
+    await savePersona(persona.id, {
+      name: persona.name,
+      description: persona.description,
+      isDefault: false,
+      body: persona.body,
+    });
+  }
+}
+
+export async function setDefaultPersona(id: string): Promise<void> {
+  const persona = await readPersona(id);
+  if (!persona) {
+    throw new Error(`Unknown persona: ${id}`);
+  }
+  await clearDefaultFlag(id);
+  await savePersona(id, {
+    name: persona.name,
+    description: persona.description,
+    isDefault: true,
+    body: persona.body,
+  });
+}
+
 export async function deletePersona(id: string): Promise<void> {
+  const persona = await readPersona(id);
+  if (persona?.isDefault) {
+    throw new Error("The default persona cannot be deleted.");
+  }
   await fs.unlink(path.join(getPersonaDir(), `${id}.md`));
 }
 

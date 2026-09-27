@@ -6,10 +6,18 @@ export const PERSONA_CALLBACK_PREFIX = "persona:";
 export const PERSONA_CLOSE_CALLBACK = `${PERSONA_CALLBACK_PREFIX}close`;
 export const PERSONA_NONE_CALLBACK = `${PERSONA_CALLBACK_PREFIX}none`;
 export const PERSONA_CREATE_CALLBACK = `${PERSONA_CALLBACK_PREFIX}create`;
-export const PERSONA_EDIT_CALLBACK = `${PERSONA_CALLBACK_PREFIX}edit`;
+export const PERSONA_MANAGE_CALLBACK = `${PERSONA_CALLBACK_PREFIX}manage`;
 export const PERSONA_DELETE_CALLBACK = `${PERSONA_CALLBACK_PREFIX}delete`;
+export const PERSONA_EDIT_TEXT_CALLBACK = `${PERSONA_CALLBACK_PREFIX}edit_text`;
+export const PERSONA_EDIT_NAME_CALLBACK = `${PERSONA_CALLBACK_PREFIX}edit_name`;
+export const PERSONA_MAKE_DEFAULT_CALLBACK = `${PERSONA_CALLBACK_PREFIX}make_default`;
+export const PERSONA_UNSET_DEFAULT_CALLBACK = `${PERSONA_CALLBACK_PREFIX}unset_default`;
+export const PERSONA_BACK_CALLBACK = `${PERSONA_CALLBACK_PREFIX}back`;
 export const PERSONA_DELETE_CONFIRM_CALLBACK = `${PERSONA_CALLBACK_PREFIX}delete_confirm`;
 export const PERSONA_DELETE_CANCEL_CALLBACK = `${PERSONA_CALLBACK_PREFIX}delete_cancel`;
+
+export const PERSONA_STAR = "⭐";
+export const PERSONA_ACTIVE_MARK = "✅";
 
 export function personaSelectCallback(id: string): string {
   return `${PERSONA_CALLBACK_PREFIX}select:${id}`;
@@ -24,47 +32,84 @@ export function parsePersonaSelectCallback(data: string): string | null {
   return id.length > 0 ? id : null;
 }
 
-export function formatPersonaListText(
-  personas: PersonaInfo[],
-  activeId: string | undefined,
-): string {
+export function personaLabel(persona: PersonaInfo): string {
+  const marks = [persona.isActive ? PERSONA_ACTIVE_MARK : "▫️"];
+  if (persona.isDefault) {
+    marks.push(PERSONA_STAR);
+  }
+  return `${marks.join("")} ${persona.name}`;
+}
+
+export function formatPersonaListText(personas: PersonaInfo[], activeId: string | undefined): string {
   const active = personas.find((persona) => persona.id === activeId);
   const header = active
     ? t("persona.menu.text_active", { name: active.name })
     : t("persona.menu.text_inactive");
 
   const lines = personas.map((persona) => {
-    const mark = persona.isActive ? "✅" : "▫️";
-    return persona.description
-      ? `${mark} ${persona.name} — ${persona.description}`
-      : `${mark} ${persona.name}`;
+    const tags = persona.isDefault ? t("persona.menu.tag_default") : undefined;
+    const description = persona.description;
+    const suffix = [tags, description].filter(Boolean).join(" — ");
+    return suffix ? `${personaLabel(persona)} — ${suffix}` : personaLabel(persona);
   });
 
   return [header, "", ...lines, "", t("persona.menu.hint")].join("\n");
 }
 
+/** Close sits on the first row so it is always reachable without scrolling past the list. */
 export function buildPersonaListKeyboard(personas: PersonaInfo[], activeId?: string): InlineKeyboard {
   const keyboard = new InlineKeyboard();
 
+  keyboard.text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK).row();
+
   for (const persona of personas) {
-    const label = persona.isActive ? `✅ ${persona.name}` : persona.name;
-    keyboard.text(label, personaSelectCallback(persona.id)).row();
+    keyboard.text(personaLabel(persona), personaSelectCallback(persona.id)).row();
   }
 
   if (activeId) {
     keyboard
       .text(t("persona.button.none"), PERSONA_NONE_CALLBACK)
-      .text(t("persona.button.edit"), PERSONA_EDIT_CALLBACK)
+      .text(t("persona.button.manage"), PERSONA_MANAGE_CALLBACK)
       .row();
   } else {
     keyboard.text(t("persona.button.none"), PERSONA_NONE_CALLBACK).row();
   }
 
-  return keyboard
-    .text(t("persona.button.create"), PERSONA_CREATE_CALLBACK)
-    .text(t("persona.button.delete"), PERSONA_DELETE_CALLBACK)
-    .row()
-    .text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK);
+  return keyboard.text(t("persona.button.create"), PERSONA_CREATE_CALLBACK);
+}
+
+export function buildPersonaManageKeyboard(persona: PersonaInfo | null): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+
+  if (!persona) {
+    return keyboard.text(t("persona.button.back"), PERSONA_BACK_CALLBACK);
+  }
+
+  keyboard.text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK).row();
+
+  if (persona.isDefault) {
+    keyboard.text(t("persona.manage.locked"), PERSONA_MANAGE_CALLBACK).row();
+  } else {
+    keyboard
+      .text(t("persona.button.edit_text"), PERSONA_EDIT_TEXT_CALLBACK)
+      .text(t("persona.button.edit_name"), PERSONA_EDIT_NAME_CALLBACK)
+      .row();
+  }
+
+  keyboard
+    .text(
+      persona.isDefault
+        ? t("persona.button.unset_default")
+        : t("persona.button.make_default"),
+      persona.isDefault ? PERSONA_UNSET_DEFAULT_CALLBACK : PERSONA_MAKE_DEFAULT_CALLBACK,
+    )
+    .row();
+
+  if (!persona.isDefault) {
+    keyboard.text(t("persona.button.delete"), PERSONA_DELETE_CALLBACK).row();
+  }
+
+  return keyboard.text(t("persona.button.back"), PERSONA_BACK_CALLBACK);
 }
 
 export function buildPersonaDeleteKeyboard(): InlineKeyboard {
@@ -72,5 +117,5 @@ export function buildPersonaDeleteKeyboard(): InlineKeyboard {
     .text(t("persona.button.delete_confirm"), PERSONA_DELETE_CONFIRM_CALLBACK)
     .text(t("persona.button.delete_cancel"), PERSONA_DELETE_CANCEL_CALLBACK)
     .row()
-    .text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK);
+    .text(t("persona.button.back"), PERSONA_BACK_CALLBACK);
 }
