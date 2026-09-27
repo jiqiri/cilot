@@ -3,7 +3,6 @@ import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import { t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
 import {
-  clearDefaultFlag,
   deletePersona,
   displayName,
   listPersonas,
@@ -12,12 +11,10 @@ import {
   personaExists,
   readPersona,
   savePersona,
-  setDefaultPersona,
   type PersonaInfo,
 } from "../../app/services/persona-service.js";
 import { getActivePersonaId, setActivePersonaId } from "../../app/stores/settings-store.js";
 import {
-  PERSONA_ACTIVE_MARK,
   PERSONA_BACK_CALLBACK,
   PERSONA_CALLBACK_PREFIX,
   PERSONA_CLOSE_CALLBACK,
@@ -27,10 +24,8 @@ import {
   PERSONA_DELETE_CONFIRM_CALLBACK,
   PERSONA_EDIT_NAME_CALLBACK,
   PERSONA_EDIT_TEXT_CALLBACK,
-  PERSONA_MAKE_DEFAULT_CALLBACK,
   PERSONA_MANAGE_CALLBACK,
   PERSONA_NONE_CALLBACK,
-  PERSONA_UNSET_DEFAULT_CALLBACK,
   buildPersonaDeleteKeyboard,
   buildPersonaListKeyboard,
   buildPersonaManageKeyboard,
@@ -190,10 +185,6 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
         await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
         return true;
       }
-      if (persona.isDefault) {
-        await ctx.answerCallbackQuery({ text: t("persona.callback.default_locked"), show_alert: true });
-        return true;
-      }
       await ctx.answerCallbackQuery();
       const prompt = await ctx.reply(t("persona.edit.ask_body", { name: persona.name }));
       deps.interactionManager.start({
@@ -216,10 +207,6 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
         await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
         return true;
       }
-      if (persona.isDefault) {
-        await ctx.answerCallbackQuery({ text: t("persona.callback.default_locked"), show_alert: true });
-        return true;
-      }
       await ctx.answerCallbackQuery();
       const prompt = await ctx.reply(t("persona.edit.ask_name", { name: persona.name }));
       deps.interactionManager.start({
@@ -236,30 +223,10 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
       return true;
     }
 
-    if (data === PERSONA_MAKE_DEFAULT_CALLBACK || data === PERSONA_UNSET_DEFAULT_CALLBACK) {
-      if (!activeId) {
-        await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
-        return true;
-      }
-      if (data === PERSONA_MAKE_DEFAULT_CALLBACK) {
-        await setDefaultPersona(activeId);
-        await ctx.answerCallbackQuery({ text: t("persona.callback.default_set") });
-      } else {
-        await clearDefaultFlag(null);
-        await ctx.answerCallbackQuery({ text: t("persona.callback.default_unset") });
-      }
-      await renderManage(ctx, ctx.callbackQuery?.message?.message_id);
-      return true;
-    }
-
     if (data === PERSONA_DELETE_CALLBACK) {
       const persona = activeId ? await readPersona(activeId) : null;
       if (!persona) {
         await ctx.answerCallbackQuery({ text: t("persona.callback.no_active"), show_alert: true });
-        return true;
-      }
-      if (persona.isDefault) {
-        await ctx.answerCallbackQuery({ text: t("persona.callback.default_locked"), show_alert: true });
         return true;
       }
       await ctx.answerCallbackQuery();
@@ -308,9 +275,8 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
       await applyActivation(selectedId);
       const personas: PersonaInfo[] = await listPersonas(selectedId);
       const selected = personas.find((persona) => persona.id === selectedId);
-      const mark = selected?.isDefault ? `${PERSONA_ACTIVE_MARK} ` : "";
       await ctx.answerCallbackQuery({
-        text: t("persona.callback.selected", { name: `${mark}${selected?.name ?? selectedId}` }),
+        text: t("persona.callback.selected", { name: selected?.name ?? selectedId }),
       });
       await renderList(ctx, ctx.callbackQuery?.message?.message_id);
       return true;
@@ -395,20 +361,10 @@ export async function handlePersonaTextArguments(
       await ctx.reply(t("persona.callback.missing"));
       return true;
     }
-    if (existing.isDefault) {
-      clearPersonaInteraction(deps, "persona_default_locked");
-      await ctx.reply(t("persona.callback.default_locked"));
-      return true;
-    }
 
     if (metadata.stage === "await_edit_name") {
       const name = trimmed.slice(0, 60);
-      await savePersona(targetId, {
-        name,
-        description: existing.description,
-        isDefault: false,
-        body: existing.body,
-      });
+      await savePersona(targetId, { name, description: existing.description, body: existing.body });
       clearPersonaInteraction(deps, "persona_renamed");
       await ctx.reply(t("persona.renamed", { name }));
       await renderList(ctx);
@@ -421,7 +377,6 @@ export async function handlePersonaTextArguments(
     await savePersona(targetId, {
       name: isCreating ? displayName(targetId) : existing.name,
       description: existing.description,
-      isDefault: false,
       body: trimmed,
     });
     await applyActivation(targetId);

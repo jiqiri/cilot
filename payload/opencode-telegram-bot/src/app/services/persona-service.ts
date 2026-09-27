@@ -16,15 +16,11 @@ import { logger } from "../../utils/logger.js";
  * personas never puts the other personas into the context window.
  */
 
-const STARTER_PERSONA_IDS = new Set(["professional", "sassy", "chill", "none"]);
-
 export interface PersonaInfo {
   id: string;
   name: string;
   description?: string | undefined;
   body: string;
-  isStarter: boolean;
-  isDefault: boolean;
   isActive: boolean;
 }
 
@@ -48,10 +44,6 @@ export function getActivePersonaFile(): string {
   return path.join(configDir(), "PERSONA.md");
 }
 
-export function isReservedPersonaId(id: string): boolean {
-  return STARTER_PERSONA_IDS.has(id);
-}
-
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 export function normalizePersonaId(raw: string): string | null {
@@ -71,7 +63,7 @@ export function normalizePersonaId(raw: string): string | null {
 }
 
 interface Frontmatter {
-  data: Record<string, string | boolean>;
+  data: Record<string, string>;
   body: string;
 }
 
@@ -84,39 +76,26 @@ function parseFrontmatter(source: string): Frontmatter {
   }
 
   const [, rawFrontmatter = "", rawBody = ""] = match;
-  const data: Record<string, string | boolean> = {};
+  const data: Record<string, string> = {};
   for (const line of rawFrontmatter.split("\n")) {
     const separator = line.indexOf(":");
     if (separator <= 0) {
       continue;
     }
     const key = line.slice(0, separator).trim();
-    const raw = line.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
-    if (!key) {
-      continue;
+    const value = line.slice(separator + 1).trim().replace(/^["']|["']$/g, "");
+    if (key) {
+      data[key] = value;
     }
-    data[key] = raw === "true" ? true : raw === "false" ? false : raw;
   }
 
   return { data, body: rawBody.trim() };
 }
 
-function asString(value: string | boolean | undefined): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
-}
-
-function renderPersonaFile(persona: {
-  name: string;
-  description?: string | undefined;
-  isDefault: boolean;
-  body: string;
-}): string {
+function renderPersonaFile(persona: { name: string; description?: string | undefined; body: string }): string {
   const header = ["---", `name: ${persona.name}`];
   if (persona.description) {
     header.push(`description: ${persona.description}`);
-  }
-  if (persona.isDefault) {
-    header.push("default: true");
   }
   header.push("---", "");
 
@@ -152,11 +131,9 @@ export async function listPersonas(activeId?: string | undefined): Promise<Perso
     const { data, body } = parseFrontmatter(await fs.readFile(path.join(dir, entry), "utf8"));
     personas.push({
       id,
-      name: asString(data.name) ?? displayName(id),
-      description: asString(data.description),
+      name: data.name || displayName(id),
+      description: data.description,
       body,
-      isStarter: isReservedPersonaId(id),
-      isDefault: data.default === true,
       isActive: id === activeId,
     });
   }
@@ -175,7 +152,7 @@ export async function personaExists(id: string): Promise<boolean> {
 
 export async function savePersona(
   id: string,
-  update: { name: string; description?: string | undefined; isDefault: boolean; body: string },
+  update: { name: string; description?: string | undefined; body: string },
 ): Promise<void> {
   const dir = getPersonaDir();
   await fs.mkdir(dir, { recursive: true });
@@ -193,11 +170,9 @@ export async function readPersona(id: string): Promise<PersonaInfo | null> {
     );
     return {
       id,
-      name: asString(data.name) ?? displayName(id),
-      description: asString(data.description),
+      name: data.name || displayName(id),
+      description: data.description,
       body,
-      isStarter: isReservedPersonaId(id),
-      isDefault: data.default === true,
       isActive: false,
     };
   } catch {
@@ -205,42 +180,7 @@ export async function readPersona(id: string): Promise<PersonaInfo | null> {
   }
 }
 
-/** Exactly one persona may carry `default: true`; this clears it on all others. */
-export async function clearDefaultFlag(exceptId: string | null): Promise<void> {
-  const personas = await listPersonas();
-
-  for (const persona of personas) {
-    if (!persona.isDefault || persona.id === exceptId) {
-      continue;
-    }
-    await savePersona(persona.id, {
-      name: persona.name,
-      description: persona.description,
-      isDefault: false,
-      body: persona.body,
-    });
-  }
-}
-
-export async function setDefaultPersona(id: string): Promise<void> {
-  const persona = await readPersona(id);
-  if (!persona) {
-    throw new Error(`Unknown persona: ${id}`);
-  }
-  await clearDefaultFlag(id);
-  await savePersona(id, {
-    name: persona.name,
-    description: persona.description,
-    isDefault: true,
-    body: persona.body,
-  });
-}
-
 export async function deletePersona(id: string): Promise<void> {
-  const persona = await readPersona(id);
-  if (persona?.isDefault) {
-    throw new Error("The default persona cannot be deleted.");
-  }
   await fs.unlink(path.join(getPersonaDir(), `${id}.md`));
 }
 
@@ -256,6 +196,16 @@ export async function materializeActivePersona(id: string | null): Promise<void>
     return;
   }
 
-  const { body } = parseFrontmatter(await fs.readFile(path.join(getPersonaDir(), `${id}.md`), "utf8"));
+  let source: string;
+  try {
+    source = await fs.readFile(path.join(getPersonaDir(), `${id}.md`), "utf8");
+  } catch {
+    // The file disappeared since it was selected. Fall back to no persona rather
+    // than leaving a stale persona in the system prompt.
+    await fs.writeFile(target, "", { encoding: "utf8", mode: 0o600 });
+    return;
+  }
+
+  const { body } = parseFrontmatter(source);
   await fs.writeFile(target, body ? `${body}\n` : "", { encoding: "utf8", mode: 0o600 });
 }
