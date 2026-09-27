@@ -683,6 +683,7 @@ export const id: I18nDictionary = {
   "persona.edit.ask_body": "Send the new text for \"{name}\". It will replace the current persona text and stay active.",
   "persona.saved": "Persona \"{name}\" saved and activated.",
   "persona.restart_hint": "Run /new to start a session that picks up the new persona.",
+  "persona.cancelled": "Cancelled. Nothing was saved.",
   "persona.delete.confirm": "Delete the active persona \"{name}\"? This cannot be undone and the assistant returns to its default voice.",
   "persona.callback.selected": "Persona set to {name}",
   "persona.callback.none": "Persona cleared",

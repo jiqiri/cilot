@@ -138,13 +138,21 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
     return false;
   }
 
+  // Any persona button aborts a pending create/edit text flow. Close in particular
+  // has to work while the bot is waiting for a name or a body, so the flow is
+  // dropped before dispatching and re-established only by the branch that needs it.
+  const wasAwaitingText = parsePersonaMetadata(deps.interactionManager.getSnapshot()) !== null;
+  clearPersonaInteraction(deps, `persona_callback:${data}`);
+
   const activeId = getActivePersonaId();
 
   try {
     if (data === PERSONA_CLOSE_CALLBACK) {
       await ctx.answerCallbackQuery();
-      clearPersonaInteraction(deps, "persona_menu_closed");
       await ctx.editMessageReplyMarkup({ reply_markup: { inline_keyboard: [] } }).catch(() => {});
+      if (wasAwaitingText) {
+        await ctx.reply(t("persona.cancelled"));
+      }
       return true;
     }
 
@@ -156,7 +164,6 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
     }
 
     if (data === PERSONA_BACK_CALLBACK) {
-      clearPersonaInteraction(deps, "persona_back");
       await ctx.answerCallbackQuery();
       await renderList(ctx, ctx.callbackQuery?.message?.message_id);
       return true;
@@ -233,7 +240,8 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
       await ctx.editMessageText(t("persona.delete.confirm", { name: persona.name }), {
         reply_markup: buildPersonaDeleteKeyboard(),
       });
-      deps.interactionManager.transition({
+      deps.interactionManager.start({
+        kind: "custom",
         expectedInput: "callback",
         metadata: {
           flow: "persona",
@@ -260,7 +268,6 @@ export async function handlePersonaCallback(ctx: Context, deps: PersonaDeps): Pr
     }
 
     if (data === PERSONA_DELETE_CANCEL_CALLBACK) {
-      clearPersonaInteraction(deps, "persona_delete_cancelled");
       await ctx.answerCallbackQuery();
       await renderList(ctx, ctx.callbackQuery?.message?.message_id);
       return true;

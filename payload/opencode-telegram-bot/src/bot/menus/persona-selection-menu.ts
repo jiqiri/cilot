@@ -46,11 +46,8 @@ export function formatPersonaListText(personas: PersonaInfo[], activeId: string 
   return [header, "", ...lines, "", t("persona.menu.hint")].join("\n");
 }
 
-/** Close sits on the first row so it is always reachable without scrolling past the list. */
 export function buildPersonaListKeyboard(personas: PersonaInfo[], activeId?: string): InlineKeyboard {
   const keyboard = new InlineKeyboard();
-
-  keyboard.text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK).row();
 
   for (const persona of personas) {
     keyboard.text(personaLabel(persona), personaSelectCallback(persona.id)).row();
@@ -65,7 +62,9 @@ export function buildPersonaListKeyboard(personas: PersonaInfo[], activeId?: str
     keyboard.text(t("persona.button.none"), PERSONA_NONE_CALLBACK).row();
   }
 
-  return keyboard.text(t("persona.button.create"), PERSONA_CREATE_CALLBACK);
+  return keyboard
+    .text(t("persona.button.create"), PERSONA_CREATE_CALLBACK)
+    .text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK);
 }
 
 export function buildPersonaManageKeyboard(persona: PersonaInfo | null): InlineKeyboard {
@@ -75,15 +74,14 @@ export function buildPersonaManageKeyboard(persona: PersonaInfo | null): InlineK
     return keyboard.text(t("persona.button.back"), PERSONA_BACK_CALLBACK);
   }
 
-  keyboard.text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK).row();
-
   return keyboard
     .text(t("persona.button.edit_text"), PERSONA_EDIT_TEXT_CALLBACK)
     .text(t("persona.button.edit_name"), PERSONA_EDIT_NAME_CALLBACK)
     .row()
     .text(t("persona.button.delete"), PERSONA_DELETE_CALLBACK)
     .row()
-    .text(t("persona.button.back"), PERSONA_BACK_CALLBACK);
+    .text(t("persona.button.back"), PERSONA_BACK_CALLBACK)
+    .text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK);
 }
 
 export function buildPersonaDeleteKeyboard(): InlineKeyboard {
@@ -91,5 +89,6 @@ export function buildPersonaDeleteKeyboard(): InlineKeyboard {
     .text(t("persona.button.delete_confirm"), PERSONA_DELETE_CONFIRM_CALLBACK)
     .text(t("persona.button.delete_cancel"), PERSONA_DELETE_CANCEL_CALLBACK)
     .row()
-    .text(t("persona.button.back"), PERSONA_BACK_CALLBACK);
+    .text(t("persona.button.back"), PERSONA_BACK_CALLBACK)
+    .text(t("persona.button.close"), PERSONA_CLOSE_CALLBACK);
 }
