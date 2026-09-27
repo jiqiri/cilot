@@ -668,7 +668,6 @@ export const vi: I18nDictionary = {
   "cmd.description.persona": "Đổi hoặc quản lý persona của trợ lý",
   "persona.settings_entry": "Persona: đổi giọng trợ lý",
   "persona.button.create": "➕ Tạo persona",
-  "persona.button.edit": "✏️ Sửa persona đang dùng",
   "persona.button.delete": "🗑 Xoá persona đang dùng",
   "persona.button.none": "⭕ Không có",
   "persona.button.close": "✖️ Đóng",

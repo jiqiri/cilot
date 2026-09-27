@@ -664,7 +664,6 @@ export const id: I18nDictionary = {
   "cmd.description.persona": "Switch or manage assistant persona",
   "persona.settings_entry": "Persona: change assistant voice",
   "persona.button.create": "➕ Create persona",
-  "persona.button.edit": "✏️ Edit active",
   "persona.button.delete": "🗑 Delete active",
   "persona.button.none": "⭕ None",
   "persona.button.close": "✖️ Close",
