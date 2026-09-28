@@ -31,6 +31,12 @@ export interface UserSettings {
   sendDiffFileAttachments?: boolean | undefined;
   promptQueueEnabled?: boolean | undefined;
   dismissedProjects?: string[] | undefined;
+  /**
+   * Sessions this account created. OpenCode has no owner field on a session, so
+   * ownership is tracked here and used to filter the session list, otherwise a second
+   * account could open and read the first account's conversations.
+   */
+  ownedSessionIds?: string[] | undefined;
   activePersonaId?: string | undefined;
   scheduledTasks?: ScheduledTask[] | undefined;
   scheduledTaskSessionIgnores?: ScheduledTaskSessionIgnoreInfo[] | undefined;
@@ -54,6 +60,7 @@ export const PER_USER_SETTING_KEYS: readonly PerUserSettingKey[] = [
   "sendDiffFileAttachments",
   "promptQueueEnabled",
   "dismissedProjects",
+  "ownedSessionIds",
   "activePersonaId",
   "scheduledTasks",
   "scheduledTaskSessionIgnores",

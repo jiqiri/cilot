@@ -2,6 +2,12 @@ import { InlineKeyboard } from "grammy";
 import { opencodeClient } from "../../opencode/client.js";
 import { getDateLocale, t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
+import {
+  claimAllSessions,
+  getActiveSettingsUser,
+  getOwnedSessionIds,
+} from "../../app/stores/settings-store.js";
+import { config } from "../../config.js";
 
 export const SESSION_CALLBACK_PREFIX = "session:";
 const SESSION_PAGE_CALLBACK_PREFIX = "session:page:";
@@ -133,8 +139,26 @@ export async function loadSessionPage(
     throw error || new Error("No data received from server");
   }
 
-  const hasNext = sessions.length > endExclusive;
-  const pagedSessions = sessions.slice(startIndex, endExclusive);
+  // OpenCode does not record who created a session, so the list is filtered against the
+  // ids the active account has claimed. Without this a second Telegram account would see
+  // and could open the first account's conversations.
+  // Before session ownership existed, every session belonged to the single permitted
+  // account. On the first listing the primary account adopts them so its history is
+  // still there; later accounts start empty and only see what they create.
+  if (getOwnedSessionIds().length === 0 && getActiveSettingsUser() === config.telegram.allowedUserId) {
+    claimAllSessions(sessions.map((session) => session.id));
+  }
+
+  const owned = new Set(getOwnedSessionIds());
+  const visible = sessions.filter((session) => owned.has(session.id));
+  if (visible.length === 0 && sessions.length > 0) {
+    logger.debug(
+      `[Sessions] Account owns none of the ${sessions.length} session(s) in ${directory}`,
+    );
+  }
+
+  const hasNext = visible.length > endExclusive;
+  const pagedSessions = visible.slice(startIndex, endExclusive);
 
   logger.debug(
     `[Sessions] Loaded page=${page + 1}, startIndex=${startIndex}, endExclusive=${endExclusive}, pageSize=${pageSize}, items=${pagedSessions.length}, hasNext=${hasNext}`,

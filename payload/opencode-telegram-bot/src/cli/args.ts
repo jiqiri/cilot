@@ -1,6 +1,6 @@
 import type { RuntimeMode } from "../runtime/mode.js";
 
-export type CliCommand = "start" | "status" | "stop" | "config";
+export type CliCommand = "start" | "status" | "stop" | "config" | "update";
 
 const CLI_MESSAGES = {
   unknownCommand: (value: string) => `Unknown command: ${value}`,
@@ -15,11 +15,12 @@ export interface ParsedCliArgs {
   command: CliCommand;
   mode?: RuntimeMode | undefined;
   daemon: boolean;
+  checkOnly: boolean;
   showHelp: boolean;
   error?: string | undefined;
 }
 
-const SUPPORTED_COMMANDS: readonly CliCommand[] = ["start", "status", "stop", "config"];
+const SUPPORTED_COMMANDS: readonly CliCommand[] = ["start", "status", "stop", "config", "update"];
 
 function isCliCommand(value: string): value is CliCommand {
   return SUPPORTED_COMMANDS.includes(value as CliCommand);
@@ -42,6 +43,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   let command: CliCommand = "start";
   let mode: RuntimeMode | undefined;
   let daemon = false;
+  let checkOnly = false;
   let showHelp = false;
   let currentIndex = 0;
 
@@ -51,6 +53,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       return {
         command,
         daemon,
+        checkOnly,
         showHelp: true,
         error: CLI_MESSAGES.unknownCommand(firstArg),
       };
@@ -78,12 +81,19 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       continue;
     }
 
+    if (token === "--check") {
+      checkOnly = true;
+      currentIndex += 1;
+      continue;
+    }
+
     if (token === "--mode") {
       const modeValue = args[currentIndex + 1];
       if (!modeValue || modeValue.startsWith("-")) {
         return {
           command,
           daemon,
+          checkOnly,
           mode,
           showHelp: true,
           error: CLI_MESSAGES.modeRequiresValue,
@@ -95,6 +105,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         return {
           command,
           daemon,
+          checkOnly,
           mode,
           showHelp: true,
           error: CLI_MESSAGES.invalidMode(modeValue),
@@ -113,6 +124,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
         return {
           command,
           daemon,
+          checkOnly,
           mode,
           showHelp: true,
           error: CLI_MESSAGES.invalidMode(modeValue),
@@ -127,6 +139,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     return {
       command,
       daemon,
+      checkOnly,
       mode,
       showHelp: true,
       error: CLI_MESSAGES.unknownOption(token),
@@ -137,6 +150,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     return {
       command,
       daemon,
+      checkOnly,
       mode,
       showHelp: true,
       error: CLI_MESSAGES.modeOnlyStart,
@@ -147,15 +161,28 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     return {
       command,
       daemon,
+      checkOnly,
       mode,
       showHelp: true,
       error: CLI_MESSAGES.daemonOnlyStart,
     };
   }
 
+  if (command !== "update" && checkOnly) {
+    return {
+      command,
+      daemon,
+      checkOnly,
+      mode,
+      showHelp: true,
+      error: "Option --check is supported only for the update command",
+    };
+  }
+
   return {
     command,
     daemon,
+    checkOnly,
     mode,
     showHelp,
   };

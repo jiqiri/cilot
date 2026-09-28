@@ -324,6 +324,56 @@ export function setPromptQueueEnabled(enabled: boolean): void {
   void persist();
 }
 
+export function getOwnedSessionIds(): string[] {
+  return activeSlice().ownedSessionIds ?? [];
+}
+
+export function isSessionOwned(sessionId: string): boolean {
+  return getOwnedSessionIds().includes(sessionId);
+}
+
+/**
+ * Claims every session the server currently reports for the active account. Used once
+ * for the primary account so a settings.json that predates session ownership does not
+ * appear to have lost its history.
+ */
+export function claimAllSessions(sessionIds: string[]): void {
+  const owned = getOwnedSessionIds();
+  const merged = [...owned];
+  let added = 0;
+  for (const id of sessionIds) {
+    if (!merged.includes(id)) {
+      merged.push(id);
+      added += 1;
+    }
+  }
+  if (added === 0) {
+    return;
+  }
+  activeSlice().ownedSessionIds = merged;
+  void persist();
+  logger.info(`[Settings] Claimed ${added} pre-existing session(s) for user ${userKey(activeUserId)}`);
+}
+
+/** Records that the active account created a session. No-op if already claimed. */
+export function claimSession(sessionId: string): void {
+  const owned = getOwnedSessionIds();
+  if (owned.includes(sessionId)) {
+    return;
+  }
+  activeSlice().ownedSessionIds = [...owned, sessionId];
+  void persist();
+}
+
+export function releaseSession(sessionId: string): void {
+  const owned = getOwnedSessionIds();
+  if (!owned.includes(sessionId)) {
+    return;
+  }
+  activeSlice().ownedSessionIds = owned.filter((id) => id !== sessionId);
+  void persist();
+}
+
 export function getDismissedProjects(): string[] {
   return activeSlice().dismissedProjects ?? [];
 }

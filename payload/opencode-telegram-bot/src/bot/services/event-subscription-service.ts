@@ -2,6 +2,7 @@ import { Bot, Context } from "grammy";
 import { config } from "../../config.js";
 import { getCurrentSession } from "../../app/services/session-service.js";
 import { logger } from "../../utils/logger.js";
+import { getSessionChat } from "./session-chat-registry.js";
 import { clearPromptResponseMode } from "../handlers/prompt.js";
 import { setPromptResponseModeClearerForReconciliation } from "../../app/services/busy-reconciliation-service.js";
 import { createEventRouter } from "../../app/services/event-router.js";
@@ -58,7 +59,9 @@ class EventSubscriptionService implements BotEventSubscriptionService {
   private botInstance: Bot<Context> | null = null;
   private chatIdInstance: number | null = null;
   private readonly policy: SessionTargetPolicy = {
-    getDestination: () => this.getChatDestination(),
+    // The session's own chat, so a background notice reaches the account that was
+    // working in it rather than whichever account last sent any message.
+    getDestination: (sessionId) => this.getChatDestination(getSessionChat(sessionId)),
     isForegroundSession: (sessionId) => getCurrentSession()?.id === sessionId,
   };
   private readonly runtime: SessionRuntimeState;
@@ -131,11 +134,12 @@ class EventSubscriptionService implements BotEventSubscriptionService {
     });
   };
 
-  private getChatDestination(): TelegramDestination | null {
-    if (!this.botInstance || !this.chatIdInstance) {
+  private getChatDestination(sessionChatId?: number): TelegramDestination | null {
+    const chatId = sessionChatId ?? this.chatIdInstance;
+    if (!this.botInstance || !chatId) {
       return null;
     }
 
-    return { api: this.botInstance.api, chatId: this.chatIdInstance };
+    return { api: this.botInstance.api, chatId };
   }
 }

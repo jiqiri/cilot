@@ -17,6 +17,7 @@ import { stopEventListening } from "../../opencode/events.js";
 import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { formatErrorDetails } from "../../utils/error-format.js";
 import { logger } from "../../utils/logger.js";
+import { recordSessionChat } from "../services/session-chat-registry.js";
 import { t } from "../../i18n/index.js";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import {
@@ -206,6 +207,10 @@ export async function processUserPrompt(
   chatIdInstance = ctx.chat!.id;
 
   let currentSession = getCurrentSession();
+  // Ties this session to the chat that is speaking in it, so a background notice for
+  // the session later reaches this account and not whichever one messaged last.
+  recordSessionChat(currentSession?.id, chatIdInstance);
+
   let createdNewSession = false;
 
   if (currentSession && currentSession.directory !== currentProject.worktree) {
@@ -240,6 +245,7 @@ export async function processUserPrompt(
     };
 
     setCurrentSession(currentSession);
+    recordSessionChat(currentSession.id, chatIdInstance);
     await ingestSessionInfoForCache(session);
     createdNewSession = true;
   } else {

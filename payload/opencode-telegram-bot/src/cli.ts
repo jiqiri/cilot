@@ -16,6 +16,7 @@ const CLI_USAGE = `Usage:
   opencode-telegram status
   opencode-telegram stop
   opencode-telegram config
+  opencode-telegram update [--check]
 
 Notes:
   - No command defaults to start
@@ -243,6 +244,11 @@ async function runCli(argv: string[]): Promise<number> {
 
   if (parsedArgs.command === "config") {
     return runConfigCommand();
+  }
+
+  if (parsedArgs.command === "update") {
+    const { runUpdateCommand } = await import("./runtime/update.js");
+    return runUpdateCommand({ checkOnly: parsedArgs.checkOnly });
   }
 
   if (parsedArgs.command === "status") {
