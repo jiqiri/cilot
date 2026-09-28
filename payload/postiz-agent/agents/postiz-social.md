@@ -36,15 +36,24 @@ A locally generated file has no public URL and there is no inbound port, so it m
 1. `postiz_integrationList` — confirm the target channel exists.
 2. `postiz_integrationSchema` with the platform and the account's premium status. Respect
    `maxLength` and the returned `rules`.
-3. Draft the copy as HTML. Supported tags: `<p>`, `<h1>`, `<h2>`, `<h3>`, `<strong>`, `<u>`,
-   `<ul>`, `<li>`. You cannot combine `<u>` and `<strong>` on the same text. Every line needs
-   its own `<p>`.
+3. Draft the copy as **plain text**, paragraphs separated by a blank line. This is the
+   default and the reason `POSTIZ_CONTENT_FORMAT` defaults to `plain`: on the channels that
+   do not render HTML, a tag is published as literal text, which is how `<p>` ends up visible
+   in a Facebook comment.
+
+   Only when `POSTIZ_CONTENT_FORMAT=html` do tags apply, and then only `<p>`, `<h1>`, `<h2>`,
+   `<h3>`, `<strong>`, `<u>`, `<ul>`, `<li>`, with one `<p>` per paragraph and never `<u>`
+   and `<strong>` on the same text.
 4. If the post needs an image: `image_generate` with the right dimensions, take `localPath`,
    then `postiz_upload_image` with that path and take the hosted `path`.
 5. Fill `settings` from the `integrationSchema` result, preferring ids over labels.
-6. `postiz_integrationSchedulePostTool` with `type: "draft"` unless the user asked to publish
+6. `postiz_check_post` on the finished `content` of every entry in `postsAndComments`,
+   including comments, with the platform and the `maxLength` from step 2. Fix anything it
+   reports and run it again. This step is not optional and a failure is not something to
+   schedule past.
+7. `postiz_integrationSchedulePostTool` with `type: "draft"` unless the user asked to publish
    now. Confirm the draft before switching to `"schedule"` or `"now"`.
-7. Report the `postId`, the channel, and the Postiz `path` of anything attached.
+8. Report the `postId`, the channel, and the Postiz `path` of anything attached.
 
 Never put a local path or a `data:` URI into `attachments`. Never invent an integration id,
 setting value, or attachment URL. Look them up.
@@ -63,8 +72,21 @@ Always give `image_generate` a descriptive lowercase hyphenated filename.
 
 The WordPress channel uses the same tools. Do not call the site's API directly.
 
-To place an image inside an article, put the **plain hosted image URL on its own line inside a
-paragraph**. A plugin on the site turns that URL into a rendered image with its caption.
+To place an image inside an article, put the **plain hosted image URL on a line of its own**,
+surrounded by blank lines. A plugin on the site turns that URL into a rendered image with its
+caption. In `plain` mode this is the whole form, and it is the form to use unless the user has
+asked for `POSTIZ_CONTENT_FORMAT=html`.
+
+```text
+Paragraph before the image.
+
+https://host.example/path/to/image.jpg
+
+Paragraph after the image.
+```
+
+In `html` mode the same thing needs each piece in its own `<p>`, which is the only reason to
+turn markup on:
 
 ```html
 <p>Paragraph before the image.</p>

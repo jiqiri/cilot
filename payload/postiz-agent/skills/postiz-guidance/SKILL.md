@@ -72,8 +72,8 @@ and character limits.
     "shortLink": false,
     "settings": [{ "key": "<from integrationSchema>", "value": "<id preferred over label>" }],
     "postsAndComments": [
-      { "content": "<p>HTML body</p>", "attachments": ["<path from postiz_upload_image>"] },
-      { "content": "<p>first comment</p>", "attachments": [] }
+      { "content": "plain text body, blank line between paragraphs", "attachments": ["<path>"] },
+      { "content": "first comment, also plain text", "attachments": [] }
     ]
   }]
 }
@@ -82,8 +82,12 @@ and character limits.
 - First `postsAndComments` entry is the post. Every entry after it is a comment.
 - Only send the entries you need.
 - `attachments` entries must be the `path` string returned by `postiz_upload_image`.
-- Postiz strips unsupported HTML. Stick to `<p>`, `<h1>`-`<h3>`, `<strong>`, `<u>`, `<ul>`,
-  `<li>`. Do not combine `<u>` and `<strong>` on the same text.
+- `content` is plain text by default. Separate paragraphs with a blank line, do not wrap them
+  in `<p>`. `POSTIZ_CONTENT_FORMAT` is `plain` unless the user set it to `html`; in `plain`
+  mode any tag is published as visible text on the channels that do not render HTML.
+- Run `postiz_check_post` on the finished `content` of every entry, including comments, with
+  the platform and `maxLength`, before scheduling. It is what makes the rule enforceable
+  rather than merely stated. Do not schedule anything it marks as failed.
 
 ## Unavailable tools
 

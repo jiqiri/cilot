@@ -321,6 +321,53 @@ nothing.
 
 To bring a hidden project back, remove its path from whichever of the two holds it.
 
+## Social post formatting
+
+By default a social post body is **plain text**, and `postiz_check_post` rejects any HTML tag in
+it. This is the setting to change if tags are showing up as visible text in your posts, which
+happens on any channel that does not render HTML: Postiz strips what it does not support, and
+everything else is published as typed.
+
+```bash
+# in ~/.config/opencode-telegram-installer/install.env
+POSTIZ_CONTENT_FORMAT=plain
+```
+
+| value | behaviour |
+| --- | --- |
+| `plain` (default) | no tag is allowed. Paragraphs are separated by a blank line. |
+| `html` | a small supported set is allowed: `<p>`, `<h1>`-`<h3>`, `<strong>`, `<u>`, `<ul>`, `<ol>`, `<li>`, `<br>`, `<blockquote>`, `<a>`, `<b>`, `<i>`, `<em>`. Anything else is reported. |
+
+Edit the file, re-run `./install.sh`, and restart the bot. The value is read at runtime, so it
+does not need a rebuild.
+
+The model is told to run `postiz_check_post` on the finished `content` of every post and every
+comment before scheduling, with the platform and the character limit. The tool reports HTML
+tags, Markdown images, `<u>` overlapping `<strong>`, and anything over `maxLength`, and it
+counts visible characters rather than markup.
+
+This is a check, not a fence. The tool is something the agent chooses to call, so a determined
+failure to call it is still possible. If you need a hard guarantee rather than a very large
+reduction, enforce it at the Postiz instance or in the agent's own wrapper rather than in the
+prompt.
+
+## Persona output rules
+
+A persona file only describes a voice. On its own it does not change how the model handles
+formatting, so the default framing stays in charge: a terminal tool narrating the commands it
+is about to run, opening with "Great question", closing with a menu of next steps, and writing
+wall-sized answers into a chat window.
+
+Every persona therefore gets a shared **How to talk** block appended to `PERSONA.md` when it is
+materialised: no tool narration, no restating the question, no closing menu, short messages,
+plain paragraphs instead of tables, a one-sentence description of failures, and an answer in
+the language you wrote in. The persona text comes first, so it sets the tone and the block
+covers the mechanics.
+
+The block is added by the installer of the persona rather than by the persona author, so a
+persona you write yourself gets it too, and switching personas cannot drop it. Clear the active
+persona and the overlay is emptied entirely, leaving the model on its default voice.
+
 ## Translations
 
 Every user-facing string in the Telegram bot goes through `t("key")` and lives in

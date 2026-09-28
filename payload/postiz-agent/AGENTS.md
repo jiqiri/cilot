@@ -26,6 +26,23 @@ The one rule that is cheap and worth keeping globally: a Postiz post carries hos
 in `postsAndComments[].attachments`. A local file path or a `data:` URI is not a URL and will
 fail the post. If you generated an image in this session, upload it before trying to attach it.
 
+## Text you publish
+
+Anything that leaves this system as text is plain text unless the user says otherwise. This
+applies to social post bodies, comments, titles, alt text, captions, and WordPress content.
+The model is inclined to emit markup because markup is its default output shape; writing
+`<p>` around a paragraph does not reliably become a paragraph, and on any channel that does
+not render HTML the tags are published as visible text.
+
+`POSTIZ_CONTENT_FORMAT` decides how strict this is. It is `plain` unless the user has set it
+to `html`, and in `plain` mode no tag belongs in a post.
+
+Before scheduling any Postiz post, run `postiz_check_post` on the finished `content` of every
+entry in `postsAndComments`, including comments. It reports tags, Markdown images, and length
+against the platform limit. Fix what it reports and run it again. Do not schedule a post it
+has marked as failed, and do not assume a post is clean because you did not notice a problem
+with it.
+
 ## Reporting back
 
 Be specific about what you actually did. Do not claim a file was attached, published, or

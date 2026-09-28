@@ -135,6 +135,11 @@ if [[ "${POSTIZ_MCP_TOKEN-}" == *REPLACE_WITH* ]]; then
 fi
 OPENCODE_MODEL_PROVIDER="${OPENCODE_MODEL_PROVIDER:-opencode}"
 OPENCODE_MODEL_ID="${OPENCODE_MODEL_ID:-space-bunny-free}"
+# How strictly social post bodies are held to plain text. "plain" makes postiz_check_post
+# reject any HTML tag, which is what stops tags being published as visible text on the
+# channels that do not render HTML. "html" allows a small supported tag set.
+# Lowercased so HTML and html behave the same here and in the checker.
+POSTIZ_CONTENT_FORMAT="$(printf '%s' "${POSTIZ_CONTENT_FORMAT:-plain}" | tr '[:upper:]' '[:lower:]')"
 
 # Every setting a settings file may provide. Used to guarantee that none of them can be
 # left unset: the installer runs under `set -u`, and a single expansion of an unset
@@ -153,6 +158,7 @@ INSTALLER_SETTINGS=(
   OPENCODE_MODEL_ID
   PAYLOAD_REPO
   PAYLOAD_BRANCH
+  POSTIZ_CONTENT_FORMAT
 )
 
 # Guarantee every setting exists before anything expands one. Unset becomes empty, so a
@@ -554,6 +560,8 @@ write_settings_file() {
     if [[ -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
       echo "POSTIZ_MCP_TOKEN=${POSTIZ_MCP_TOKEN-}"
     fi
+    echo "# plain rejects any HTML tag in a social post body; html allows a small tag set."
+    echo "POSTIZ_CONTENT_FORMAT=${POSTIZ_CONTENT_FORMAT-}"
     echo "OPENCODE_MODEL_PROVIDER=${OPENCODE_MODEL_PROVIDER-}"
     echo "OPENCODE_MODEL_ID=${OPENCODE_MODEL_ID-}"
     echo "PAYLOAD_REPO=${PAYLOAD_REPO-}"
@@ -585,6 +593,9 @@ validate_placeholders() {
   if [[ -n "${POSTIZ_MCP_URL-}" || -n "${POSTIZ_MCP_TOKEN-}" ]]; then
     [[ -n "${POSTIZ_MCP_URL-}" && -n "${POSTIZ_MCP_TOKEN-}" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
     [[ "${POSTIZ_MCP_URL-}" =~ ^https?:// ]] || die "POSTIZ_MCP_URL must be an absolute http(s) URL."
+  fi
+  if [[ "${POSTIZ_CONTENT_FORMAT-}" != "plain" && "${POSTIZ_CONTENT_FORMAT-}" != "html" ]]; then
+    die "POSTIZ_CONTENT_FORMAT must be plain or html, got: ${POSTIZ_CONTENT_FORMAT-<empty>}"
   fi
 }
 
@@ -776,6 +787,8 @@ EOF
     local postiz_api_url="${POSTIZ_MCP_URL%/mcp}"
     cat >"$INSTALL_ROOT/opencode-postiz.env" <<EOF
 POSTIZ_MCP_TOKEN=${POSTIZ_MCP_TOKEN-}
+# Read by postiz_check_post at runtime, so changing it needs no rebuild.
+POSTIZ_CONTENT_FORMAT=${POSTIZ_CONTENT_FORMAT-}
 POSTIZ_MCP_URL=${POSTIZ_MCP_URL-}
 POSTIZ_API_URL=$postiz_api_url
 EOF
@@ -868,7 +881,8 @@ install_postiz_agent() {
   cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md"
   cp "$src/skills/postiz-guidance/SKILL.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
   cp "$src/postiz_upload_image.ts" "$telegram_root/tools/postiz_upload_image.ts"
-  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/skills/postiz-guidance/SKILL.md" "$telegram_root/tools/postiz_upload_image.ts"
+  cp "$src/postiz_check_post.ts" "$telegram_root/tools/postiz_check_post.ts"
+  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/skills/postiz-guidance/SKILL.md" "$telegram_root/tools/postiz_upload_image.ts" "$telegram_root/tools/postiz_check_post.ts"
 }
 
 install_image_plugin() {

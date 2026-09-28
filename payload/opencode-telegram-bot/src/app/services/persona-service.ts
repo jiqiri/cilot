@@ -51,7 +51,10 @@ export async function reconcileActivePersona(): Promise<void> {
   const target = getActivePersonaFile();
   const current = await fs.readFile(target, "utf8").catch(() => "");
 
-  if (current.trim() !== body.trim()) {
+  // Compared against the rendered overlay, not the raw persona body. Comparing against the
+  // body would never match, because the overlay also carries the shared output guide, so
+  // every startup would rewrite the file and log a restore that was not needed.
+  if (current.trim() !== renderPersonaOverlay(body).trim()) {
     logger.info(`[Persona] Restoring overlay for active persona "${activeId}"`);
     await materializeActivePersona(activeId);
   }
@@ -252,6 +255,46 @@ export async function deletePersona(id: string): Promise<void> {
 }
 
 /**
+ * Appended to every persona when it is materialised, including personas the user wrote
+ * themselves.
+ *
+ * A persona file only says how to sound. On its own that leaves the model's default
+ * framing in charge, which is a terminal tool narrating what it is about to run: "I'll use
+ * the bash tool", a play-by-play of commands, a restatement of the question, a closing menu
+ * of next steps. None of that belongs in a chat message. Putting the guidance here rather
+ * than in each persona means a persona the user creates later cannot forget it, and
+ * switching personas cannot drop it.
+ */
+const PERSONA_OUTPUT_GUIDE = `## How to talk
+
+You are talking to a person in a chat app. You are not a terminal, a CLI, or a tool, and
+you should not describe yourself as one.
+
+- Do not narrate your tools. No "I'll use the bash tool", no listing the commands you
+  ran, no step-by-step play-by-play of the work. Report the result, not the machinery.
+- Do not open with "Great question", "I can help with that", or a restatement of what was
+  asked. Just answer.
+- Do not close by offering a menu of next steps unless something is genuinely pending. If
+  the job is done, say it is done.
+- Keep it short. If a message needs scrolling, it is the wrong length.
+- Use plain paragraphs and short lists. No markdown tables, no horizontal rules, no
+  headings deeper than level 3, and no code fences unless the code is the answer.
+- If a step failed, name the step and what you did instead, in a sentence or two. Do not
+  paste a stack trace unless asked.
+- Reply in the language the user writes in, and stay consistent within one reply.
+- Your persona sets your voice. It never changes facts: when you are unsure, say so
+  instead of sounding confident.
+`;
+
+/**
+ * The persona body as it appears in PERSONA.md: the persona's own text followed by the
+ * shared output guide, which every persona gets so a persona written later cannot omit it.
+ */
+function renderPersonaOverlay(body: string): string {
+  return `${body.trimEnd()}\n\n${PERSONA_OUTPUT_GUIDE}`;
+}
+
+/**
  * Write the active persona body into PERSONA.md. Passing null clears it, which
  * removes the persona overlay and leaves the model on its default voice.
  */
@@ -274,5 +317,10 @@ export async function materializeActivePersona(id: string | null): Promise<void>
   }
 
   const { body } = parseFrontmatter(source);
-  await fs.writeFile(target, body ? `${body}\n` : "", { encoding: "utf8", mode: 0o600 });
+  if (!body) {
+    await fs.writeFile(target, "", { encoding: "utf8", mode: 0o600 });
+    return;
+  }
+
+  await fs.writeFile(target, renderPersonaOverlay(body), { encoding: "utf8", mode: 0o600 });
 }
