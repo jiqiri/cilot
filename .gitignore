@@ -4,6 +4,10 @@
 .env
 .env.*
 !.env.example
+# Settings for install.sh, holds real credentials. Must never be committed.
+install.env
+install.env.*
+!install.env.example
 node_modules/
 dist/
 logs/

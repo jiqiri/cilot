@@ -1,8 +1,106 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-# Replace the placeholders below before running this script, or export the same
-# names in the shell. Do not commit real credentials.
+log() { printf '[installer] %s\n' "$*"; }
+die() { printf '[installer] ERROR: %s\n' "$*" >&2; exit 1; }
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+PAYLOAD_DIR="$SCRIPT_DIR/payload"
+
+usage() {
+  cat <<'USAGE'
+Usage: ./install.sh [options]
+
+Installs OpenCode, the Telegram bot, the Cloudflare image tool, and the user
+services. Settings and credentials are read from install.env, not from this
+file, so `git pull` never conflicts with them. See README.md.
+
+Options:
+  --env-file PATH    read settings from PATH instead of the default locations
+  --no-settings-file do not create install.env on first run
+  --check, --preflight  report the machine's readiness and change nothing
+  -h, --help          show this message
+
+Settings are taken from the first of these that provides them:
+  1. the environment
+  2. --env-file PATH, or $INSTALL_ENV_FILE
+  3. ./install.env
+  4. ~/.config/opencode-telegram-installer/install.env
+  5. the placeholders at the top of this file, which then fail and say what is missing
+USAGE
+}
+
+# The settings file location has to be settled before the settings are read, so the
+# arguments that choose it are scanned here rather than in main().
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --env-file)
+      [[ $# -ge 2 ]] || die "--env-file needs a path."
+      INSTALL_ENV_FILE="$2"; export INSTALL_ENV_FILE; shift 2 ;;
+    --no-settings-file) INSTALL_ENV_WRITE=0; export INSTALL_ENV_WRITE; shift ;;
+    -h|--help) usage; exit 0 ;;
+    *) break ;;
+  esac
+done
+
+# ------------------------------------------------------------------ settings
+# Settings and credentials are read from a file outside the repository. Keeping them out
+# of install.sh is what lets `git pull` work: the file is never tracked, so a pull cannot
+# conflict with your tokens and cannot commit them by accident.
+#
+# In order of precedence, first match wins:
+#   1. the environment          TELEGRAM_BOT_TOKEN=... ./install.sh
+#   2. INSTALL_ENV_FILE         an explicit path
+#   3. ./install.env            next to this script, gitignored
+#   4. ~/.config/opencode-telegram-installer/install.env
+#   5. the placeholders below, which then fail validation and name what is missing
+#
+# The file is plain KEY=value lines and is sourced, so it can hold quotes and spaces.
+# The installer creates it with mode 600 on first run, and never overwrites an existing
+# one: your edits stay yours.
+INSTALL_ENV_FILE="${INSTALL_ENV_FILE:-}"
+if [[ -z "$INSTALL_ENV_FILE" ]]; then
+  for candidate in \
+    "$SCRIPT_DIR/install.env" \
+    "$HOME/.config/opencode-telegram-installer/install.env"; do
+    if [[ -f "$candidate" ]]; then
+      INSTALL_ENV_FILE="$candidate"
+      break
+    fi
+  done
+fi
+if [[ -n "$INSTALL_ENV_FILE" ]]; then
+  [[ -r "$INSTALL_ENV_FILE" ]] || die "INSTALL_ENV_FILE is not readable: $INSTALL_ENV_FILE"
+
+  # Sourcing a file overwrites whatever the caller exported, which would silently make the
+  # file beat the environment. The documented order is environment first, so snapshot what
+  # was exported and put it back afterwards. The file then acts as a set of defaults.
+  declare -A exported_before=()
+  while IFS= read -r -d '' entry; do
+    exported_before["${entry%%=*}"]="${entry#*=}"
+  done < <(env -0)
+
+  # set -a exports what the file sets, so anything derived from it behaves the same as if
+  # it had been exported in the shell.
+  # shellcheck disable=SC1090
+  set -a
+  # shellcheck disable=SC1091
+  source "$INSTALL_ENV_FILE"
+  set +a
+
+  for name in "${!exported_before[@]}"; do
+    if [[ -n "${!name-}" && "${!name}" != "${exported_before[$name]}" ]]; then
+      printf -v "$name" '%s' "${exported_before[$name]}"
+      export "$name"
+    fi
+  done
+  unset -v exported_before
+  unset -v entry name
+
+  log "Loaded settings from $INSTALL_ENV_FILE"
+fi
+
+# Only reached for settings that neither the environment nor the settings file provided.
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-REPLACE_WITH_TELEGRAM_BOT_TOKEN}"
 TELEGRAM_ALLOWED_USER_IDS="${TELEGRAM_ALLOWED_USER_IDS:-}"
 TELEGRAM_ALLOWED_USER_ID="${TELEGRAM_ALLOWED_USER_ID:-REPLACE_WITH_TELEGRAM_ALLOWED_USER_ID}"
@@ -19,8 +117,6 @@ fi
 OPENCODE_MODEL_PROVIDER="${OPENCODE_MODEL_PROVIDER:-opencode}"
 OPENCODE_MODEL_ID="${OPENCODE_MODEL_ID:-space-bunny-free}"
 
-SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-PAYLOAD_DIR="$SCRIPT_DIR/payload"
 # Point this at your own fork if you have one. update.sh and the bot's own
 # `opencode-telegram update` both read the source recorded at install time, so a fork
 # updates from the fork and never from upstream.
@@ -44,9 +140,6 @@ OPENCODE_MAIN_URL="${OPENCODE_MAIN_URL:-http://127.0.0.1:5100}"
 OPENCODE_TELEGRAM_URL="${OPENCODE_TELEGRAM_URL:-http://127.0.0.1:4096}"
 OPENCODE_MAIN_VERSION="2.0.11"
 OPENCODE_TELEGRAM_VERSION="1.18.32"
-
-log() { printf '[installer] %s\n' "$*"; }
-die() { printf '[installer] ERROR: %s\n' "$*" >&2; exit 1; }
 
 require_command() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 
@@ -379,11 +472,54 @@ install_nodejs() {
   log "Installed Node $(node --version) into $target_dir"
 }
 
+# Records the resolved settings so the next install needs no editing at all: a plain
+# `git pull && ./install.sh` keeps working. An existing file is never touched, because it
+# is the operator's to own and may hold values this run did not use.
+write_settings_file() {
+  [[ -n "$INSTALL_ENV_FILE" ]] && return 0
+  [[ "${INSTALL_ENV_WRITE:-1}" == "0" ]] && return 0
+
+  local target="$SCRIPT_DIR/install.env"
+  if [[ -e "$target" ]]; then
+    log "Keeping your existing $target"
+    return 0
+  fi
+
+  mkdir -p "$SCRIPT_DIR"
+  {
+    echo "# Settings for install.sh. Not tracked by git, so pulling new source never"
+    echo "# conflicts with your credentials and never commits them."
+    echo "# Rewrite any value here and re-run ./install.sh to apply it."
+    echo
+    echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
+    echo "TELEGRAM_ALLOWED_USER_ID=$TELEGRAM_ALLOWED_USER_ID"
+    if [[ -n "${TELEGRAM_ALLOWED_USER_IDS:-}" ]]; then
+      echo "TELEGRAM_ALLOWED_USER_IDS=$TELEGRAM_ALLOWED_USER_IDS"
+    fi
+    echo "CF_WORKERS_AI_ACCOUNT=$CF_WORKERS_AI_ACCOUNT"
+    echo "CF_WORKERS_AI_TOKEN=$CF_WORKERS_AI_TOKEN"
+    if [[ -n "${POSTIZ_MCP_URL:-}" ]]; then
+      echo "POSTIZ_MCP_URL=$POSTIZ_MCP_URL"
+    fi
+    if [[ -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
+      echo "POSTIZ_MCP_TOKEN=$POSTIZ_MCP_TOKEN"
+    fi
+    echo "OPENCODE_MODEL_PROVIDER=$OPENCODE_MODEL_PROVIDER"
+    echo "OPENCODE_MODEL_ID=$OPENCODE_MODEL_ID"
+    echo "PAYLOAD_REPO=$PAYLOAD_REPO"
+    echo "PAYLOAD_BRANCH=$PAYLOAD_BRANCH"
+  } >"$target"
+  chmod 600 "$target"
+  log "Wrote $target (mode 600) so future installs need no edits."
+}
+
 validate_placeholders() {
   local name value
   for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID CF_WORKERS_AI_ACCOUNT CF_WORKERS_AI_TOKEN; do
     value="${!name}"
-    [[ "$value" != REPLACE_WITH_* ]] || die "Replace $name in install.sh before running."
+    if [[ "$value" == REPLACE_WITH_* ]]; then
+      die "$name is not set. Put it in ${INSTALL_ENV_FILE:-$SCRIPT_DIR/install.env}, or export it for this run. See README.md 'Settings and credentials'."
+    fi
     [[ -n "$value" ]] || die "$name cannot be empty."
   done
   # Either variable takes one id or a comma separated list. Accepting a list in the
@@ -815,6 +951,7 @@ main() {
   require_command npm
   ensure_build_toolchain
   validate_placeholders
+  write_settings_file
   check_platform
   install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
   install_opencode_binary "$OPENCODE_TELEGRAM_VERSION" "$OPENCODE_TELEGRAM_BIN_DIR/opencode"
@@ -826,7 +963,11 @@ main() {
   log "Installed OpenCode, the Telegram bot, the Cloudflare image tool, and user services."
   log "Main OpenCode: $OPENCODE_MAIN_URL"
   log "Telegram OpenCode: $OPENCODE_TELEGRAM_URL"
-  log "Edit $SCRIPT_DIR/install.sh placeholders for future installs; never commit real credentials."
+  if [[ -n "$INSTALL_ENV_FILE" ]]; then
+    log "Settings kept in $INSTALL_ENV_FILE; re-run ./install.sh after a git pull to apply changes."
+  else
+    log "Settings written to $SCRIPT_DIR/install.env; edit that file, not install.sh."
+  fi
 }
 
 main "$@"

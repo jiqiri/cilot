@@ -106,23 +106,30 @@ sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
 ## Usage
 
 1. Download this repository, or download only `install.sh`; when the local `payload/` directory is absent, the script downloads the matching repository payload automatically.
-2. Edit the placeholders near the top of `install.sh`:
+2. Put your credentials in `install.env`, next to `install.sh`. This file is gitignored, so `git pull` never conflicts with it and never commits your tokens:
 
 ```bash
-TELEGRAM_BOT_TOKEN="REPLACE_WITH_TELEGRAM_BOT_TOKEN"
-TELEGRAM_ALLOWED_USER_ID="REPLACE_WITH_TELEGRAM_ALLOWED_USER_ID"
-CF_WORKERS_AI_ACCOUNT="REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID"
-CF_WORKERS_AI_TOKEN="REPLACE_WITH_CLOUDFLARE_API_TOKEN"
+cp install.env.example install.env
+$EDITOR install.env
 ```
-
-If you also use the optional Postiz MCP server, add these variables before running:
 
 ```bash
-POSTIZ_MCP_URL="REPLACE_WITH_POSTIZ_MCP_URL"
-POSTIZ_MCP_TOKEN="REPLACE_WITH_POSTIZ_BEARER_TOKEN"
+TELEGRAM_BOT_TOKEN=123456789:AA...
+TELEGRAM_ALLOWED_USER_ID=111111111
+CF_WORKERS_AI_ACCOUNT=your-account-id
+CF_WORKERS_AI_TOKEN=your-api-token
 ```
 
-Replace `POSTIZ_MCP_URL` with an absolute `http://` or `https://` endpoint and set the matching token. When both values are replaced, the installer adds Postiz to both OpenCode configurations and loads the token from a mode-`600` environment file. Leave both placeholders unchanged to skip Postiz; setting only one is rejected.
+Add these too if you use the optional Postiz MCP server:
+
+```bash
+POSTIZ_MCP_URL=https://postiz.example.com/api/public/v1/mcp
+POSTIZ_MCP_TOKEN=your-bearer-token
+```
+
+Replace `POSTIZ_MCP_URL` with an absolute `http://` or `https://` endpoint and set the matching token. When both values are set, the installer adds Postiz to both OpenCode configurations and loads the token from a mode-`600` environment file. Leave both empty to skip Postiz; setting only one is rejected.
+
+Editing `install.sh` itself still works and is still checked by the installer, but it is the reason `git pull` used to conflict with your credentials. See [Settings and credentials](#settings-and-credentials) to change where they are read from.
 
 The model defaults are:
 
@@ -138,6 +145,45 @@ OPENCODE_MODEL_ID="space-bunny-free"
 ```
 
 The script validates placeholders before writing credentials. Secrets are written with mode `600` and are not printed. It does not create a public listener; both OpenCode servers bind to `127.0.0.1`.
+
+## Settings and credentials
+
+Credentials are read from a file, not from `install.sh`. That is what lets `git pull` work: `install.env` is gitignored, so a pull cannot conflict with your tokens and cannot commit them by accident.
+
+Looked for in this order, first match wins:
+
+1. the environment, so `TELEGRAM_BOT_TOKEN=... ./install.sh` overrides the file
+2. `--env-file PATH`, or the `INSTALL_ENV_FILE` environment variable
+3. `./install.env`, next to `install.sh`
+4. `~/.config/opencode-telegram-installer/install.env`, which survives re-cloning the repo
+5. the placeholders at the top of `install.sh`, which then fail and name the value that is missing
+
+The file is plain `KEY=value` lines and is sourced, so quotes and spaces work. The installer creates `install.env` with mode `600` after a successful first run, seeded from whatever it used, and **never overwrites an existing one**, so your edits stay yours.
+
+So a normal update is just:
+
+```bash
+git pull
+./install.sh
+```
+
+No credentials re-entered, no merge conflict in `install.sh`.
+
+To keep the file outside the repository entirely, move it and point the installer at it:
+
+```bash
+mkdir -p ~/.config/opencode-telegram-installer
+mv install.env ~/.config/opencode-telegram-installer/install.env
+./install.sh
+```
+
+From then on location 4 is found automatically. Or name a path explicitly:
+
+```bash
+./install.sh --env-file /somewhere/else/settings.env
+```
+
+`./install.sh --no-settings-file` skips writing `install.env` on first run, for machines that supply everything through the environment.
 
 ## Installed paths
 
@@ -361,7 +407,7 @@ OPENCODE_TELEGRAM_UPDATE_URL=https://github.com/other/repo/archive/refs/heads/ma
 Each account gets its own project, session, agent, model, persona, hidden projects, settings and scheduled tasks. A second account cannot see or resume the first account's conversations.
 
 1. Get the new id from [@userinfobot](https://t.me/userinfobot). It is the number, not the username.
-2. List every permitted id in `install.sh`, comma separated, first one being the primary account. Either variable works, and if you set both they are merged in that order:
+2. List every permitted id in `install.env`, comma separated, first one being the primary account. Either variable works, and if you set both they are merged in that order:
 
    ```bash
    TELEGRAM_ALLOWED_USER_ID=111111111,987654321
