@@ -10,6 +10,16 @@ export interface QueuedPrompt extends IncomingPrompt {
   displayText: string;
   responseMode?: "text_only" | "text_and_tts";
   mediaBytes: number;
+  /**
+   * The Telegram account that sent this prompt.
+   *
+   * Without it, the queue is one shared FIFO and whichever run finishes first dispatches
+   * whatever happens to be next, using its own chat and session. So a prompt typed by one
+   * user while another user's agent was busy could be executed in the wrong user's project
+   * and its reply delivered to the wrong chat. Every read and every take is scoped to one
+   * account for that reason.
+   */
+  userId: number | null;
 }
 
 export interface QueuedPromptInput extends IncomingPrompt {
@@ -30,14 +40,14 @@ class PromptQueueManager {
   private nextId = 1;
   private queuedMediaBytes = 0;
 
-  add(input: QueuedPromptInput): QueuedPrompt | null {
+  add(input: QueuedPromptInput, userId: number | null = null): QueuedPrompt | null {
     const normalizedText = input.text.trim();
     const displayText = (input.displayText ?? (normalizedText || "[Attachment]")).trim();
     const mediaBytes = input.mediaBytes ?? 0;
     if (
       (!normalizedText && input.fileParts.length === 0 && input.photos.length === 0) ||
       !displayText ||
-      this.isFull() ||
+      this.isFull(userId) ||
       !this.canAcceptMedia(mediaBytes)
     ) {
       return null;
@@ -50,6 +60,7 @@ class PromptQueueManager {
       photos: [...input.photos],
       displayText,
       mediaBytes,
+      userId,
       ...(input.responseMode ? { responseMode: input.responseMode } : {}),
     };
     this.items.push(item);
@@ -58,12 +69,13 @@ class PromptQueueManager {
     return item;
   }
 
-  list(): QueuedPrompt[] {
-    return this.items.map(copyQueuedPrompt);
+  /** The queued prompts belonging to one account, in the order they were sent. */
+  list(userId: number | null): QueuedPrompt[] {
+    return this.items.filter((item) => item.userId === userId).map(copyQueuedPrompt);
   }
 
-  removeById(id: string): QueuedPrompt | null {
-    const index = this.items.findIndex((item) => item.id === id);
+  removeById(id: string, userId: number | null): QueuedPrompt | null {
+    const index = this.items.findIndex((item) => item.id === id && item.userId === userId);
     if (index < 0) {
       return null;
     }
@@ -79,8 +91,16 @@ class PromptQueueManager {
     return removed;
   }
 
-  takeNext(): QueuedPrompt | null {
-    const item = this.items.shift() ?? null;
+  /**
+   * The oldest queued prompt belonging to one account. Scoped so that finishing one user's
+   * run never dispatches another user's prompt into this session.
+   */
+  takeNext(userId: number | null): QueuedPrompt | null {
+    const index = this.items.findIndex((item) => item.userId === userId);
+    if (index < 0) {
+      return null;
+    }
+    const item = this.items.splice(index, 1)[0] ?? null;
     if (item) {
       this.queuedMediaBytes -= item.mediaBytes;
       logger.debug(`[PromptQueue] Prompt taken: id=${item.id}, size=${this.items.length}`);
@@ -88,12 +108,12 @@ class PromptQueueManager {
     return item;
   }
 
-  size(): number {
-    return this.items.length;
+  size(userId: number | null): number {
+    return this.items.filter((item) => item.userId === userId).length;
   }
 
-  isFull(): boolean {
-    return this.items.length >= MAX_QUEUED_PROMPTS;
+  isFull(userId: number | null): boolean {
+    return this.size(userId) >= MAX_QUEUED_PROMPTS;
   }
 
   canAcceptMedia(mediaBytes: number): boolean {

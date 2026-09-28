@@ -1,3 +1,4 @@
+import { getActiveSettingsUser } from "../../app/stores/settings-store.js";
 import type { Context } from "grammy";
 import {
   MAX_QUEUED_PROMPTS,
@@ -22,7 +23,18 @@ let promptDeps: ProcessPromptDeps | null = null;
 
 // Live context of the last queued message, replayed when the queue drains.
 // Same approach as message-merger.ts.
-let queuedPromptContext: Context | null = null;
+/**
+ * The grammy context each account queued from, so a dispatch replies to the chat that asked.
+ *
+ * One shared context was wrong once the queue became per account: whoever queued last owned
+ * it, so draining account A's prompt could send A's reply, and A's "queued" notice, into
+ * account B's chat.
+ */
+const queuedPromptContexts = new Map<number, Context>();
+
+function queuedContextKey(): number {
+  return getActiveSettingsUser() ?? 0;
+}
 
 // Both drain sites fire unawaited, and processUserPrompt only marks the session
 // busy after several network round-trips. Without this flag two overlapping
@@ -76,9 +88,9 @@ export async function tryEnqueuePrompt(ctx: Context, input: QueuedPromptInput): 
     return false;
   }
 
-  queuedPromptContext = ctx;
+  queuedPromptContexts.set(queuedContextKey(), ctx);
 
-  if (promptQueue.isFull()) {
+  if (promptQueue.isFull(getActiveSettingsUser())) {
     logger.info(`[PromptQueue] Rejected prompt: queue is full (max=${MAX_QUEUED_PROMPTS})`);
     await replyWithKeyboard(ctx, t("queue.full", { max: String(MAX_QUEUED_PROMPTS) }));
     return true;
@@ -89,17 +101,17 @@ export async function tryEnqueuePrompt(ctx: Context, input: QueuedPromptInput): 
     return true;
   }
 
-  const queued = promptQueue.add(input);
+  const queued = promptQueue.add(input, getActiveSettingsUser());
   if (!queued) {
     return false;
   }
 
   logger.info(
-    `[PromptQueue] Prompt queued while session is busy: size=${promptQueue.size()}/${MAX_QUEUED_PROMPTS}`,
+    `[PromptQueue] Prompt queued while session is busy: size=${promptQueue.size(getActiveSettingsUser())}/${MAX_QUEUED_PROMPTS}`,
   );
   await replyWithKeyboard(
     ctx,
-    t("queue.added", { count: String(promptQueue.size()), max: String(MAX_QUEUED_PROMPTS) }),
+    t("queue.added", { count: String(promptQueue.size(getActiveSettingsUser())), max: String(MAX_QUEUED_PROMPTS) }),
   );
   return true;
 }
@@ -122,7 +134,7 @@ export async function rejectQueuedMediaBeforePreparation(
   if (!isBusy() || !getPromptQueueEnabled() || !ctx.chat) {
     return false;
   }
-  if (promptQueue.isFull()) {
+  if (promptQueue.isFull(getActiveSettingsUser())) {
     await replyWithKeyboard(ctx, t("queue.full", { max: String(MAX_QUEUED_PROMPTS) }));
     return true;
   }
@@ -147,11 +159,12 @@ function formatQueuedMediaLimit(): string {
  * same "external user input" format used for prompts sent from another device.
  */
 export async function dispatchNextQueuedPrompt(): Promise<void> {
+  const context = queuedPromptContexts.get(queuedContextKey()) ?? null;
   if (
     dispatchInFlight ||
-    promptQueue.size() === 0 ||
+    promptQueue.size(getActiveSettingsUser()) === 0 ||
     !promptDeps ||
-    !queuedPromptContext ||
+    !context ||
     isBusy()
   ) {
     return;
@@ -160,12 +173,12 @@ export async function dispatchNextQueuedPrompt(): Promise<void> {
   dispatchInFlight = true;
 
   try {
-    const item = promptQueue.takeNext();
+    const item = promptQueue.takeNext(getActiveSettingsUser());
     if (!item) {
       return;
     }
 
-    const ctx = queuedPromptContext;
+    const ctx = context;
     const deps = promptDeps;
 
     const notification = buildExternalUserInputNotification(item.displayText);
@@ -186,7 +199,7 @@ export async function dispatchNextQueuedPrompt(): Promise<void> {
     }
 
     logger.info(
-      `[PromptQueue] Dispatching queued prompt: id=${item.id}, left=${promptQueue.size()}`,
+      `[PromptQueue] Dispatching queued prompt: id=${item.id}, left=${promptQueue.size(getActiveSettingsUser())}`,
     );
 
     try {
@@ -214,6 +227,6 @@ async function replyWithKeyboard(ctx: Context, text: string): Promise<void> {
 /** Test helper: clears the stored context and dependencies. */
 export function __resetPromptQueueDispatchForTests(): void {
   promptDeps = null;
-  queuedPromptContext = null;
+  queuedPromptContexts.clear();
   dispatchInFlight = false;
 }

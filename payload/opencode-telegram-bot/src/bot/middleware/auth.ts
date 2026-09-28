@@ -1,6 +1,6 @@
 import { Context, NextFunction } from "grammy";
 import { config } from "../../config.js";
-import { setActiveSettingsUser } from "../../app/stores/settings-store.js";
+import { runAsSettingsUser, setActiveSettingsUser } from "../../app/stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
 
 export function isAllowedUser(userId: number | undefined): boolean {
@@ -18,14 +18,15 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
   );
 
   if (isAllowedUser(userId)) {
-    // Settings are stored per Telegram account. Selecting the account here, before any
-    // handler runs, is what keeps two users of the same bot from overwriting each
-    // other's project, session, agent, persona and toggles.
-    if (userId !== undefined) {
-      setActiveSettingsUser(userId);
-    }
+    // Settings are stored per Telegram account, and the account has to be bound to this
+    // update's async context rather than to a shared variable. grammy runs updates
+    // concurrently, so two people using the bot at once have their handlers interleaved;
+    // with a shared value, whichever user arrived last would supply the project, session
+    // and persona for both of them. runAsSettingsUser scopes it to this update and
+    // restores it afterwards, so overlapping updates cannot see each other's account.
+    setActiveSettingsUser(userId ?? null);
     logger.debug(`[Auth] Access granted for userId=${userId}`);
-    await next();
+    await runAsSettingsUser(userId ?? null, () => next());
   } else {
     // Silently ignore unauthorized users
     logger.warn(`Unauthorized access attempt from user ID: ${userId}`);

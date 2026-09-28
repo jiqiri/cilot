@@ -1,3 +1,4 @@
+import { getActiveSettingsUser } from "../../app/stores/settings-store.js";
 import { promptQueue, type QueuedPrompt } from "../../app/managers/prompt-queue-manager.js";
 import { t } from "../../i18n/index.js";
 
@@ -23,12 +24,12 @@ export function formatQueuedPromptButtonLabel(index: number, text: string): stri
 
 export function getQueuedPromptButtonLabels(): string[] {
   return promptQueue
-    .list()
+    .list(getActiveSettingsUser())
     .map((item, index) => formatQueuedPromptButtonLabel(index + 1, item.displayText));
 }
 
 export function findQueuedPromptByButtonLabel(label: string): QueuedPrompt | null {
-  const items = promptQueue.list();
+  const items = promptQueue.list(getActiveSettingsUser());
   const index = items.findIndex(
     (item, itemIndex) => formatQueuedPromptButtonLabel(itemIndex + 1, item.displayText) === label,
   );

@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import path from "node:path";
 import type { ModelInfo } from "../types/model.js";
 import type { ProjectInfo } from "../types/project.js";
@@ -149,19 +150,45 @@ const SETTINGS_VERSION = 2;
 let settingsRoot: Settings = {};
 
 /**
- * Which Telegram account the next settings read or write applies to. Set by the auth
- * middleware on every accepted update, before any handler runs. Null only before the
- * first update arrives, when the primary account is used as a sensible default for
- * startup work such as session restore.
+ * Which Telegram account the next settings read or write applies to.
+ *
+ * This has to be per async execution context, not a single variable. grammy processes
+ * updates concurrently, so two people using the bot at once have their handlers running at
+ * the same time, interleaved at every `await`. With one shared variable, whichever user
+ * authenticated most recently wins for *both* of them: user A authenticates, awaits the
+ * OpenCode API, user B authenticates, and A's next settings read returns B's project,
+ * session, persona, model and toggles. That is a real cross-account data leak, not a
+ * display glitch, because those values are also what A's next prompt is sent with.
+ *
+ * `AsyncLocalStorage` carries the account through the whole async continuation of a single
+ * update and restores it automatically, so overlapping updates cannot see each other's
+ * account. `fallbackUserId` remains for work that has no incoming update, such as the
+ * scheduled task tick and startup session restore.
  */
-let activeUserId: number | null = null;
+const userContext = new AsyncLocalStorage<number | null>();
+
+let fallbackUserId: number | null = null;
+
+function currentUserId(): number | null {
+  const scoped = userContext.getStore();
+  return scoped === undefined ? fallbackUserId : scoped;
+}
+
+/**
+ * Runs `fn` with `userId` as the active account for its entire async continuation, then
+ * restores whatever was active before. Use this from the auth middleware so that every
+ * handler below it, including anything it awaits, reads the right slice.
+ */
+export function runAsSettingsUser<T>(userId: number | null, fn: () => T): T {
+  return userContext.run(userId, fn);
+}
 
 export function setActiveSettingsUser(userId: number | null): void {
-  activeUserId = userId;
+  fallbackUserId = userId;
 }
 
 export function getActiveSettingsUser(): number | null {
-  return activeUserId;
+  return currentUserId();
 }
 
 function userKey(userId: number | null): string {
@@ -174,7 +201,7 @@ function userKey(userId: number | null): string {
  * bot without touching any call site.
  */
 function activeSlice(): UserSettings {
-  const key = userKey(activeUserId);
+  const key = userKey(currentUserId());
   settingsRoot.users ??= {};
   const existing = settingsRoot.users[key];
   if (existing) {
@@ -202,13 +229,7 @@ export function getKnownUserIds(): number[] {
  * to reach each account's tasks and to write their results back to the right slice.
  */
 export function withSettingsUser<T>(userId: number | null, run: () => T): T {
-  const previous = activeUserId;
-  activeUserId = userId;
-  try {
-    return run();
-  } finally {
-    activeUserId = previous;
-  }
+  return userContext.run(userId, run);
 }
 
 export function getCurrentProject(): ProjectInfo | undefined {
@@ -352,7 +373,7 @@ export function claimAllSessions(sessionIds: string[]): void {
   }
   activeSlice().ownedSessionIds = merged;
   void persist();
-  logger.info(`[Settings] Claimed ${added} pre-existing session(s) for user ${userKey(activeUserId)}`);
+  logger.info(`[Settings] Claimed ${added} pre-existing session(s) for user ${userKey(currentUserId())}`);
 }
 
 /** Records that the active account created a session. No-op if already claimed. */
@@ -487,7 +508,7 @@ export function setScheduledTaskSessionIgnores(
 
 export function __resetSettingsForTests(): void {
   settingsRoot = {};
-  activeUserId = null;
+  fallbackUserId = null;
   settingsWriteQueue = Promise.resolve();
   skipNextBackupRotation = false;
 }

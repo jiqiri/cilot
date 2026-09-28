@@ -1,3 +1,4 @@
+import { getActiveSettingsUser } from "../../app/stores/settings-store.js";
 import type { Bot, Context } from "grammy";
 import { config } from "../../config.js";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
@@ -67,7 +68,7 @@ export function registerMessageRouter(bot: Bot<Context>, deps: MessageRouterDeps
     const queuedPrompt = label ? findQueuedPromptByButtonLabel(label) : null;
 
     if (queuedPrompt) {
-      promptQueue.removeById(queuedPrompt.id);
+      promptQueue.removeById(queuedPrompt.id, getActiveSettingsUser());
       const keyboard = container.keyboardManager.getKeyboard();
       await ctx.reply(t("queue.removed"), keyboard ? { reply_markup: keyboard } : {});
       return;
