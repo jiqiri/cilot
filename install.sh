@@ -24,9 +24,14 @@ Options:
 Settings are taken from the first of these that provides them:
   1. the environment
   2. --env-file PATH, or $INSTALL_ENV_FILE
-  3. ./install.env
-  4. ~/.config/opencode-telegram-installer/install.env
+  3. ~/.config/opencode-telegram-installer/install.env
+  4. ./install.env, if you keep it in the checkout
   5. the placeholders at the top of this file, which then fail and say what is missing
+
+The file lives outside the repository on purpose. A fresh install writes it to
+~/.config/opencode-telegram-installer/install.env, because re-cloning the repo
+into a new directory is how you normally pick up a fix, and that would take
+anything stored inside the checkout with it.
 USAGE
 }
 
@@ -44,30 +49,44 @@ while [[ $# -gt 0 ]]; do
 done
 
 # ------------------------------------------------------------------ settings
-# Settings and credentials are read from a file outside the repository. Keeping them out
-# of install.sh is what lets `git pull` work: the file is never tracked, so a pull cannot
-# conflict with your tokens and cannot commit them by accident.
+# Settings and credentials are read from a file OUTSIDE the repository, because the
+# repository is disposable: re-cloning it into a new directory is the normal way to pick up
+# a fix, and anything stored inside it is destroyed by that. Credentials belong in the
+# user's own config directory, which is where a fresh install puts them.
 #
 # In order of precedence, first match wins:
-#   1. the environment          TELEGRAM_BOT_TOKEN=... ./install.sh
-#   2. INSTALL_ENV_FILE         an explicit path
-#   3. ./install.env            next to this script, gitignored
-#   4. ~/.config/opencode-telegram-installer/install.env
-#   5. the placeholders below, which then fail validation and name what is missing
+#   1. the environment                       TELEGRAM_BOT_TOKEN=... ./install.sh
+#   2. INSTALL_ENV_FILE, or --env-file PATH  an explicit path
+#   3. ~/.config/opencode-telegram-installer/install.env    the default location
+#   4. ./install.env                         legacy, next to this script, warned about
+#   5. the placeholders below, which fail validation and name what is missing
 #
-# The file is plain KEY=value lines and is sourced, so it can hold quotes and spaces.
-# The installer creates it with mode 600 on first run, and never overwrites an existing
-# one: your edits stay yours.
+# The file is plain KEY=value lines and is sourced, so it can hold quotes and spaces. The
+# installer creates it with mode 600 and never overwrites an existing one.
+SETTINGS_DIR="${SETTINGS_DIR:-$HOME/.config/opencode-telegram-installer}"
+DEFAULT_ENV_FILE="$SETTINGS_DIR/install.env"
+LEGACY_ENV_FILE="$SCRIPT_DIR/install.env"
+
 INSTALL_ENV_FILE="${INSTALL_ENV_FILE:-}"
 if [[ -z "$INSTALL_ENV_FILE" ]]; then
-  for candidate in \
-    "$SCRIPT_DIR/install.env" \
-    "$HOME/.config/opencode-telegram-installer/install.env"; do
+  for candidate in "$DEFAULT_ENV_FILE" "$LEGACY_ENV_FILE"; do
     if [[ -f "$candidate" ]]; then
       INSTALL_ENV_FILE="$candidate"
       break
     fi
   done
+fi
+
+# Move a legacy file out of the repository rather than reading it from there. Leaving it
+# where it is means the next re-clone silently loses the credentials and the install fails
+# with no token, which is the failure this whole change exists to prevent.
+if [[ "$INSTALL_ENV_FILE" == "$LEGACY_ENV_FILE" && ! -e "$DEFAULT_ENV_FILE" ]]; then
+  mkdir -p "$SETTINGS_DIR"
+  mv "$LEGACY_ENV_FILE" "$DEFAULT_ENV_FILE"
+  chmod 600 "$DEFAULT_ENV_FILE"
+  INSTALL_ENV_FILE="$DEFAULT_ENV_FILE"
+  log "Moved your install.env out of the repository to $DEFAULT_ENV_FILE"
+  log "It was inside the checkout, so re-cloning would have deleted it."
 fi
 if [[ -n "$INSTALL_ENV_FILE" ]]; then
   [[ -r "$INSTALL_ENV_FILE" ]] || die "INSTALL_ENV_FILE is not readable: $INSTALL_ENV_FILE"
@@ -508,16 +527,18 @@ write_settings_file() {
   [[ -n "$INSTALL_ENV_FILE" ]] && return 0
   [[ "${INSTALL_ENV_WRITE:-1}" == "0" ]] && return 0
 
-  local target="$SCRIPT_DIR/install.env"
+  # Outside the repository, always. A file inside the checkout is destroyed by the
+  # re-clone that is the normal way to pick up a fix, which loses the credentials.
+  local target="$DEFAULT_ENV_FILE"
   if [[ -e "$target" ]]; then
     log "Keeping your existing $target"
     return 0
   fi
 
-  mkdir -p "$SCRIPT_DIR"
+  mkdir -p "$SETTINGS_DIR"
   {
-    echo "# Settings for install.sh. Not tracked by git, so pulling new source never"
-    echo "# conflicts with your credentials and never commits them."
+    echo "# Settings for install.sh. Stored outside the repository, so pulling or re-cloning"
+    echo "# new source never conflicts with your credentials and never loses them."
     echo "# Rewrite any value here and re-run ./install.sh to apply it."
     echo
     echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN-}"
@@ -547,7 +568,7 @@ validate_placeholders() {
   for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID CF_WORKERS_AI_ACCOUNT CF_WORKERS_AI_TOKEN; do
     value="${!name}"
     if [[ "$value" == REPLACE_WITH_* ]]; then
-      die "$name is not set. Put it in ${INSTALL_ENV_FILE:-$SCRIPT_DIR/install.env}, or export it for this run. See README.md 'Settings and credentials'."
+      die "$name is not set. Put it in ${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}, or export it for this run. See README.md 'Settings and credentials'."
     fi
     [[ -n "$value" ]] || die "$name cannot be empty."
   done
@@ -995,7 +1016,7 @@ main() {
   if [[ -n "$INSTALL_ENV_FILE" ]]; then
     log "Settings kept in $INSTALL_ENV_FILE; re-run ./install.sh after a git pull to apply changes."
   else
-    log "Settings written to $SCRIPT_DIR/install.env; edit that file, not install.sh."
+    log "Settings written to $DEFAULT_ENV_FILE; edit that file, not install.sh."
   fi
 }
 

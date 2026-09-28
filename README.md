@@ -106,11 +106,12 @@ sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
 ## Usage
 
 1. Download this repository, or download only `install.sh`; when the local `payload/` directory is absent, the script downloads the matching repository payload automatically.
-2. Put your credentials in `install.env`, next to `install.sh`. This file is gitignored, so `git pull` never conflicts with it and never commits your tokens:
+2. Put your credentials in `install.env`, created outside the repository at `~/.config/opencode-telegram-installer/install.env`. A fresh install writes this file for you, but you can create it first:
 
 ```bash
-cp install.env.example install.env
-$EDITOR install.env
+mkdir -p ~/.config/opencode-telegram-installer
+cp install.env.example ~/.config/opencode-telegram-installer/install.env
+$EDITOR ~/.config/opencode-telegram-installer/install.env
 ```
 
 ```bash
@@ -148,42 +149,45 @@ The script validates placeholders before writing credentials. Secrets are writte
 
 ## Settings and credentials
 
-Credentials are read from a file, not from `install.sh`. That is what lets `git pull` work: `install.env` is gitignored, so a pull cannot conflict with your tokens and cannot commit them by accident.
+Credentials are read from a file, not from `install.sh`, and the file lives **outside the repository**, at `~/.config/opencode-telegram-installer/install.env`.
+
+Outside matters because the repository is disposable. Re-cloning into a new directory is the normal way to pick up a fix, and anything stored inside the checkout is destroyed by that. A file inside the repo also means `git pull` can conflict with your own tokens.
 
 Looked for in this order, first match wins:
 
 1. the environment, so `TELEGRAM_BOT_TOKEN=... ./install.sh` overrides the file
 2. `--env-file PATH`, or the `INSTALL_ENV_FILE` environment variable
-3. `./install.env`, next to `install.sh`
-4. `~/.config/opencode-telegram-installer/install.env`, which survives re-cloning the repo
+3. `~/.config/opencode-telegram-installer/install.env`
+4. `./install.env`, if you keep it in the checkout
 5. the placeholders at the top of `install.sh`, which then fail and name the value that is missing
 
-The file is plain `KEY=value` lines and is sourced, so quotes and spaces work. The installer creates `install.env` with mode `600` after a successful first run, seeded from whatever it used, and **never overwrites an existing one**, so your edits stay yours.
+The file is plain `KEY=value` lines and is sourced, so quotes and spaces work. The installer creates it with mode `600` after a successful first run, seeded from whatever it used, and **never overwrites an existing one**, so your edits stay yours.
 
-So a normal update is just:
+A normal update is just:
 
 ```bash
 git pull
 ./install.sh
 ```
 
-No credentials re-entered, no merge conflict in `install.sh`.
+No credentials re-entered, no merge conflict, and the settings survive a re-clone.
 
-To keep the file outside the repository entirely, move it and point the installer at it:
+If you have an older `install.env` sitting in the checkout, move it out:
 
 ```bash
 mkdir -p ~/.config/opencode-telegram-installer
 mv install.env ~/.config/opencode-telegram-installer/install.env
-./install.sh
 ```
 
-From then on location 4 is found automatically. Or name a path explicitly:
+The installer does this for you on the next run, and says so, but only when the new location does not already exist. A file named explicitly with `--env-file` is left where it is.
+
+To put the file somewhere else entirely, name the path:
 
 ```bash
 ./install.sh --env-file /somewhere/else/settings.env
 ```
 
-`./install.sh --no-settings-file` skips writing `install.env` on first run, for machines that supply everything through the environment.
+`./install.sh --no-settings-file` skips writing the file on first run, for machines that supply everything through the environment.
 
 ## Installed paths
 
