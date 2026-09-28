@@ -169,9 +169,18 @@ function getOptionalSttRequestFormatEnvVar(
  * startup session restore, and the one a pre-upgrade settings.json migrates into.
  */
 function parseAllowedUserIds(): number[] {
-  const list = getOptionalPathListEnvVar("TELEGRAM_ALLOWED_USER_IDS");
-  const single = getEnvVar("TELEGRAM_ALLOWED_USER_ID").trim();
-  const raw = list.length > 0 ? list : single ? [single] : [];
+  // Both variables take one id or a comma separated list, and both are merged. The
+  // original variable is read first so its first id stays the primary account.
+  const split = (value: string): string[] =>
+    value
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+
+  const raw = [
+    ...split(getEnvVar("TELEGRAM_ALLOWED_USER_ID", false)),
+    ...split(process.env.TELEGRAM_ALLOWED_USER_IDS ?? ""),
+  ];
 
   const ids: number[] = [];
   for (const entry of raw) {
@@ -192,7 +201,7 @@ function parseAllowedUserIds(): number[] {
 
   if (ids.length === 0) {
     throw new Error(
-      "No Telegram user ids configured. Set TELEGRAM_ALLOWED_USER_IDS, for example 11111111,22222222.",
+      "No Telegram user ids configured. Set TELEGRAM_ALLOWED_USER_ID, for example 11111111, or 11111111,22222222 for several accounts.",
     );
   }
 

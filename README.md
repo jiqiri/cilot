@@ -361,10 +361,10 @@ OPENCODE_TELEGRAM_UPDATE_URL=https://github.com/other/repo/archive/refs/heads/ma
 Each account gets its own project, session, agent, model, persona, hidden projects, settings and scheduled tasks. A second account cannot see or resume the first account's conversations.
 
 1. Get the new id from [@userinfobot](https://t.me/userinfobot). It is the number, not the username.
-2. List every permitted id in `install.sh`, comma separated, first one being the primary account:
+2. List every permitted id in `install.sh`, comma separated, first one being the primary account. Either variable works, and if you set both they are merged in that order:
 
    ```bash
-   TELEGRAM_ALLOWED_USER_IDS=111111111,987654321
+   TELEGRAM_ALLOWED_USER_ID=111111111,987654321
    ```
 
 3. Re-run the installer and restart the bot:
@@ -376,7 +376,7 @@ Each account gets its own project, session, agent, model, persona, hidden projec
 
 The first id is the **primary account**. It is used for startup session restore, and it adopts the sessions that already exist so nothing is lost when you add a second account. Later accounts start empty and only ever see what they create.
 
-`TELEGRAM_ALLOWED_USER_ID` still works on its own for a single account, and takes precedence if both are set to the same account.
+`TELEGRAM_ALLOWED_USER_ID` takes one id or a comma separated list, and `TELEGRAM_ALLOWED_USER_IDS` is equivalent. They are merged rather than one overriding the other, so an id listed in either file is permitted, and the first id overall is the primary account.
 
 > Adding an id grants that person the bot's full capabilities: shell access and file read/write as the Linux user running it, plus the OpenCode server and the Postiz and Cloudflare credentials in its environment. Only add people you would give that access to directly.
 

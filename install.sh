@@ -386,11 +386,15 @@ validate_placeholders() {
     [[ "$value" != REPLACE_WITH_* ]] || die "Replace $name in install.sh before running."
     [[ -n "$value" ]] || die "$name cannot be empty."
   done
-  if [[ -n "${TELEGRAM_ALLOWED_USER_IDS:-}" ]]; then
-    local_csv="$(printf '%s' "$TELEGRAM_ALLOWED_USER_IDS" | tr -d '[:space:]')"
-    [[ "$local_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_IDS must be digits separated by commas, for example 11111111,22222222."
-  else
-    [[ "$TELEGRAM_ALLOWED_USER_ID" =~ ^[0-9]+$ ]] || die "TELEGRAM_ALLOWED_USER_ID must contain only digits."
+  # Either variable takes one id or a comma separated list. Accepting a list in the
+  # original variable is the point: putting several ids in TELEGRAM_ALLOWED_USER_ID is the
+  # obvious thing to try, and rejecting it just sent people to the second variable.
+  local id_csv ids_csv
+  id_csv="$(printf '%s' "$TELEGRAM_ALLOWED_USER_ID" | tr -d '[:space:]')"
+  ids_csv="$(printf '%s' "${TELEGRAM_ALLOWED_USER_IDS:-}" | tr -d '[:space:]')"
+  [[ "$id_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_ID must be digits, or digits separated by commas for several accounts, for example 11111111 or 11111111,22222222. Got: $TELEGRAM_ALLOWED_USER_ID"
+  if [[ -n "$ids_csv" ]]; then
+    [[ "$ids_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_IDS must be digits separated by commas, for example 11111111,22222222. Got: $ids_csv"
   fi
   if [[ -n "$POSTIZ_MCP_URL" || -n "$POSTIZ_MCP_TOKEN" ]]; then
     [[ -n "$POSTIZ_MCP_URL" && -n "$POSTIZ_MCP_TOKEN" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
