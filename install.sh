@@ -163,10 +163,14 @@ install_nodejs() {
   [[ "$asset_arch" == "x64" || "$asset_arch" == "arm64" ]] || die "No Node.js build for architecture: $(uname -m)"
 
   target_dir="$INSTALL_ROOT/bin"
+  local node_root="$INSTALL_ROOT/node-v$NODE_VERSION"
+  local archive_dir="node-v$NODE_VERSION-linux-$asset_arch"
   mkdir -p "$target_dir"
-  tmp="$(mktemp -d)"
-  local url="https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$asset_arch.tar.xz"
-  local archive="$tmp/node.tar.xz"
+
+  local url="https://nodejs.org/dist/v$NODE_VERSION/$archive_dir.tar.xz"
+  local tmp archive
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/opencode-node.XXXXXX")"
+  archive="$tmp/node.tar.xz"
 
   log "Downloading Node.js $NODE_VERSION for $asset_arch"
   if [[ "$FETCH_CMD" == "wget" ]]; then
@@ -177,13 +181,21 @@ install_nodejs() {
 
   tar -xJf "$archive" -C "$tmp" || die "Failed to unpack Node.js. Install xz-utils and re-run."
 
-  # The archive unpacks into a versioned directory; move its bin into place.
-  local src_bin
-  src_bin="$(find "$tmp" -maxdepth 2 -type d -name bin | head -1)"
-  [[ -n "$src_bin" ]] || die "Unexpected Node.js archive layout."
-  cp -f "$src_bin"/* "$target_dir"/ || die "Failed to install Node.js into $target_dir"
-  chmod 0755 "$target_dir"/*
+  # bin/npm and bin/npx are symlinks into ../lib/node_modules, and those entry points in
+  # turn require files that sit beside them. Copying only bin/ dereferences the symlinks
+  # and leaves npm as a standalone script whose relative require no longer resolves, so
+  # the whole tree is copied with -a to keep the links intact.
+  [[ -d "$tmp/$archive_dir" ]] || die "Unexpected Node.js archive layout: $archive_dir not found."
+  rm -rf "$node_root"
+  cp -a "$tmp/$archive_dir" "$node_root" || die "Failed to install Node.js into $node_root"
   rm -rf "$tmp"
+  chmod 0755 "$node_root/bin/node"
+
+  local entry
+  for entry in node npm npx corepack; do
+    [[ -e "$node_root/bin/$entry" ]] || continue
+    ln -sfn "$node_root/bin/$entry" "$target_dir/$entry"
+  done
 
   export PATH="$target_dir:$PATH"
   hash -r 2>/dev/null || true
