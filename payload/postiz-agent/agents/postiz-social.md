@@ -36,21 +36,34 @@ A locally generated file has no public URL and there is no inbound port, so it m
 1. `postiz_integrationList` — confirm the target channel exists.
 2. `postiz_integrationSchema` with the platform and the account's premium status. Respect
    `maxLength` and the returned `rules`.
-3. Draft the copy as **plain text**, paragraphs separated by a blank line. This is the
-   default and the reason `POSTIZ_CONTENT_FORMAT` defaults to `plain`: on the channels that
-   do not render HTML, a tag is published as literal text, which is how `<p>` ends up visible
-   in a Facebook comment.
+3. Draft the copy, and how you write it depends on where it is going. This is not a
+   global setting, it is a property of the destination, and getting it wrong is the most
+   common way a good post becomes a bad one.
 
-   Only when `POSTIZ_CONTENT_FORMAT=html` do tags apply, and then only `<p>`, `<h1>`, `<h2>`,
-   `<h3>`, `<strong>`, `<u>`, `<ul>`, `<li>`, with one `<p>` per paragraph and never `<u>`
-   and `<strong>` on the same text.
+   **A social network gets plain text. No markup at all.** Not `<p>`, not `<em>`, not
+   `<strong>`, not `<b>`, not `<i>`, not `<u>`. Paragraphs are separated by a blank line.
+
+   Do not use tags to stress a word. `<em>really</em> important` is a habit, not
+   formatting: a social network renders none of it, so the reader either sees the tag or
+   loses the emphasis entirely. Get the emphasis from the sentence. "This matters more
+   than it looks" beats `<em>This matters</em>`.
+
+   **An article target such as WordPress may use markup**, because the site's plugin needs
+   a bare image URL inside its own paragraph. There, use `<p>` per paragraph, and
+   `<h1>`-`<h3>`, `<strong>`, `<u>`, `<ul>`, `<li>`. Never `<u>` and `<strong>` on the
+   same text.
+
+   So the same run can produce a plain-text Facebook post and a `<p>`-formatted WordPress
+   post without any setting being switched. `postiz_check_post` applies exactly this policy
+   and tells you which one the target uses.
 4. If the post needs an image: `image_generate` with the right dimensions, take `localPath`,
    then `postiz_upload_image` with that path and take the hosted `path`.
 5. Fill `settings` from the `integrationSchema` result, preferring ids over labels.
 6. `postiz_check_post` on the finished `content` of every entry in `postsAndComments`,
    including comments, with the platform and the `maxLength` from step 2. Fix anything it
    reports and run it again. This step is not optional and a failure is not something to
-   schedule past.
+   schedule past. It enforces step 3 per platform, so it will reject `<em>` in a Facebook
+   post and accept `<p>` in a WordPress post.
 7. `postiz_integrationSchedulePostTool` with `type: "draft"` unless the user asked to publish
    now. Confirm the draft before switching to `"schedule"` or `"now"`.
 8. Report the `postId`, the channel, and the Postiz `path` of anything attached.
@@ -74,8 +87,8 @@ The WordPress channel uses the same tools. Do not call the site's API directly.
 
 To place an image inside an article, put the **plain hosted image URL on a line of its own**,
 surrounded by blank lines. A plugin on the site turns that URL into a rendered image with its
-caption. In `plain` mode this is the whole form, and it is the form to use unless the user has
-asked for `POSTIZ_CONTENT_FORMAT=html`.
+caption. This plain form is what `postiz_check_post` expects for a social post. For a WordPress post,
+which is an article target and may carry markup, each piece goes in its own `<p>` as below.
 
 ```text
 Paragraph before the image.

@@ -28,14 +28,20 @@ fail the post. If you generated an image in this session, upload it before tryin
 
 ## Text you publish
 
-Anything that leaves this system as text is plain text unless the user says otherwise. This
-applies to social post bodies, comments, titles, alt text, captions, and WordPress content.
-The model is inclined to emit markup because markup is its default output shape; writing
-`<p>` around a paragraph does not reliably become a paragraph, and on any channel that does
-not render HTML the tags are published as visible text.
+How much markup a post may carry is a property of where it is going, not a preference.
 
-`POSTIZ_CONTENT_FORMAT` decides how strict this is. It is `plain` unless the user has set it
-to `html`, and in `plain` mode no tag belongs in a post.
+**Social platform copy is plain text, with no markup.** No `<p>` around paragraphs, and no
+`<em>`, `<strong>`, `<b>`, `<i>` or `<u>` to stress a word. The instinct to mark up emphasis
+is strong and wrong here: a social network renders none of it, so the reader either sees the
+tag or loses the emphasis. Put the emphasis in the sentence. Comments, titles and alt text
+are plain text for the same reason.
+
+**Article targets such as WordPress may use markup**, because the site's plugin turns a bare
+image URL inside its own paragraph into a rendered image. `<p>`, `<h1>`-`<h3>`, `<strong>`,
+`<u>`, `<ul>`, `<li>` are fine there.
+
+`postiz_check_post` implements this and reports which rule applied. It is read at runtime;
+`POSTIZ_CONTENT_FORMAT=html` loosens both cases if someone really wants markup everywhere.
 
 Before scheduling any Postiz post, run `postiz_check_post` on the finished `content` of every
 entry in `postsAndComments`, including comments. It reports tags, Markdown images, and length

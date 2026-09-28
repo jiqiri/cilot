@@ -3,17 +3,29 @@ import { tool } from "@opencode-ai/plugin"
 /**
  * Checks a Postiz post body before it is scheduled.
  *
- * A prompt rule is a request, not a guarantee. The model has a strong prior towards
- * emitting markup, and Postiz renders HTML only on the platforms whose API treats the
- * field as HTML. Everywhere else the tags survive into the published post, which is how
- * `<p>` text ends up visible on a Facebook comment. This tool makes the check
- * deterministic: it reports what is actually in the string, so a failure is a fact rather
- * than something the model has to remember.
+ * A prompt rule is a request, not a guarantee, and the failure this guards against is not
+ * only tags leaking into a published post. The model also reaches for inline emphasis while
+ * *drafting*: `<em>`, `<strong>`, `<b>` appear in ordinary social copy because markup is its
+ * default way to express stress, and a social network renders none of it. So the copy
+ * arrives with tags the writer never meant as tags. This tool makes the check deterministic:
+ * it reports what is actually in the string, so a failure is a fact rather than something
+ * the model has to remember.
  *
- * The strictness is chosen by POSTIZ_CONTENT_FORMAT:
- *   plain (default) - any tag is an error. Use this if you do not want markup at all.
- *   html            - tags are allowed, but unsupported ones, `<u>` overlapping
- *                     `<strong>`, and text that looks like a tag are still reported.
+ * The rule is per platform, not global. That is the point: social networks take plain text
+ * and nothing else, while WordPress content genuinely needs `<p>` because the site's plugin
+ * turns a bare image URL sitting in its own paragraph into a rendered image. Treating that as
+ * a global rule is what produced the conflict. Here it is a property of the platform, so a
+ * WordPress post may carry markup and a Facebook post may not, in the same run, with no
+ * setting to reconcile.
+ *
+ * POSTIZ_CONTENT_FORMAT loosens the whole thing if someone wants it:
+ *   strict (default, "plain" accepted as an alias)
+ *       - social platforms: no tag at all is allowed
+ *       - WordPress and other article targets: the supported set is allowed
+ *   html
+ *       - the supported set is allowed everywhere
+ * Unsupported tags, `<u>` overlapping `<strong>`, and stray markup are still reported in
+ * either mode.
  */
 
 const SUPPORTED_TAGS = new Set([
@@ -34,6 +46,19 @@ const SUPPORTED_TAGS = new Set([
   "em",
 ])
 
+/**
+ * The only targets whose `content` field is treated as HTML. Everything else is a social
+ * network, where markup is either stripped or shown literally.
+ */
+const HTML_TARGETS = new Set(["wordpress", "blog", "webflow", "ghost", "medium", "substack"])
+
+/**
+ * Tags a writer reaches for out of habit rather than need. Worth calling out by name,
+ * because "remove the markup" reads as being told off while "you used <em> to stress a word"
+ * names the actual mistake and is easier to not repeat.
+ */
+const INLINE_EMPHASIS_TAGS = new Set(["em", "i", "b", "strong", "u", "span", "small", "sup", "sub"])
+
 // A tag is only a tag if it is followed by a name and then a boundary, so "a < b" and
 // "5 < 10" are not mistaken for markup.
 const TAG_RE = /<\s*\/?\s*([a-zA-Z][a-zA-Z0-9]*)([^<>]*)>/g
@@ -42,9 +67,19 @@ const BARE_URL_RE = /https?:\/\/\S+/g
 
 type Finding = { severity: "error" | "warning"; message: string }
 
-function contentFormat(): "plain" | "html" {
+function contentFormat(): "strict" | "html" {
   const raw = process.env.POSTIZ_CONTENT_FORMAT?.trim().toLowerCase()
-  return raw === "html" ? "html" : "plain"
+  return raw === "html" ? "html" : "strict"
+}
+
+/**
+ * Whether this platform's `content` may carry markup. Article targets may, social networks
+ * may not, and that difference is not configurable per post because it is a property of the
+ * destination rather than a matter of taste.
+ */
+function allowsHtml(platform: string, format: "strict" | "html"): boolean {
+  if (format === "html") return true
+  return HTML_TARGETS.has(platform.trim().toLowerCase())
 }
 
 function check(
@@ -66,6 +101,7 @@ function check(
   const format = contentFormat()
   const field = args.field?.trim() || "content"
   const platform = args.platform?.trim() || "unspecified platform"
+  const htmlAllowed = allowsHtml(platform, format)
   const findings: Finding[] = []
 
   const tags: { name: string; raw: string }[] = []
@@ -73,14 +109,20 @@ function check(
     tags.push({ name: match[1].toLowerCase(), raw: match[0] })
   }
 
-  if (format === "plain") {
+  if (!htmlAllowed) {
     if (tags.length > 0) {
       const names = [...new Set(tags.map((t) => t.name))].join(", ")
+      const emphasis = [...new Set(tags.map((t) => t.name))].filter((n) => INLINE_EMPHASIS_TAGS.has(n))
       findings.push({
         severity: "error",
         message:
-          `${tags.length} HTML tag(s) (${names}) found but POSTIZ_CONTENT_FORMAT=plain, so these would ` +
-          `be published as literal text. Remove every tag and separate paragraphs with a blank line.`,
+          `${tags.length} HTML tag(s) (${names}) found. ${platform} post copy is plain text, so these ` +
+          `are not formatting here: they are either stripped or published as visible text.` +
+          (emphasis.length > 0
+            ? ` You used <${emphasis.join(">, <")}> to stress a word; a social network renders none of it. ` +
+              `Get the emphasis from the sentence instead.`
+            : ` Separate paragraphs with a blank line instead.`) +
+          ` Remove every tag and rewrite.`,
       })
     }
   } else {
@@ -138,7 +180,10 @@ function check(
   const urls = raw.match(BARE_URL_RE) ?? []
 
   const lines: string[] = []
-  lines.push(`Checked the ${field} field for ${platform} in ${format} mode.`)
+  lines.push(
+    `Checked the ${field} field for ${platform} in ${format} mode ` +
+      `(${htmlAllowed ? "markup permitted on this target" : "plain text only on this target"}).`,
+  )
   lines.push(`Visible length: ${raw.replace(TAG_RE, "").trim().length} characters.`)
   if (urls.length > 0) lines.push(`Bare URLs found: ${urls.length}. Each must be a full https URL on its own.`)
   if (errors.length === 0 && warnings.length === 0) {
@@ -157,6 +202,9 @@ function check(
     metadata: {
       ok: errors.length === 0,
       format,
+      htmlAllowed,
+      /** Set when the copy is plain text and no markup is permitted for this target. */
+      requiresPlainText: !htmlAllowed,
       field,
       platform,
       errorCount: errors.length,
@@ -168,7 +216,7 @@ function check(
 
 export default tool({
   description:
-    "Check a Postiz post body for HTML tags, Markdown images and length before scheduling. Run this on the finished `content` of every entry in postsAndComments, and fix anything it reports. Set POSTIZ_CONTENT_FORMAT=html to allow markup; the default plain rejects every tag, because on platforms that do not render HTML the tags are published as visible text.",
+    "Check a Postiz post body before scheduling: HTML tags, inline emphasis tags, Markdown images and length. Run it on the finished `content` of every entry in postsAndComments, including comments, and rewrite anything it reports. Social platform copy is plain text with no markup at all: do not use <em>, <strong>, <i> or <b> to stress a word, and do not wrap paragraphs in <p>. Article targets such as WordPress may use <p>. Set POSTIZ_CONTENT_FORMAT=html to allow markup everywhere.",
   args: {
     content: tool.schema.string().describe("The exact text you will put in the post or comment."),
     platform: tool.schema.string().optional().describe("Platform name, for example facebook or linkedin."),

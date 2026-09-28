@@ -323,31 +323,52 @@ To bring a hidden project back, remove its path from whichever of the two holds 
 
 ## Social post formatting
 
-By default a social post body is **plain text**, and `postiz_check_post` rejects any HTML tag in
-it. This is the setting to change if tags are showing up as visible text in your posts, which
-happens on any channel that does not render HTML: Postiz strips what it does not support, and
-everything else is published as typed.
+How much markup a post may carry is a property of **where it is going**, not a preference you
+set once.
 
-```bash
-# in ~/.config/opencode-telegram-installer/install.env
-POSTIZ_CONTENT_FORMAT=plain
+**Social platform copy is plain text, with no markup.** No `<p>` around paragraphs, and no
+`<em>`, `<strong>`, `<b>`, `<i>` or `<u>` to stress a word. Paragraphs are separated by a
+blank line.
+
+The emphasis tags are the ones that catch people out. `<em>really</em> important` is a habit,
+not formatting: a social network renders none of it, so the reader either sees the tag or
+loses the emphasis entirely. The way to stress a word in plain text is the sentence, not the
+markup. `This matters more than it looks` beats `<em>This matters</em>`.
+
+**Article targets such as WordPress may use markup**, because the site's plugin turns a bare
+image URL sitting inside its own paragraph into a rendered image. `<p>`, `<h1>`-`<h3>`,
+`<strong>`, `<u>`, `<ul>`, `<li>` are fine there.
+
+That is why this is per platform rather than one switch. A single global setting had to be
+either permissive, which let `<em>` through to Facebook, or strict, which broke the WordPress
+image rule. As a property of the destination, a plain-text Facebook post and a
+`<p>`-formatted WordPress post can be produced in the same run with nothing to reconcile.
+
+`postiz_check_post` enforces it. Run on the finished `content` of every post and every
+comment, it reports HTML tags, inline emphasis tags by name, Markdown images, `<u>` overlapping
+`<strong>`, and anything over the platform's `maxLength`, counting visible characters rather
+than markup. It tells you which rule it applied:
+
+```
+Checked the content field for facebook in strict mode (plain text only on this target).
+ERROR: 4 HTML tag(s) (em, strong) found. facebook post copy is plain text, so these
+are not formatting here: they are either stripped or published as visible text.
+You used <em>, <strong> to stress a word; a social network renders none of it.
+Get the emphasis from the sentence instead. Remove every tag and rewrite.
 ```
 
-| value | behaviour |
-| --- | --- |
-| `plain` (default) | no tag is allowed. Paragraphs are separated by a blank line. |
-| `html` | a small supported set is allowed: `<p>`, `<h1>`-`<h3>`, `<strong>`, `<u>`, `<ul>`, `<ol>`, `<li>`, `<br>`, `<blockquote>`, `<a>`, `<b>`, `<i>`, `<em>`. Anything else is reported. |
+To loosen both cases, in `~/.config/opencode-telegram-installer/install.env`:
 
-Edit the file, re-run `./install.sh`, and restart the bot. The value is read at runtime, so it
-does not need a rebuild.
+```bash
+POSTIZ_CONTENT_FORMAT=html
+```
 
-The model is told to run `postiz_check_post` on the finished `content` of every post and every
-comment before scheduling, with the platform and the character limit. The tool reports HTML
-tags, Markdown images, `<u>` overlapping `<strong>`, and anything over `maxLength`, and it
-counts visible characters rather than markup.
+`strict` is the default and the only other accepted value. `plain` is still accepted as a
+former name for `strict`, so a settings file written earlier keeps working. Edit the file,
+re-run `./install.sh`, restart the bot; the value is read at runtime and needs no rebuild.
 
 This is a check, not a fence. The tool is something the agent chooses to call, so a determined
-failure to call it is still possible. If you need a hard guarantee rather than a very large
+failure to call it remains possible. If you need a hard guarantee rather than a very large
 reduction, enforce it at the Postiz instance or in the agent's own wrapper rather than in the
 prompt.
 

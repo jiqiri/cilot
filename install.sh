@@ -138,8 +138,15 @@ OPENCODE_MODEL_ID="${OPENCODE_MODEL_ID:-space-bunny-free}"
 # How strictly social post bodies are held to plain text. "plain" makes postiz_check_post
 # reject any HTML tag, which is what stops tags being published as visible text on the
 # channels that do not render HTML. "html" allows a small supported tag set.
+# strict: plain text for social platforms, markup allowed on article targets such as
+# WordPress. html: allow markup everywhere. "plain" is accepted as a former name for strict.
 # Lowercased so HTML and html behave the same here and in the checker.
-POSTIZ_CONTENT_FORMAT="$(printf '%s' "${POSTIZ_CONTENT_FORMAT:-plain}" | tr '[:upper:]' '[:lower:]')"
+POSTIZ_CONTENT_FORMAT="$(printf '%s' "${POSTIZ_CONTENT_FORMAT:-strict}" | tr '[:upper:]' '[:lower:]')"
+# "plain" was the name of this setting before it became per platform. Accepting it means an
+# install.env written by an earlier version keeps working unchanged.
+if [[ "$POSTIZ_CONTENT_FORMAT" == "plain" ]]; then
+  POSTIZ_CONTENT_FORMAT="strict"
+fi
 
 # Every setting a settings file may provide. Used to guarantee that none of them can be
 # left unset: the installer runs under `set -u`, and a single expansion of an unset
@@ -560,7 +567,7 @@ write_settings_file() {
     if [[ -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
       echo "POSTIZ_MCP_TOKEN=${POSTIZ_MCP_TOKEN-}"
     fi
-    echo "# plain rejects any HTML tag in a social post body; html allows a small tag set."
+    echo "# strict: social copy is plain text, WordPress may use markup. html: markup everywhere."
     echo "POSTIZ_CONTENT_FORMAT=${POSTIZ_CONTENT_FORMAT-}"
     echo "OPENCODE_MODEL_PROVIDER=${OPENCODE_MODEL_PROVIDER-}"
     echo "OPENCODE_MODEL_ID=${OPENCODE_MODEL_ID-}"
@@ -594,8 +601,8 @@ validate_placeholders() {
     [[ -n "${POSTIZ_MCP_URL-}" && -n "${POSTIZ_MCP_TOKEN-}" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
     [[ "${POSTIZ_MCP_URL-}" =~ ^https?:// ]] || die "POSTIZ_MCP_URL must be an absolute http(s) URL."
   fi
-  if [[ "${POSTIZ_CONTENT_FORMAT-}" != "plain" && "${POSTIZ_CONTENT_FORMAT-}" != "html" ]]; then
-    die "POSTIZ_CONTENT_FORMAT must be plain or html, got: ${POSTIZ_CONTENT_FORMAT-<empty>}"
+  if [[ "${POSTIZ_CONTENT_FORMAT-}" != "strict" && "${POSTIZ_CONTENT_FORMAT-}" != "html" ]]; then
+    die "POSTIZ_CONTENT_FORMAT must be strict or html, got: ${POSTIZ_CONTENT_FORMAT-<empty>}. strict keeps social copy as plain text and allows markup on WordPress."
   fi
 }
 
