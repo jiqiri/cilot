@@ -21,7 +21,12 @@ OPENCODE_MODEL_ID="${OPENCODE_MODEL_ID:-space-bunny-free}"
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PAYLOAD_DIR="$SCRIPT_DIR/payload"
-PAYLOAD_ARCHIVE_URL="${PAYLOAD_ARCHIVE_URL:-https://github.com/jiqiri/opencode-telegram-installer/archive/refs/heads/main.tar.gz}"
+# Point this at your own fork if you have one. update.sh and the bot's own
+# `opencode-telegram update` both read the source recorded at install time, so a fork
+# updates from the fork and never from upstream.
+PAYLOAD_REPO="${PAYLOAD_REPO:-jiqiri/opencode-telegram-installer}"
+PAYLOAD_BRANCH="${PAYLOAD_BRANCH:-main}"
+PAYLOAD_ARCHIVE_URL="${PAYLOAD_ARCHIVE_URL:-https://github.com/$PAYLOAD_REPO/archive/refs/heads/$PAYLOAD_BRANCH.tar.gz}"
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/opencode-telegram-installer}"
 OPENCODE_MAIN_BIN_DIR="${OPENCODE_MAIN_BIN_DIR:-$HOME/.opencode/bin}"
 OPENCODE_TELEGRAM_BIN_DIR="${OPENCODE_TELEGRAM_BIN_DIR:-$HOME/.opencode-telegram/bin}"
@@ -456,6 +461,15 @@ copy_payload() {
   fi
   [[ -d "$PAYLOAD_DIR/opencode-telegram-bot" ]] || die "Installer payload is missing: $PAYLOAD_DIR/opencode-telegram-bot"
   mkdir -p "$INSTALL_ROOT"
+
+  # Where updates come from, recorded once at install time. The bot's update command
+  # prefers this over its own compiled-in default, so a fork never pulls upstream.
+  cat >"$INSTALL_ROOT/payload-source.txt" <<EOF
+repo=$PAYLOAD_REPO
+branch=$PAYLOAD_BRANCH
+url=$PAYLOAD_ARCHIVE_URL
+EOF
+  chmod 644 "$INSTALL_ROOT/payload-source.txt"
   log "Installing Telegram bot source"
 
   # settings.json is bot state, not deployment output. In sources mode the bot resolves
@@ -629,6 +643,13 @@ install_personas() {
       sed -i "0,\"\$schema\"/s||\"\$schema\": \"https://opencode.ai/config.json\",|\"\$schema\": \"https://opencode.ai/config.json\",\n  \"instructions\": [\"$persona_ref\"],|" "$telegram_root/opencode.jsonc"
     fi
   fi
+  # Ship update.sh next to the payload source so updates can be run from anywhere.
+  if [[ -f "$SCRIPT_DIR/update.sh" ]]; then
+    cp "$SCRIPT_DIR/update.sh" "$INSTALL_ROOT/update.sh"
+    chmod 0755 "$INSTALL_ROOT/update.sh"
+    log "Update script installed at $INSTALL_ROOT/update.sh"
+  fi
+
   log "Persona library at $telegram_root/personas ($seeded starter(s) added, existing kept)"
   log "Persona hook: config.instructions -> $persona_ref"
 }

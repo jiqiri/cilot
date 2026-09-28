@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { execFile } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, cp, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { getRuntimePaths } from "../runtime/paths.js";
+import { fileURLToPath } from "node:url";
 import { logger } from "../utils/logger.js";
 
 const execFileAsync = promisify(execFile);
@@ -12,12 +13,76 @@ const execFileAsync = promisify(execFile);
 /** Files that belong to the operator, not to the repository, and must survive an update. */
 const PRESERVED_FILES = [".env", "settings.json", "settings.json.bak"] as const;
 
+/**
+ * The bot's own directory, derived from this module rather than from the process
+ * working directory. In sources mode the runtime paths resolve appHome to process.cwd(),
+ * which is wherever the operator happened to run the command, so an update invoked from
+ * another directory would otherwise read and replace the wrong tree.
+ */
+function botRoot(): string {
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+}
+
+/**
+ * Candidate locations for payload-source.txt. Deriving it from the bot directory alone
+ * is not enough: a bot installed by install.sh lives in the install root, but a bot
+ * deployed by hand, as on this machine, can sit anywhere under $HOME.
+ */
+function sourceFileCandidates(): string[] {
+  const candidates: string[] = [];
+  const fromEnv = process.env.OPENCODE_TELEGRAM_INSTALL_ROOT?.trim();
+  if (fromEnv) {
+    candidates.push(path.join(path.resolve(fromEnv), "payload-source.txt"));
+  }
+  candidates.push(path.join(path.dirname(botRoot()), "payload-source.txt"));
+  const home = process.env.HOME?.trim();
+  if (home) {
+    candidates.push(
+      path.join(home, ".local", "share", "opencode-telegram-installer", "payload-source.txt"),
+    );
+  }
+  return candidates;
+}
+
+const FALLBACK_ARCHIVE_URL =
+  "https://github.com/jiqiri/opencode-telegram-installer/archive/refs/heads/main.tar.gz";
+
+/**
+ * Where updates come from, in priority order:
+ *
+ *  1. OPENCODE_TELEGRAM_UPDATE_URL, for a one-off override.
+ *  2. payload-source.txt, written by the installer. This is what makes a fork update
+ *     from the fork: the compiled-in default below is only a last resort, so a machine
+ *     installed from a fork never silently pulls from upstream.
+ *  3. The compiled-in default, with a warning, because a missing source file means the
+ *     install layout is not what this expects.
+ */
 function archiveUrl(): string {
   const override = process.env.OPENCODE_TELEGRAM_UPDATE_URL?.trim();
   if (override) {
     return override;
   }
-  return "https://github.com/jiqiri/opencode-telegram-installer/archive/refs/heads/main.tar.gz";
+
+  for (const candidate of sourceFileCandidates()) {
+    try {
+      const recorded = readFileSync(candidate, "utf8");
+      const url = /^url=(.+)$/m.exec(recorded)?.[1]?.trim();
+      const repo = /^repo=(.+)$/m.exec(recorded)?.[1]?.trim();
+      if (url) {
+        writeStdout(`Update source: ${repo ?? "custom"} (${url})`);
+        writeStdout(`Source recorded in ${candidate}`);
+        return url;
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  writeStdout(
+    "Warning: no payload-source.txt found, falling back to the built-in default. " +
+      "Re-run the installer, or set OPENCODE_TELEGRAM_UPDATE_URL, if this machine was installed from a fork.",
+  );
+  return FALLBACK_ARCHIVE_URL;
 }
 
 function writeStdout(line: string): void {
@@ -63,7 +128,7 @@ export interface UpdateResult {
  * here; that is left to systemd so a failed build cannot take the bot down silently.
  */
 export async function runUpdateCommand(options: { checkOnly?: boolean } = {}): Promise<number> {
-  const { appHome } = getRuntimePaths();
+  const appHome = botRoot();
   const url = archiveUrl();
 
   writeStdout(`Checking ${url}`);

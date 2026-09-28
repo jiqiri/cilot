@@ -315,6 +315,67 @@ or technical tokens like `Cron:` and `PID:`. And coverage counts keys, not quali
 still hide a mistranslation. Vietnamese currently sits at 554/576, of which 4 are identical by
 design.
 
+## Updating
+
+```bash
+./update.sh --check      # is there a newer release? changes nothing
+./update.sh              # update, then restart the bot
+./update.sh --no-restart # update, leave the running service alone
+```
+
+Installed machines get the same script at `~/.local/share/opencode-telegram-installer/update.sh`, so it can be run from anywhere. The bot's own `opencode-telegram update [--check]` does the same work without restarting the service.
+
+**Your settings are preserved.** `.env`, `settings.json` and `settings.json.bak` are copied aside and put back, so the Telegram token, the OpenCode credentials, and per-account state (persona, project, session, hidden projects, scheduled tasks) all survive. `dist/` and `node_modules/` are removed first so stale build output cannot survive an update. If the download or the build fails, the previous installation keeps running.
+
+### Updates come from your repository, not upstream
+
+The bot package itself is vendored from `grinev/opencode-telegram-bot`, and that is *not* where updates come from. `install.sh` records where it actually fetched the payload from:
+
+```text
+~/.local/share/opencode-telegram-installer/payload-source.txt
+```
+
+Both `update.sh` and `opencode-telegram update` prefer that file, so a machine installed from your fork updates from your fork. The URL compiled into the bot is only a last resort, and it warns when it falls back to it.
+
+To install from your own fork, set these at the top of `install.sh` before running it:
+
+```bash
+PAYLOAD_REPO="your-org/your-fork"
+PAYLOAD_BRANCH="main"        # or your branch
+```
+
+After the first install, `payload-source.txt` follows that fork, and so does every later update. Check it at any time with `cat ~/.local/share/opencode-telegram-installer/payload-source.txt`.
+
+One-off override, without changing the recorded source:
+
+```bash
+OPENCODE_TELEGRAM_UPDATE_URL=https://github.com/other/repo/archive/refs/heads/main.tar.gz ./update.sh
+```
+
+## Adding another Telegram user
+
+Each account gets its own project, session, agent, model, persona, hidden projects, settings and scheduled tasks. A second account cannot see or resume the first account's conversations.
+
+1. Get the new id from [@userinfobot](https://t.me/userinfobot). It is the number, not the username.
+2. List every permitted id in `install.sh`, comma separated, first one being the primary account:
+
+   ```bash
+   TELEGRAM_ALLOWED_USER_IDS=111111111,987654321
+   ```
+
+3. Re-run the installer and restart the bot:
+
+   ```bash
+   ./install.sh
+   systemctl --user restart opencode-telegram-bot.service
+   ```
+
+The first id is the **primary account**. It is used for startup session restore, and it adopts the sessions that already exist so nothing is lost when you add a second account. Later accounts start empty and only ever see what they create.
+
+`TELEGRAM_ALLOWED_USER_ID` still works on its own for a single account, and takes precedence if both are set to the same account.
+
+> Adding an id grants that person the bot's full capabilities: shell access and file read/write as the Linux user running it, plus the OpenCode server and the Postiz and Cloudflare credentials in its environment. Only add people you would give that access to directly.
+
 ## Verify
 
 ```bash
