@@ -108,14 +108,43 @@ CF_WORKERS_AI_ACCOUNT="${CF_WORKERS_AI_ACCOUNT:-REPLACE_WITH_CLOUDFLARE_ACCOUNT_
 CF_WORKERS_AI_TOKEN="${CF_WORKERS_AI_TOKEN:-REPLACE_WITH_CLOUDFLARE_API_TOKEN}"
 POSTIZ_MCP_URL="${POSTIZ_MCP_URL:-REPLACE_WITH_POSTIZ_MCP_URL}"
 POSTIZ_MCP_TOKEN="${POSTIZ_MCP_TOKEN:-REPLACE_WITH_POSTIZ_BEARER_TOKEN}"
-if [[ "$POSTIZ_MCP_URL" == *REPLACE_WITH* ]]; then
+if [[ "${POSTIZ_MCP_URL-}" == *REPLACE_WITH* ]]; then
   POSTIZ_MCP_URL=""
 fi
-if [[ "$POSTIZ_MCP_TOKEN" == *REPLACE_WITH* ]]; then
+if [[ "${POSTIZ_MCP_TOKEN-}" == *REPLACE_WITH* ]]; then
   POSTIZ_MCP_TOKEN=""
 fi
 OPENCODE_MODEL_PROVIDER="${OPENCODE_MODEL_PROVIDER:-opencode}"
 OPENCODE_MODEL_ID="${OPENCODE_MODEL_ID:-space-bunny-free}"
+
+# Every setting a settings file may provide. Used to guarantee that none of them can be
+# left unset: the installer runs under `set -u`, and a single expansion of an unset
+# variable inside a heredoc aborts the run with a bare "unbound variable" naming only a
+# line number, which says nothing about which value was missing. Keeping the list in one
+# place also means a new setting cannot be added to the file format and forgotten here.
+INSTALLER_SETTINGS=(
+  TELEGRAM_BOT_TOKEN
+  TELEGRAM_ALLOWED_USER_ID
+  TELEGRAM_ALLOWED_USER_IDS
+  CF_WORKERS_AI_ACCOUNT
+  CF_WORKERS_AI_TOKEN
+  POSTIZ_MCP_URL
+  POSTIZ_MCP_TOKEN
+  OPENCODE_MODEL_PROVIDER
+  OPENCODE_MODEL_ID
+  PAYLOAD_REPO
+  PAYLOAD_BRANCH
+)
+
+# Guarantee every setting exists before anything expands one. Unset becomes empty, so a
+# partial settings file is a valid input rather than a crash.
+for __name in "${INSTALLER_SETTINGS[@]}"; do
+  if [[ -z "${!__name+set}" ]]; then
+    printf -v "$__name" '%s' ""
+    export "$__name"
+  fi
+done
+unset -v __name
 
 # Point this at your own fork if you have one. update.sh and the bot's own
 # `opencode-telegram update` both read the source recorded at install time, so a fork
@@ -491,23 +520,23 @@ write_settings_file() {
     echo "# conflicts with your credentials and never commits them."
     echo "# Rewrite any value here and re-run ./install.sh to apply it."
     echo
-    echo "TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN"
-    echo "TELEGRAM_ALLOWED_USER_ID=$TELEGRAM_ALLOWED_USER_ID"
+    echo "TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN-}"
+    echo "TELEGRAM_ALLOWED_USER_ID=${TELEGRAM_ALLOWED_USER_ID-}"
     if [[ -n "${TELEGRAM_ALLOWED_USER_IDS:-}" ]]; then
-      echo "TELEGRAM_ALLOWED_USER_IDS=$TELEGRAM_ALLOWED_USER_IDS"
+      echo "TELEGRAM_ALLOWED_USER_IDS=${TELEGRAM_ALLOWED_USER_IDS-}"
     fi
-    echo "CF_WORKERS_AI_ACCOUNT=$CF_WORKERS_AI_ACCOUNT"
-    echo "CF_WORKERS_AI_TOKEN=$CF_WORKERS_AI_TOKEN"
+    echo "CF_WORKERS_AI_ACCOUNT=${CF_WORKERS_AI_ACCOUNT-}"
+    echo "CF_WORKERS_AI_TOKEN=${CF_WORKERS_AI_TOKEN-}"
     if [[ -n "${POSTIZ_MCP_URL:-}" ]]; then
-      echo "POSTIZ_MCP_URL=$POSTIZ_MCP_URL"
+      echo "POSTIZ_MCP_URL=${POSTIZ_MCP_URL-}"
     fi
     if [[ -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
-      echo "POSTIZ_MCP_TOKEN=$POSTIZ_MCP_TOKEN"
+      echo "POSTIZ_MCP_TOKEN=${POSTIZ_MCP_TOKEN-}"
     fi
-    echo "OPENCODE_MODEL_PROVIDER=$OPENCODE_MODEL_PROVIDER"
-    echo "OPENCODE_MODEL_ID=$OPENCODE_MODEL_ID"
-    echo "PAYLOAD_REPO=$PAYLOAD_REPO"
-    echo "PAYLOAD_BRANCH=$PAYLOAD_BRANCH"
+    echo "OPENCODE_MODEL_PROVIDER=${OPENCODE_MODEL_PROVIDER-}"
+    echo "OPENCODE_MODEL_ID=${OPENCODE_MODEL_ID-}"
+    echo "PAYLOAD_REPO=${PAYLOAD_REPO-}"
+    echo "PAYLOAD_BRANCH=${PAYLOAD_BRANCH-}"
   } >"$target"
   chmod 600 "$target"
   log "Wrote $target (mode 600) so future installs need no edits."
@@ -526,15 +555,15 @@ validate_placeholders() {
   # original variable is the point: putting several ids in TELEGRAM_ALLOWED_USER_ID is the
   # obvious thing to try, and rejecting it just sent people to the second variable.
   local id_csv ids_csv
-  id_csv="$(printf '%s' "$TELEGRAM_ALLOWED_USER_ID" | tr -d '[:space:]')"
+  id_csv="$(printf '%s' "${TELEGRAM_ALLOWED_USER_ID-}" | tr -d '[:space:]')"
   ids_csv="$(printf '%s' "${TELEGRAM_ALLOWED_USER_IDS:-}" | tr -d '[:space:]')"
-  [[ "$id_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_ID must be digits, or digits separated by commas for several accounts, for example 11111111 or 11111111,22222222. Got: $TELEGRAM_ALLOWED_USER_ID"
+  [[ "$id_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_ID must be digits, or digits separated by commas for several accounts, for example 11111111 or 11111111,22222222. Got: ${TELEGRAM_ALLOWED_USER_ID-}"
   if [[ -n "$ids_csv" ]]; then
     [[ "$ids_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_IDS must be digits separated by commas, for example 11111111,22222222. Got: $ids_csv"
   fi
-  if [[ -n "$POSTIZ_MCP_URL" || -n "$POSTIZ_MCP_TOKEN" ]]; then
-    [[ -n "$POSTIZ_MCP_URL" && -n "$POSTIZ_MCP_TOKEN" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
-    [[ "$POSTIZ_MCP_URL" =~ ^https?:// ]] || die "POSTIZ_MCP_URL must be an absolute http(s) URL."
+  if [[ -n "${POSTIZ_MCP_URL-}" || -n "${POSTIZ_MCP_TOKEN-}" ]]; then
+    [[ -n "${POSTIZ_MCP_URL-}" && -n "${POSTIZ_MCP_TOKEN-}" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
+    [[ "${POSTIZ_MCP_URL-}" =~ ^https?:// ]] || die "POSTIZ_MCP_URL must be an absolute http(s) URL."
   fi
 }
 
@@ -605,8 +634,8 @@ copy_payload() {
   # Where updates come from, recorded once at install time. The bot's update command
   # prefers this over its own compiled-in default, so a fork never pulls upstream.
   cat >"$INSTALL_ROOT/payload-source.txt" <<EOF
-repo=$PAYLOAD_REPO
-branch=$PAYLOAD_BRANCH
+repo=${PAYLOAD_REPO-}
+branch=${PAYLOAD_BRANCH-}
 url=$PAYLOAD_ARCHIVE_URL
 EOF
   chmod 644 "$INSTALL_ROOT/payload-source.txt"
@@ -697,14 +726,14 @@ OPENCODE_SERVER_PASSWORD=$main_password
 EOF
 
   cat >"$telegram_env" <<EOF
-TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
-TELEGRAM_ALLOWED_USER_ID=$TELEGRAM_ALLOWED_USER_ID
-TELEGRAM_ALLOWED_USER_IDS=$TELEGRAM_ALLOWED_USER_IDS
+TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN-}
+TELEGRAM_ALLOWED_USER_ID=${TELEGRAM_ALLOWED_USER_ID-}
+TELEGRAM_ALLOWED_USER_IDS=${TELEGRAM_ALLOWED_USER_IDS-}
 OPENCODE_API_URL=$OPENCODE_TELEGRAM_URL
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$main_password
-OPENCODE_MODEL_PROVIDER=$OPENCODE_MODEL_PROVIDER
-OPENCODE_MODEL_ID=$OPENCODE_MODEL_ID
+OPENCODE_MODEL_PROVIDER=${OPENCODE_MODEL_PROVIDER-}
+OPENCODE_MODEL_ID=${OPENCODE_MODEL_ID-}
 BOT_LOCALE=vi
 # "/" is the OpenCode server's default working directory and always shows up in
 # /projects as the whole filesystem. Hiding it keeps the agent from running at the
@@ -719,14 +748,14 @@ LOG_LEVEL=info
 # OpenCode server on every ready refresh.
 EOF
   cat >"$cloudflare_env" <<EOF
-CF_WORKERS_AI_ACCOUNT=$CF_WORKERS_AI_ACCOUNT
-CF_WORKERS_AI_TOKEN=$CF_WORKERS_AI_TOKEN
+CF_WORKERS_AI_ACCOUNT=${CF_WORKERS_AI_ACCOUNT-}
+CF_WORKERS_AI_TOKEN=${CF_WORKERS_AI_TOKEN-}
 EOF
   if [[ -n "${POSTIZ_MCP_TOKEN:-}" && -n "${POSTIZ_MCP_URL:-}" ]]; then
     local postiz_api_url="${POSTIZ_MCP_URL%/mcp}"
     cat >"$INSTALL_ROOT/opencode-postiz.env" <<EOF
-POSTIZ_MCP_TOKEN=$POSTIZ_MCP_TOKEN
-POSTIZ_MCP_URL=$POSTIZ_MCP_URL
+POSTIZ_MCP_TOKEN=${POSTIZ_MCP_TOKEN-}
+POSTIZ_MCP_URL=${POSTIZ_MCP_URL-}
 POSTIZ_API_URL=$postiz_api_url
 EOF
   else
