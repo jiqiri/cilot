@@ -16,6 +16,43 @@ missing them.
 
 Linux with `systemctl` and a user session. That is the whole list.
 
+Check a machine before installing anything:
+
+```bash
+./install.sh --check
+```
+
+It reports the account, each required tool, the native toolchain, the user systemd session and
+whether sudo works, without modifying the machine. Useful on a locked-down host where you need
+to know in advance whether the install can complete.
+
+## If you cannot install system packages
+
+**A native C/C++ toolchain is mandatory, and there is no unprivileged workaround.**
+
+`better-sqlite3` is a hard dependency of the bot. Its current release ships no prebuilt
+binaries — the `v13.0.1` GitHub release has zero binary assets, and the package has no
+`prebuild-install` dependency. Its install script is literally `node-gyp rebuild`, so `npm ci`
+compiles it from source. The bot imports it with a static top-level import, so a missing
+binding crashes the process at startup rather than degrading. `npm ci --ignore-scripts` is
+therefore not a way out.
+
+If your account is not in the `sudoers` file, one of these has to happen:
+
+| Option | Command |
+| --- | --- |
+| An administrator installs it | `sudo apt-get install -y build-essential python3` |
+| Start from an image that has a compiler | Debian, Ubuntu, Fedora and Arch images normally do |
+| Build on a machine that has one | Install there, then copy the finished tree |
+
+The installer will not try to download a compiler into your account. Dropping a private
+toolchain into `$HOME` to route around a machine policy is not something it should do on its
+own; if you need that, `zig` works as a drop-in `cc` and `c++`, and you would still need
+`make` and `python3`.
+
+The full list per distribution, and why each is needed, is in the error the installer prints
+when it detects the problem.
+
 The installer installs what it can:
 
 - `curl` and `tar` come from your package manager if missing. Without `curl` it falls back to

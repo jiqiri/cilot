@@ -213,16 +213,95 @@ ensure_build_toolchain() {
       echo "[installer] ERROR: npm ci cannot build better-sqlite3 without a native toolchain."
       echo "[installer] Still missing: ${missing[*]}"
       echo
-      echo "Install them, then re-run the installer:"
-      echo "  Debian / Ubuntu   sudo apt-get install -y build-essential python3"
+      echo "This is a hard requirement, not a convenience. better-sqlite3 has no"
+      echo "prebuilt binaries for its current release, the bot imports it at startup,"
+      echo "and the installer is not permitted to fetch a compiler into your account."
+      echo
+      echo "If you can install system packages, run this and then re-run the installer:"
+      echo "  Debian / Ubuntu   sudo apt-get update && sudo apt-get install -y build-essential python3"
       echo "  Fedora / RHEL     sudo dnf install -y gcc-c++ make python3"
       echo "  openSUSE           sudo zypper install gcc-c++ make python3"
       echo "  Arch               sudo pacman -S --needed base-devel python"
       echo "  Alpine             sudo apk add build-base python3"
       echo
+      echo "If your account is not in the sudoers file and you cannot install packages,"
+      echo "ask an administrator to install the list above, or start from an image that"
+      echo "already has a compiler. There is no unprivileged workaround."
+      echo
     } >&2
     exit 1
   fi
+}
+
+# Reports whether this machine can complete an install, without changing anything.
+# Useful when the account cannot install system packages and you need to know in
+# advance whether the installer will work at all.
+preflight_check() {
+  local problems=0
+  local report_ok="ok" report_bad="MISSING"
+
+  echo "[check] user account: $(id -un) (uid $(id -u))"
+  if [[ "$(id -u)" == "0" ]]; then
+    echo "  [$report_bad] running as root; the installer refuses this, run it as a normal user"
+    problems=$((problems + 1))
+  fi
+
+  local tool_name
+  for tool_name in curl tar; do
+    if command -v "$tool_name" >/dev/null 2>&1; then
+      echo "  [$report_ok] $tool_name: $(command -v "$tool_name")"
+    else
+      echo "  [$report_bad] $tool_name"
+      problems=$((problems + 1))
+    fi
+  done
+
+  if command -v openssl >/dev/null 2>&1; then
+    echo "  [$report_ok] openssl"
+  else
+    echo "  [$report_bad] openssl (generates the server password)"
+    problems=$((problems + 1))
+  fi
+
+  if node_is_supported; then
+    echo "  [$report_ok] node $(node --version)"
+  else
+    echo "  [$report_bad] node >= 22 required; installer would download $NODE_VERSION"
+  fi
+
+  local missing=() probe
+  for probe in make python3; do
+    command -v "$probe" >/dev/null 2>&1 || missing+=("$probe")
+  done
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || missing+=("gcc")
+  command -v c++ >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || missing+=("g++")
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    echo "  [$report_ok] native toolchain (needed by better-sqlite3)"
+  else
+    echo "  [$report_bad] native toolchain: missing ${missing[*]}"
+    problems=$((problems + 1))
+  fi
+
+  if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+    echo "  [$report_ok] user systemd session"
+  else
+    echo "  [$report_bad] user systemd session (systemctl --user, needs 'sudo loginctl enable-linger \$USER')"
+    problems=$((problems + 1))
+  fi
+
+  if detect_sudo; then
+    echo "  [$report_ok] sudo available for package installs"
+  else
+    echo "  [note] no passwordless sudo; the installer cannot install packages itself"
+  fi
+
+  echo
+  if [[ $problems -eq 0 ]]; then
+    echo "[check] ready to install"
+  else
+    echo "[check] $problems blocking problem(s) found"
+  fi
+  return 0
 }
 
 node_major() {
@@ -692,6 +771,12 @@ start_services() {
 }
 
 main() {
+  if [[ "${1:-}" == "--check" || "${1:-}" == "--preflight" ]]; then
+    ensure_bootstrap_tools
+    preflight_check
+    exit 0
+  fi
+
   refuse_root
   ensure_bootstrap_tools
   install_nodejs
