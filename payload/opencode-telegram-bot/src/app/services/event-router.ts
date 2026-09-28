@@ -6,6 +6,8 @@ import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { markAttachedSessionBusy } from "./attach-service.js";
 import { reconcileBusyState } from "./busy-reconciliation-service.js";
 import { ingestSessionInfoForCache } from "./session-cache-service.js";
+import { withSettingsUser } from "../stores/settings-store.js";
+import { getSessionOwnerUserId } from "../../bot/services/session-chat-registry.js";
 
 export type EventRouterDeps = Pick<
   AppContainer,
@@ -64,6 +66,34 @@ export function createEventRouter({
   isForegroundSession,
 }: EventRouterOptions): (envelope: EventEnvelope) => void {
   return ({ event }) => {
+    const sessionId = getEventSessionId(event);
+
+    // Every event is handled as the account that owns its session. The stream is shared by
+    // every session, so without this the handlers below would read the per-account settings
+    // of whichever account happened to message most recently, and would treat another
+    // account's session as the one being followed. Scoping once here covers every handler,
+    // including the ones reached through the aggregators, rather than each needing to work
+    // out the owner itself.
+    withSettingsUser(sessionId ? (getSessionOwnerUserId(sessionId) ?? null) : null, () => {
+      routeEvent({ event, sessionId, directory, deps, isForegroundSession });
+    });
+  };
+}
+
+function routeEvent({
+  event,
+  sessionId,
+  directory,
+  deps,
+  isForegroundSession,
+}: {
+  event: Event;
+  sessionId: string | null;
+  directory: string;
+  deps: EventRouterDeps;
+  isForegroundSession: (sessionId: string) => boolean;
+}): void {
+  {
     // The SDK event union does not list the heartbeat the server sends.
     if ((event as { type: string }).type === "server.heartbeat") {
       // A heartbeat is a liveness signal of the subscription, so the check runs
@@ -71,7 +101,6 @@ export function createEventRouter({
       void reconcileBusyState(directory, deps);
     }
 
-    const sessionId = getEventSessionId(event);
     const attached = deps.attachManager.getSnapshot();
     if (attached && sessionId === attached.sessionId && shouldMarkAttachedBusyFromEvent(event)) {
       void markAttachedSessionBusy(attached.sessionId, deps);
@@ -94,5 +123,5 @@ export function createEventRouter({
     }
 
     deps.summaryAggregator.processEvent(event);
-  };
+  }
 }

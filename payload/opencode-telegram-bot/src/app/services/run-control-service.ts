@@ -1,3 +1,4 @@
+import { getCurrentSession } from "../stores/settings-store.js";
 import type { AppContainer } from "../bootstrap/app-container.js";
 import { logger } from "../../utils/logger.js";
 import {
@@ -9,8 +10,18 @@ export type ForegroundBusyDeps = Pick<AppContainer, "attachManager" | "foregroun
 
 export type RunControlDeps = ForegroundBusyDeps & BusyReconciliationDeps;
 
+/**
+ * Whether the *active account* may not start another run right now.
+ *
+ * Scoped to that account's own session. The previous form asked whether any session in the
+ * process was busy, which made the whole bot single-tenant: while one account's agent worked,
+ * every other account was treated as busy, so its message was rejected or queued instead of
+ * run. `isBusy()` is still the right question for whole-process decisions such as shutdown.
+ */
 export function isForegroundBusy(deps: ForegroundBusyDeps): boolean {
-  return deps.foregroundSessionState.isBusy() || deps.attachManager.isBusy();
+  return (
+    deps.foregroundSessionState.isSessionBusy(getCurrentSession()?.id) || deps.attachManager.isBusy()
+  );
 }
 
 function getBusyDirectories(deps: ForegroundBusyDeps): string[] {

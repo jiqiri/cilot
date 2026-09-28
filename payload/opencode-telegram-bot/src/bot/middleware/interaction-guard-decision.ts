@@ -1,3 +1,4 @@
+import { getCurrentSession } from "../../app/stores/settings-store.js";
 import type { Context } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import type {
@@ -157,7 +158,12 @@ export function resolveInteractionGuardDecision(
   const { attachManager, foregroundSessionState, interactionManager } = deps;
   const state = interactionManager.getSnapshot();
   const { inputType, command } = classifyIncomingInput(ctx);
-  const isBusy = foregroundSessionState.isBusy() || attachManager.isBusy();
+  // Scoped to this account's own session. The previous check asked whether *any* session in
+  // the process was running, so one account working blocked every other account with the
+  // message about the agent running a task, in different projects and different chats.
+  // getCurrentSession is per account, so it is already the right session for the sender.
+  const isBusy =
+    foregroundSessionState.isSessionBusy(getCurrentSession()?.id) || attachManager.isBusy();
 
   if (state && interactionManager.isExpired()) {
     interactionManager.clear("expired");

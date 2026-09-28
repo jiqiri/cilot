@@ -1,3 +1,4 @@
+import { getActiveSettingsUser } from "../stores/settings-store.js";
 import type {
   ActiveInteraction,
   InteractionClearReason,
@@ -86,10 +87,38 @@ const SCOPE_TO_INTERACTION_KIND: Record<
   taskCreation: "task",
 };
 
+/**
+ * The one open interaction slot, held separately per account.
+ *
+ * This held a single slot for the whole process, which is the other half of why one account
+ * working stopped another from replying: a question or permission request from A left the
+ * slot occupied, so B's next message was consumed as A's answer. Relaxing the busy gate on
+ * its own would therefore have made it worse, turning a "please wait" into a wrong answer
+ * attributed to the wrong person.
+ *
+ * Keyed by the active account, which the auth middleware scopes per update and the event
+ * bridge scopes per session owner, so no call site has to pass an account in. The listener
+ * stays process-wide: it is a dispatch hook, not per-account state.
+ */
+interface InteractionSlot {
+  state: ActiveInteraction | null;
+  waiting: WaitingAgentRequest | null;
+  generation: number;
+}
+
 export class InteractionManager {
-  private state: ActiveInteraction | null = null;
-  private waiting: WaitingAgentRequest | null = null;
-  private generation = 0;
+  private readonly slots = new Map<number | null, InteractionSlot>();
+
+  private get slot(): InteractionSlot {
+    const key = getActiveSettingsUser();
+    let entry = this.slots.get(key);
+    if (!entry) {
+      entry = { state: null, waiting: null, generation: 0 };
+      this.slots.set(key, entry);
+    }
+    return entry;
+  }
+
   private onWaitingRequestReady: WaitingAgentRequestListener | null = null;
 
   /**
@@ -100,7 +129,7 @@ export class InteractionManager {
     const now = Date.now();
     let expiresAt: number | null = null;
 
-    if (this.state) {
+    if (this.slot.state) {
       this.drop("state_replaced");
     }
 
@@ -117,7 +146,7 @@ export class InteractionManager {
       expiresAt,
     };
 
-    this.state = nextState;
+    this.slot.state = nextState;
 
     logger.info(
       `[InteractionManager] Started interaction: kind=${nextState.kind}, expectedInput=${nextState.expectedInput}, allowedCommands=${nextState.allowedCommands.join(",") || "none"}`,
@@ -127,11 +156,11 @@ export class InteractionManager {
   }
 
   get(): InteractionState | null {
-    if (!this.state) {
+    if (!this.slot.state) {
       return null;
     }
 
-    return toSnapshot(this.state);
+    return toSnapshot(this.slot.state);
   }
 
   getSnapshot(): InteractionState | null {
@@ -142,53 +171,53 @@ export class InteractionManager {
    * Live data of the given kind, or null when the slot holds another kind.
    */
   getPayload<K extends StatefulInteractionKind>(kind: K): InteractionPayloads[K] | null {
-    if (!this.state || this.state.kind !== kind || !("payload" in this.state)) {
+    if (!this.slot.state || this.slot.state.kind !== kind || !("payload" in this.slot.state)) {
       return null;
     }
 
-    return this.state.payload as InteractionPayloads[K];
+    return this.slot.state.payload as InteractionPayloads[K];
   }
 
   isActive(): boolean {
-    return this.state !== null;
+    return this.slot.state !== null;
   }
 
   isExpired(referenceTimeMs: number = Date.now()): boolean {
-    if (!this.state || this.state.expiresAt === null) {
+    if (!this.slot.state || this.slot.state.expiresAt === null) {
       return false;
     }
 
-    return referenceTimeMs >= this.state.expiresAt;
+    return referenceTimeMs >= this.slot.state.expiresAt;
   }
 
   transition(options: TransitionInteractionOptions): InteractionState | null {
-    if (!this.state) {
+    if (!this.slot.state) {
       return null;
     }
 
     const now = Date.now();
 
-    this.state = {
-      ...this.state,
-      expectedInput: options.expectedInput ?? this.state.expectedInput,
+    this.slot.state = {
+      ...this.slot.state,
+      expectedInput: options.expectedInput ?? this.slot.state.expectedInput,
       allowedCommands:
         options.allowedCommands !== undefined
           ? normalizeAllowedCommands(options.allowedCommands)
-          : [...this.state.allowedCommands],
-      metadata: options.metadata ? { ...options.metadata } : { ...this.state.metadata },
+          : [...this.slot.state.allowedCommands],
+      metadata: options.metadata ? { ...options.metadata } : { ...this.slot.state.metadata },
       expiresAt:
         options.expiresInMs === undefined
-          ? this.state.expiresAt
+          ? this.slot.state.expiresAt
           : options.expiresInMs === null
             ? null
             : now + options.expiresInMs,
     };
 
     logger.debug(
-      `[InteractionManager] Transitioned interaction: kind=${this.state.kind}, expectedInput=${this.state.expectedInput}, allowedCommands=${this.state.allowedCommands.join(",") || "none"}`,
+      `[InteractionManager] Transitioned interaction: kind=${this.slot.state.kind}, expectedInput=${this.slot.state.expectedInput}, allowedCommands=${this.slot.state.allowedCommands.join(",") || "none"}`,
     );
 
-    return toSnapshot(this.state);
+    return toSnapshot(this.slot.state);
   }
 
   /**
@@ -197,14 +226,14 @@ export class InteractionManager {
    */
   clear(reason: InteractionClearReason = "manual"): void {
     const clearedKind = this.drop(reason);
-    if (!clearedKind || !isAgentRequestKind(clearedKind) || !this.waiting) {
+    if (!clearedKind || !isAgentRequestKind(clearedKind) || !this.slot.waiting) {
       return;
     }
 
-    const request = this.waiting;
-    const generation = this.generation;
+    const request = this.slot.waiting;
+    const generation = this.slot.generation;
     const listener = this.onWaitingRequestReady;
-    this.waiting = null;
+    this.slot.waiting = null;
 
     if (!listener) {
       logger.warn(
@@ -223,7 +252,7 @@ export class InteractionManager {
    * Clears the slot only if it holds the given kind.
    */
   clearKind(kind: InteractionState["kind"], reason: InteractionClearReason): void {
-    if (this.state?.kind === kind) {
+    if (this.slot.state?.kind === kind) {
       this.clear(reason);
     }
   }
@@ -236,7 +265,7 @@ export class InteractionManager {
     const interactionSnapshot = this.getSnapshot();
     const waitingKind = this.getWaitingKind();
 
-    this.waiting = null;
+    this.slot.waiting = null;
     this.bumpGeneration();
     this.drop(reason);
 
@@ -279,62 +308,62 @@ export class InteractionManager {
   }
 
   getGeneration(): number {
-    return this.generation;
+    return this.slot.generation;
   }
 
   bumpGeneration(): void {
-    this.generation++;
+    this.slot.generation++;
   }
 
   waitQuestion(questions: Question[], requestID: string, sessionId: string): void {
-    if (this.waiting?.kind === "question") {
+    if (this.slot.waiting?.kind === "question") {
       logger.info(
-        `[InteractionManager] Replacing waiting poll: requestID=${this.waiting.requestID}`,
+        `[InteractionManager] Replacing waiting poll: requestID=${this.slot.waiting.requestID}`,
       );
     }
 
-    this.waiting = { kind: "question", questions, requestID, sessionId };
+    this.slot.waiting = { kind: "question", questions, requestID, sessionId };
     logger.info(`[InteractionManager] Poll is waiting: requestID=${requestID}`);
   }
 
   waitPermission(request: PermissionRequest): void {
-    const requests = this.waiting?.kind === "permission" ? this.waiting.requests : [];
+    const requests = this.slot.waiting?.kind === "permission" ? this.slot.waiting.requests : [];
     if (!requests.some((waiting) => waiting.id === request.id)) {
       requests.push(request);
     }
 
-    this.waiting = { kind: "permission", requests };
+    this.slot.waiting = { kind: "permission", requests };
     logger.info(
       `[InteractionManager] Permission is waiting: requestID=${request.id}, waiting=${requests.length}`,
     );
   }
 
   dropWaitingPermission(requestID: string): void {
-    if (this.waiting?.kind !== "permission") {
+    if (this.slot.waiting?.kind !== "permission") {
       return;
     }
 
-    const requests = this.waiting.requests.filter((request) => request.id !== requestID);
-    if (requests.length === this.waiting.requests.length) {
+    const requests = this.slot.waiting.requests.filter((request) => request.id !== requestID);
+    if (requests.length === this.slot.waiting.requests.length) {
       return;
     }
 
-    this.waiting = requests.length > 0 ? { kind: "permission", requests } : null;
+    this.slot.waiting = requests.length > 0 ? { kind: "permission", requests } : null;
     logger.info(`[InteractionManager] Dropped waiting permission: requestID=${requestID}`);
   }
 
   dropWaitingQuestion(): boolean {
-    if (this.waiting?.kind !== "question") {
+    if (this.slot.waiting?.kind !== "question") {
       return false;
     }
 
-    logger.info(`[InteractionManager] Dropped waiting poll: requestID=${this.waiting.requestID}`);
-    this.waiting = null;
+    logger.info(`[InteractionManager] Dropped waiting poll: requestID=${this.slot.waiting.requestID}`);
+    this.slot.waiting = null;
     return true;
   }
 
   getWaitingKind(): WaitingAgentRequest["kind"] | null {
-    return this.waiting?.kind ?? null;
+    return this.slot.waiting?.kind ?? null;
   }
 
   setOnWaitingRequestReady(listener: WaitingAgentRequestListener | null): void {
@@ -342,16 +371,16 @@ export class InteractionManager {
   }
 
   private drop(reason: InteractionClearReason): InteractionState["kind"] | null {
-    if (!this.state) {
+    if (!this.slot.state) {
       return null;
     }
 
-    const kind = this.state.kind;
+    const kind = this.slot.state.kind;
     logger.info(
-      `[InteractionManager] Cleared interaction: reason=${reason}, kind=${kind}, expectedInput=${this.state.expectedInput}`,
+      `[InteractionManager] Cleared interaction: reason=${reason}, kind=${kind}, expectedInput=${this.slot.state.expectedInput}`,
     );
 
-    this.state = null;
+    this.slot.state = null;
     return kind;
   }
 }

@@ -35,6 +35,26 @@ export class ForegroundSessionState {
     return Array.from(this.activeSessions.values(), (session) => ({ ...session }));
   }
 
+  /**
+   * Whether a specific session is running.
+   *
+   * This is what the input guard must ask. `isBusy()` below answers "is anything running",
+   * which with one shared bot meant that while one account's agent was working, every other
+   * account was told to wait: the check is not about the account asking, it is about the
+   * process. Two accounts in different projects and different sessions blocked each other
+   * for no reason.
+   */
+  isSessionBusy(sessionId: string | null | undefined): boolean {
+    if (!sessionId) {
+      return false;
+    }
+    return this.activeSessions.has(sessionId);
+  }
+
+  /**
+   * Whether any session is running. Correct for whole-process decisions such as shutdown,
+   * and wrong for "may this account send a message right now".
+   */
   isBusy(): boolean {
     return this.activeSessions.size > 0;
   }
