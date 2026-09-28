@@ -817,7 +817,10 @@ install_personas() {
   # The path must be resolvable by the OpenCode server: a relative entry is globbed
   # from the session working directory, not the config dir, so a home-relative path
   # is used instead.
-  local persona_ref="~/$telegram_root/PERSONA.md"
+  # Strip $HOME so the reference is a clean "~/.config/...". Prefixing the absolute path
+  # directly produced "~//home/user/...", which happens to resolve but is not the path the
+  # documentation and the error messages show.
+  local persona_ref="~/${telegram_root#"$HOME"/}/PERSONA.md"
   # Only create the overlay when absent. It holds the active persona, which the bot
   # rewrites on every switch, so truncating it here would reset the chosen voice.
   if [[ ! -e "$telegram_root/PERSONA.md" ]]; then
@@ -828,10 +831,22 @@ install_personas() {
     chmod 644 "$telegram_root/personas"/*.md
   fi
 
-  if ! grep -q '"instructions"' "$telegram_root/opencode.jsonc" 2>/dev/null; then
-    if grep -q '"\$schema"' "$telegram_root/opencode.jsonc" 2>/dev/null; then
-      sed -i "0,\"\$schema\"/s||\"\$schema\": \"https://opencode.ai/config.json\",|\"\$schema\": \"https://opencode.ai/config.json\",\n  \"instructions\": [\"$persona_ref\"],|" "$telegram_root/opencode.jsonc"
+  # Wire the hook only when it is missing. The address needs a delimited regex, and the
+  # pattern and replacement both contain slashes, so the substitution uses `#` as its
+  # delimiter; the previous
+  # spelling had an empty pattern and a malformed address, which made sed fail and, under
+  # `set -e`, aborted the install here without ever adding the hook.
+  local config_file="$telegram_root/opencode.jsonc"
+  if [[ -f "$config_file" ]] \
+    && ! grep -q '"instructions"' "$config_file" \
+    && grep -q '"\$schema"' "$config_file"; then
+    if ! sed -i '0,/"\$schema"/{s#"\$schema": "https://opencode.ai/config.json",#"\$schema": "https://opencode.ai/config.json",\n  "instructions": ["'"$persona_ref"'"],#}' "$config_file"; then
+      die "Could not add the persona hook to $config_file. Add it by hand:\n  \"instructions\": [\"$persona_ref\"],"
     fi
+    if ! grep -q '"instructions"' "$config_file"; then
+      die "Added the persona hook to $config_file but it is not there. Add it by hand:\n  \"instructions\": [\"$persona_ref\"],"
+    fi
+    log "Persona hook added to $config_file"
   fi
   # Ship update.sh next to the payload source so updates can be run from anywhere.
   if [[ -f "$SCRIPT_DIR/update.sh" ]]; then
