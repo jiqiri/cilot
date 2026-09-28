@@ -231,7 +231,7 @@ install_opencode_binary() {
     log "OpenCode $version already installed at $destination"
     return
   fi
-  tmp="$(mktemp -d)"
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/opencode-install.XXXXXX")"
   asset_arch="$(uname -m)"
   [[ "$asset_arch" == "aarch64" ]] && asset_arch="arm64"
   [[ "$asset_arch" == "x86_64" ]] && asset_arch="x64"
@@ -266,8 +266,12 @@ copy_payload() {
     require_command curl
     require_command tar
     local archive_dir extracted_dir
-    archive_dir="$(mktemp -d)"
-    curl -fsSL "$PAYLOAD_ARCHIVE_URL" -o "$archive_dir/installer.tar.gz"
+    archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/opencode-payload.XXXXXX")"
+    if [[ "$FETCH_CMD" == "wget" ]]; then
+      wget -q "$PAYLOAD_ARCHIVE_URL" -O "$archive_dir/installer.tar.gz"
+    else
+      curl -fsSL "$PAYLOAD_ARCHIVE_URL" -o "$archive_dir/installer.tar.gz"
+    fi
     tar -xzf "$archive_dir/installer.tar.gz" -C "$archive_dir"
     extracted_dir="$(find "$archive_dir" -mindepth 1 -maxdepth 1 -type d -name 'opencode-telegram-installer-*' -print -quit)"
     [[ -n "$extracted_dir" ]] || die "Could not locate the downloaded installer payload."
@@ -277,10 +281,28 @@ copy_payload() {
   [[ -d "$PAYLOAD_DIR/opencode-telegram-bot" ]] || die "Installer payload is missing: $PAYLOAD_DIR/opencode-telegram-bot"
   mkdir -p "$INSTALL_ROOT"
   log "Installing Telegram bot source"
+
+  # settings.json is bot state, not deployment output. In sources mode the bot resolves
+  # its app home from its working directory, so this file holds the active persona, the
+  # dismissed projects, the selected project and session, and any scheduled tasks.
+  # Wiping it on every re-run silently threw all of that away, so it is carried across.
+  local preserved_settings=""
+  if [[ -f "$BOT_SOURCE_DIR/settings.json" ]]; then
+    preserved_settings="$(mktemp "${TMPDIR:-/tmp}/opencode-settings.XXXXXX")"
+    cp -a "$BOT_SOURCE_DIR/settings.json" "$preserved_settings"
+  fi
+
   rm -rf "$BOT_SOURCE_DIR"
   mkdir -p "$BOT_SOURCE_DIR"
   cp -a "$PAYLOAD_DIR/opencode-telegram-bot/." "$BOT_SOURCE_DIR/"
   rm -rf "$BOT_SOURCE_DIR/node_modules" "$BOT_SOURCE_DIR/dist" "$BOT_SOURCE_DIR/logs" "$BOT_SOURCE_DIR/.env" "$BOT_SOURCE_DIR/settings.json" "$BOT_SOURCE_DIR/settings.json.bak"
+
+  if [[ -n "$preserved_settings" ]]; then
+    cp -a "$preserved_settings" "$BOT_SOURCE_DIR/settings.json"
+    rm -f "$preserved_settings"
+    log "Preserved existing bot settings"
+  fi
+
   (cd "$BOT_SOURCE_DIR" && npm ci --no-audit --no-fund && npm run build)
 }
 
@@ -292,12 +314,29 @@ write_runtime_files() {
   telegram_server_env="$INSTALL_ROOT/opencode-telegram-server.env"
 
   umask 077
+
+  # The main and Telegram env files must share one password, so the value is generated
+  # once up front and interpolated into both. Previously the Telegram env read it back
+  # with a command substitution inside an unquoted heredoc whose quotes were backslash
+  # escaped. A backslash before a double quote is not an escape in a heredoc, so awk
+  # compared against the literal text "OPENCODE_SERVER_PASSWORD" and was handed a path
+  # wrapped in literal quote characters. Both failures are silent, and the bot env ended
+  # up with an empty password on every fresh install.
+  local main_password
+  main_password="$(openssl rand -hex 32)"
+  [[ -n "$main_password" ]] || die "openssl failed to generate the server password."
+
+  cat >"$main_env" <<EOF
+OPENCODE_SERVER_USERNAME=opencode
+OPENCODE_SERVER_PASSWORD=$main_password
+EOF
+
   cat >"$telegram_env" <<EOF
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
 TELEGRAM_ALLOWED_USER_ID=$TELEGRAM_ALLOWED_USER_ID
 OPENCODE_API_URL=$OPENCODE_TELEGRAM_URL
 OPENCODE_SERVER_USERNAME=opencode
-OPENCODE_SERVER_PASSWORD=$(awk -F= '$1==\"OPENCODE_SERVER_PASSWORD\" {print $2}' \"$INSTALL_ROOT/opencode-main.env\" 2>/dev/null || true)
+OPENCODE_SERVER_PASSWORD=$main_password
 OPENCODE_MODEL_PROVIDER=$OPENCODE_MODEL_PROVIDER
 OPENCODE_MODEL_ID=$OPENCODE_MODEL_ID
 BOT_LOCALE=vi
@@ -312,10 +351,6 @@ LOG_LEVEL=info
 # settings.dismissedProjects. Hiding is applied when the list is read, not by
 # deleting the session-cache entry, because that cache is rebuilt from the
 # OpenCode server on every ready refresh.
-EOF
-  cat >"$main_env" <<EOF
-OPENCODE_SERVER_USERNAME=opencode
-OPENCODE_SERVER_PASSWORD=$(openssl rand -hex 32)
 EOF
   cat >"$cloudflare_env" <<EOF
 CF_WORKERS_AI_ACCOUNT=$CF_WORKERS_AI_ACCOUNT
