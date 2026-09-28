@@ -20,6 +20,9 @@ The installer installs what it can:
 
 - `curl` and `tar` come from your package manager if missing. Without `curl` it falls back to
   `wget` to bootstrap the rest, and only fails outright if neither can be obtained.
+- **A C/C++ toolchain, `make` and `python3`** are installed the same way if absent. The bot
+  depends on `better-sqlite3`, whose install script is exactly `node-gyp rebuild` with no
+  prebuilt-binary fallback, so `npm ci` cannot complete without them.
 - **Node.js is downloaded from nodejs.org into `~/.local/share/opencode-telegram-installer/bin`**
   when the machine has no Node, or has one older than the `^22.14.0 || ^23.6.0 || >=24` engine
   the bot declares.

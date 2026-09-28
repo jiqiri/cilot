@@ -134,6 +134,71 @@ ensure_bootstrap_tools() {
   FETCH_CMD="$downloader"
 }
 
+# better-sqlite3, which the bot depends on, has an install script of exactly
+# "node-gyp rebuild" and no prebuilt-binary fallback. npm ci therefore needs a C/C++
+# toolchain, make and python3 present, and node-gyp otherwise fails with a bare
+# "not found: make". Minimal images and cloud defaults often ship without them.
+ensure_build_toolchain() {
+  local missing=() probe packages=()
+  for probe in make python3; do
+    command -v "$probe" >/dev/null 2>&1 || missing+=("$probe")
+  done
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || missing+=("gcc")
+  command -v c++ >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || missing+=("g++")
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  log "Native build tools are required by better-sqlite3. Missing: ${missing[*]}"
+
+  if command -v apt-get >/dev/null 2>&1; then
+    packages=(build-essential python3)
+  elif command -v dnf >/dev/null 2>&1; then
+    packages=("gcc-c++" make python3)
+  elif command -v yum >/dev/null 2>&1; then
+    packages=("gcc-c++" make python3)
+  elif command -v zypper >/dev/null 2>&1; then
+    packages=("gcc-c++" make python3)
+  elif command -v pacman >/dev/null 2>&1; then
+    packages=(base-devel python)
+  elif command -v apk >/dev/null 2>&1; then
+    packages=(build-base python3)
+  elif command -v brew >/dev/null 2>&1; then
+    log "On macOS install the command line tools first: xcode-select --install"
+    return 0
+  fi
+
+  if [[ ${#packages[@]} -gt 0 ]]; then
+    log "Installing: ${packages[*]}"
+    pkg_install "${packages[@]}" || log "Package install did not succeed, re-checking below."
+  fi
+
+  missing=()
+  for probe in make python3; do
+    command -v "$probe" >/dev/null 2>&1 || missing+=("$probe")
+  done
+  command -v cc >/dev/null 2>&1 || command -v gcc >/dev/null 2>&1 || missing+=("gcc")
+  command -v c++ >/dev/null 2>&1 || command -v g++ >/dev/null 2>&1 || missing+=("g++")
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    {
+      echo
+      echo "[installer] ERROR: npm ci cannot build better-sqlite3 without a native toolchain."
+      echo "[installer] Still missing: ${missing[*]}"
+      echo
+      echo "Install them, then re-run the installer:"
+      echo "  Debian / Ubuntu   sudo apt-get install -y build-essential python3"
+      echo "  Fedora / RHEL     sudo dnf install -y gcc-c++ make python3"
+      echo "  openSUSE           sudo zypper install gcc-c++ make python3"
+      echo "  Arch               sudo pacman -S --needed base-devel python"
+      echo "  Alpine             sudo apk add build-base python3"
+      echo
+    } >&2
+    exit 1
+  fi
+}
+
 node_major() {
   command -v node >/dev/null 2>&1 || return 1
   node -p "process.versions.node.split('.')[0]" 2>/dev/null
@@ -303,7 +368,42 @@ copy_payload() {
     log "Preserved existing bot settings"
   fi
 
-  (cd "$BOT_SOURCE_DIR" && npm ci --no-audit --no-fund && npm run build)
+  local npm_log="$INSTALL_ROOT/npm-install.log"
+  mkdir -p "$INSTALL_ROOT"
+  if ! (cd "$BOT_SOURCE_DIR" && npm ci --no-audit --no-fund) >"$npm_log" 2>&1; then
+    # node-gyp output runs to hundreds of lines and buries the cause, so surface the
+    # signal instead of dumping all of it.
+    local hint=""
+    grep -q 'not found: make' "$npm_log" && hint="make is missing"
+    grep -q 'not found: g++\|not found: c++' "$npm_log" && hint="a C++ compiler is missing"
+    grep -q 'not found: gcc\|not found: cc' "$npm_log" && hint="a C compiler is missing"
+    grep -q 'Could not find python' "$npm_log" && hint="python3 is missing"
+    grep -qE 'EACCES|Permission denied' "$npm_log" && hint="permission denied"
+    {
+      echo
+      echo "[installer] ERROR: npm ci failed while building native modules."
+      [[ -n "$hint" ]] && echo "[installer] Likely cause: $hint"
+      echo "[installer] Full log: $npm_log"
+      echo "[installer] Last lines:"
+      tail -n 15 "$npm_log" | sed 's/^/[installer]   /'
+      echo
+    } >&2
+    exit 1
+  fi
+  rm -f "$npm_log"
+
+  if ! (cd "$BOT_SOURCE_DIR" && npm run build) >"$npm_log" 2>&1; then
+    {
+      echo
+      echo "[installer] ERROR: building the Telegram bot failed."
+      echo "[installer] Full log: $npm_log"
+      tail -n 20 "$npm_log" | sed 's/^/[installer]   /'
+      echo
+    } >&2
+    exit 1
+  fi
+  rm -f "$npm_log"
+  log "Telegram bot built"
 }
 
 write_runtime_files() {
@@ -569,6 +669,7 @@ main() {
   ensure_bootstrap_tools
   install_nodejs
   require_command npm
+  ensure_build_toolchain
   validate_placeholders
   check_platform
   install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
