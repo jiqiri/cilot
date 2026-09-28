@@ -134,6 +134,32 @@ ensure_bootstrap_tools() {
   FETCH_CMD="$downloader"
 }
 
+# This installer targets a normal user account with a user systemd session. Running it
+# under sudo would set HOME to /root, so everything would install into /root's home, the
+# units would be written for root's systemd, and `systemctl --user` would either fail or
+# manage the wrong account. Package installs are the only part that ever needs privilege,
+# and those go through sudo -n from inside the script.
+refuse_root() {
+  [[ "$(id -u)" == "0" ]] || return 0
+  cat >&2 <<'EOF'
+
+[installer] ERROR: do not run the installer as root.
+
+This installs into your own home directory and registers user systemd services.
+Under sudo, HOME becomes /root, so it would install there and the units would
+belong to the wrong account.
+
+Run it as your normal user:
+
+  ./install.sh
+
+If it needs to install system packages and passwordless sudo is not configured,
+it will tell you the exact command to run first.
+
+EOF
+  exit 1
+}
+
 # better-sqlite3, which the bot depends on, has an install script of exactly
 # "node-gyp rebuild" and no prebuilt-binary fallback. npm ci therefore needs a C/C++
 # toolchain, make and python3 present, and node-gyp otherwise fails with a bare
@@ -666,6 +692,7 @@ start_services() {
 }
 
 main() {
+  refuse_root
   ensure_bootstrap_tools
   install_nodejs
   require_command npm

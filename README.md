@@ -33,9 +33,30 @@ confusing TypeScript build error. The tarball needs no root, does not modify the
 matches how the OpenCode binaries are already installed. Override the version with
 `NODE_VERSION=24.1.0 ./install.sh`.
 
-Package installs need root or passwordless `sudo`. `sudo` is always called as `sudo -n`, so if
-a password would be required the installer says so and stops instead of waiting on a prompt you
-cannot see. The rest of the install works as an ordinary user.
+Run the installer as your normal user, never as `sudo ./install.sh`. Everything installs into
+your own home and registers *user* systemd services; under sudo, `HOME` becomes `/root` and the
+units would belong to the wrong account. The installer refuses to run as root and says so.
+
+Package installs are the only step that needs privilege, and they use `sudo -n`. So:
+
+| Situation | What happens |
+| --- | --- |
+| Passwordless sudo works | Packages install automatically, no prompt. |
+| sudo needs a password | `sudo -n` fails immediately, the installer prints the exact command to run, and stops. It never blocks on an invisible prompt. |
+| No sudo at all | Same: instructions are printed. |
+
+To check which case you are in:
+
+```bash
+sudo -n true && echo "passwordless sudo works" || echo "sudo needs a password"
+```
+
+If it needs a password, install the two sets yourself and re-run the installer normally:
+
+```bash
+sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
+./install.sh
+```
 
 - Linux with `systemd --user`
 - `bash`, `curl`, `tar`, `npm`, `node`, and `openssl`
