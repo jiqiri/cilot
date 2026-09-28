@@ -1,6 +1,6 @@
 import type { Bot, Context, NextFunction } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
-import { config } from "../../config.js";
+import { isAllowedUser } from "../middleware/auth.js";
 import { settingsCommand } from "../commands/settings-command.js";
 import { personaCommand } from "../commands/persona-command.js";
 import { opencodeStartCommand } from "../commands/opencode-start-command.js";
@@ -38,13 +38,15 @@ interface CommandRouterDeps {
   localCommandRegistry?: LocalCommandRegistry;
 }
 
-let commandsInitialized = false;
+// Tracked per user id: each permitted account needs its own chat-scoped command list
+// published once, and a second account must not be skipped because the first was set up.
+const commandsInitializedFor = new Set<number>();
 export async function ensureCommandsInitialized(
   ctx: Context,
   next: NextFunction,
   localCommandRegistry = LocalCommandRegistry.empty(),
 ): Promise<void> {
-  if (commandsInitialized || !ctx.from || ctx.from.id !== config.telegram.allowedUserId) {
+  if (!ctx.from || !isAllowedUser(ctx.from.id) || commandsInitializedFor.has(ctx.from.id)) {
     await next();
     return;
   }
@@ -63,7 +65,7 @@ export async function ensureCommandsInitialized(
       },
     });
 
-    commandsInitialized = true;
+    commandsInitializedFor.add(ctx.from.id);
     logger.debug(`[Bot] Commands initialized for authorized user (chat_id=${ctx.chat.id})`);
   } catch (err) {
     logger.error("[Bot] Failed to set commands:", err);

@@ -48,12 +48,18 @@ function buildScheduledTaskSuccessMessageParts(delivery: QueuedScheduledTaskDeli
   return [header, ...resultParts];
 }
 
+/**
+ * fallbackChatId is the primary account, used for tasks written before multi-user
+ * support, which carry no owner. Deliveries from tasks created by a specific account
+ * go to that account's own chat.
+ */
 export function createScheduledTaskDeliverySender(
   api: SendMessageApi,
-  chatId: number,
+  fallbackChatId: number,
 ): ScheduledTaskDeliverySender {
   return {
     async send(delivery) {
+      const chatId = delivery.ownerChatId ?? fallbackChatId;
       const messageParts =
         delivery.status === "success"
           ? buildScheduledTaskSuccessMessageParts(delivery)

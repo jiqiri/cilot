@@ -28,6 +28,13 @@ export interface ScheduledTaskBase {
   runCount: number;
   lastStatus: ScheduledTaskStatus;
   lastError: string | null;
+  /**
+   * Telegram account that created the task. Its run result is delivered to that
+   * account's chat, so a task created by one user does not notify another. Null on
+   * tasks written before multi-user support, which fall back to the primary account.
+   */
+  ownerUserId?: number | null;
+  ownerChatId?: number | null;
 }
 
 export interface ScheduledCronTask extends ScheduledTaskBase {
@@ -111,6 +118,8 @@ export interface ScheduledTaskExecutionResult {
 
 export interface QueuedScheduledTaskDelivery {
   taskId: string;
+  /** Chat the result belongs to, taken from the task that produced it. */
+  ownerChatId: number | null;
   scheduleSummary: string;
   prompt: string;
   runAt: string;

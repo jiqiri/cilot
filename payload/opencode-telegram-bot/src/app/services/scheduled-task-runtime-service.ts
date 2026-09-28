@@ -2,6 +2,7 @@ import type { Bot, Context } from "grammy";
 import { config } from "../../config.js";
 import { t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
+import { getActiveSettingsUser, getKnownUserIds, withSettingsUser } from "../stores/settings-store.js";
 import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { formatAssistantRunFooter } from "../formatters/assistant-run-footer-formatter.js";
 import { executeScheduledTask } from "./scheduled-task-executor-service.js";
@@ -53,6 +54,7 @@ function buildSuccessDelivery(
 ): QueuedScheduledTaskDelivery {
   return {
     taskId: task.id,
+    ownerChatId: task.ownerChatId ?? null,
     scheduleSummary: task.scheduleSummary,
     prompt: task.prompt,
     runAt,
@@ -77,6 +79,7 @@ function buildErrorDelivery(
 ): QueuedScheduledTaskDelivery {
   return {
     taskId: task.id,
+    ownerChatId: task.ownerChatId ?? null,
     scheduleSummary: task.scheduleSummary,
     prompt: task.prompt,
     runAt,
@@ -175,7 +178,27 @@ export class ScheduledTaskRuntime {
     this.initialized = false;
   }
 
+  /**
+   * Runs at startup with no incoming update, so the active user is the primary account.
+   * Every account's slice has to be walked explicitly, otherwise a second user's tasks
+   * would never be recovered and would never be scheduled.
+   */
   private async recoverTasksOnStartup(): Promise<void> {
+    const primaryUser = getActiveSettingsUser();
+    const userIds = getKnownUserIds();
+    if (userIds.length === 0) {
+      return;
+    }
+
+    for (const userId of userIds) {
+      // Awaited rather than concurrent: the task mutation queue is shared.
+      await withSettingsUser(userId, () => this.recoverTasksForUser());
+    }
+
+    await withSettingsUser(primaryUser, () => this.recoverTasksForUser());
+  }
+
+  private async recoverTasksForUser(): Promise<void> {
     const tasks = listScheduledTasks();
     if (tasks.length === 0) {
       return;

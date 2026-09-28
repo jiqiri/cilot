@@ -7,7 +7,9 @@ import type {
   ResponseStreamingMode,
   ScheduledTaskSessionIgnoreInfo,
   Settings,
+  UserSettings,
 } from "../types/settings.js";
+import { PER_USER_SETTING_KEYS } from "../types/settings.js";
 import { config } from "../../config.js";
 import { getRuntimePaths } from "../../runtime/paths.js";
 import { logger } from "../../utils/logger.js";
@@ -142,123 +144,188 @@ export function flushSettings(): Promise<void> {
   return settingsWriteQueue;
 }
 
-let currentSettings: Settings = {};
+const SETTINGS_VERSION = 2;
+
+let settingsRoot: Settings = {};
+
+/**
+ * Which Telegram account the next settings read or write applies to. Set by the auth
+ * middleware on every accepted update, before any handler runs. Null only before the
+ * first update arrives, when the primary account is used as a sensible default for
+ * startup work such as session restore.
+ */
+let activeUserId: number | null = null;
+
+export function setActiveSettingsUser(userId: number | null): void {
+  activeUserId = userId;
+}
+
+export function getActiveSettingsUser(): number | null {
+  return activeUserId;
+}
+
+function userKey(userId: number | null): string {
+  return String(userId ?? config.telegram.allowedUserId);
+}
+
+/**
+ * The mutable slice for the active account, created on first write. Every getter and
+ * setter in this file goes through here, which is what isolates two users of the same
+ * bot without touching any call site.
+ */
+function activeSlice(): UserSettings {
+  const key = userKey(activeUserId);
+  settingsRoot.users ??= {};
+  const existing = settingsRoot.users[key];
+  if (existing) {
+    return existing;
+  }
+  const created: UserSettings = {};
+  settingsRoot.users[key] = created;
+  return created;
+}
+
+function persist(): Promise<void> {
+  return writeSettingsFile(settingsRoot);
+}
+
+/** Every Telegram account that has a settings slice, including the primary. */
+export function getKnownUserIds(): number[] {
+  return Object.keys(settingsRoot.users ?? {})
+    .map((key) => Number(key))
+    .filter((id) => Number.isFinite(id));
+}
+
+/**
+ * Runs a function against another account's slice, then restores the previous one.
+ * The scheduled task runtime ticks on a timer with no incoming update, so it uses this
+ * to reach each account's tasks and to write their results back to the right slice.
+ */
+export function withSettingsUser<T>(userId: number | null, run: () => T): T {
+  const previous = activeUserId;
+  activeUserId = userId;
+  try {
+    return run();
+  } finally {
+    activeUserId = previous;
+  }
+}
 
 export function getCurrentProject(): ProjectInfo | undefined {
-  return currentSettings.currentProject;
+  return activeSlice().currentProject;
 }
 
 export function setCurrentProject(projectInfo: ProjectInfo): void {
-  currentSettings.currentProject = projectInfo;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentProject = projectInfo;
+  void persist();
 }
 
 export function clearProject(): void {
-  currentSettings.currentProject = undefined;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentProject = undefined;
+  void persist();
 }
 
 export function getCurrentSession(): SessionInfo | undefined {
-  return currentSettings.currentSession;
+  return activeSlice().currentSession;
 }
 
 export function setCurrentSession(sessionInfo: SessionInfo): void {
-  currentSettings.currentSession = sessionInfo;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentSession = sessionInfo;
+  void persist();
 }
 
 export function clearSession(): void {
-  currentSettings.currentSession = undefined;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentSession = undefined;
+  void persist();
 }
 
 export type TtsMode = "off" | "all" | "auto";
 
 export function getTtsMode(): TtsMode {
-  return currentSettings.ttsMode ?? "off";
+  return activeSlice().ttsMode ?? "off";
 }
 
 export function setTtsMode(mode: TtsMode): void {
-  currentSettings.ttsMode = mode;
-  void writeSettingsFile(currentSettings);
+  activeSlice().ttsMode = mode;
+  void persist();
 }
 
 export function getCompactOutputMode(): boolean {
-  return currentSettings.compactOutputMode ?? false;
+  return activeSlice().compactOutputMode ?? false;
 }
 
 export function setCompactOutputMode(enabled: boolean): void {
-  currentSettings.compactOutputMode = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().compactOutputMode = enabled;
+  void persist();
 }
 
 export function getDeleteCompactProgressOnFinish(): boolean {
-  return currentSettings.deleteCompactProgressOnFinish ?? false;
+  return activeSlice().deleteCompactProgressOnFinish ?? false;
 }
 
 export function setDeleteCompactProgressOnFinish(enabled: boolean): void {
-  currentSettings.deleteCompactProgressOnFinish = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().deleteCompactProgressOnFinish = enabled;
+  void persist();
 }
 
 export function getShowThinkingContent(): boolean {
-  return currentSettings.showThinkingContent ?? true;
+  return activeSlice().showThinkingContent ?? true;
 }
 
 export function setShowThinkingContent(enabled: boolean): void {
-  currentSettings.showThinkingContent = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().showThinkingContent = enabled;
+  void persist();
 }
 
 export function getShowAssistantRunFooter(): boolean {
-  return currentSettings.showAssistantRunFooter ?? true;
+  return activeSlice().showAssistantRunFooter ?? true;
 }
 
 export function setShowAssistantRunFooter(enabled: boolean): void {
-  currentSettings.showAssistantRunFooter = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().showAssistantRunFooter = enabled;
+  void persist();
 }
 
 export function getPinnedDashboardEnabled(): boolean {
-  return currentSettings.pinnedDashboardEnabled ?? true;
+  return activeSlice().pinnedDashboardEnabled ?? true;
 }
 
 export function setPinnedDashboardEnabled(enabled: boolean): void {
-  currentSettings.pinnedDashboardEnabled = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().pinnedDashboardEnabled = enabled;
+  void persist();
 }
 
 export type { ResponseStreamingMode };
 
 export function getResponseStreamingMode(): ResponseStreamingMode {
-  return currentSettings.responseStreamingMode === "draft" ? "draft" : "edit";
+  return activeSlice().responseStreamingMode === "draft" ? "draft" : "edit";
 }
 
 export function setResponseStreamingMode(mode: ResponseStreamingMode): void {
-  currentSettings.responseStreamingMode = mode;
-  void writeSettingsFile(currentSettings);
+  activeSlice().responseStreamingMode = mode;
+  void persist();
 }
 
 export function getSendDiffFileAttachments(): boolean {
-  return currentSettings.sendDiffFileAttachments ?? true;
+  return activeSlice().sendDiffFileAttachments ?? true;
 }
 
 export function setSendDiffFileAttachments(enabled: boolean): void {
-  currentSettings.sendDiffFileAttachments = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().sendDiffFileAttachments = enabled;
+  void persist();
 }
 
 export function getPromptQueueEnabled(): boolean {
-  return currentSettings.promptQueueEnabled ?? false;
+  return activeSlice().promptQueueEnabled ?? false;
 }
 
 export function setPromptQueueEnabled(enabled: boolean): void {
-  currentSettings.promptQueueEnabled = enabled;
-  void writeSettingsFile(currentSettings);
+  activeSlice().promptQueueEnabled = enabled;
+  void persist();
 }
 
 export function getDismissedProjects(): string[] {
-  return currentSettings.dismissedProjects ?? [];
+  return activeSlice().dismissedProjects ?? [];
 }
 
 export function dismissProject(worktree: string): boolean {
@@ -266,8 +333,8 @@ export function dismissProject(worktree: string): boolean {
   if (current.includes(worktree)) {
     return false;
   }
-  currentSettings.dismissedProjects = [...current, worktree];
-  void writeSettingsFile(currentSettings);
+  activeSlice().dismissedProjects = [...current, worktree];
+  void persist();
   return true;
 }
 
@@ -276,98 +343,101 @@ export function undismissProject(worktree: string): boolean {
   if (!current.includes(worktree)) {
     return false;
   }
-  currentSettings.dismissedProjects = current.filter((item) => item !== worktree);
-  void writeSettingsFile(currentSettings);
+  activeSlice().dismissedProjects = current.filter((item) => item !== worktree);
+  void persist();
   return true;
 }
 
 export function getActivePersonaId(): string | undefined {
-  return currentSettings.activePersonaId;
+  return activeSlice().activePersonaId;
 }
 
 export function setActivePersonaId(personaId: string | undefined): void {
-  currentSettings.activePersonaId = personaId;
-  void writeSettingsFile(currentSettings);
+  activeSlice().activePersonaId = personaId;
+  void persist();
 }
 
 export function getCurrentAgent(): string | undefined {
-  return currentSettings.currentAgent;
+  return activeSlice().currentAgent;
 }
 
 export function setCurrentAgent(agentName: string): void {
-  currentSettings.currentAgent = agentName;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentAgent = agentName;
+  void persist();
 }
 
 export function clearCurrentAgent(): void {
-  currentSettings.currentAgent = undefined;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentAgent = undefined;
+  void persist();
 }
 
 export function getCurrentModel(): ModelInfo | undefined {
-  return currentSettings.currentModel;
+  return activeSlice().currentModel;
 }
 
 export function setCurrentModel(modelInfo: ModelInfo): void {
-  currentSettings.currentModel = modelInfo;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentModel = modelInfo;
+  void persist();
 }
 
 export function clearCurrentModel(): void {
-  currentSettings.currentModel = undefined;
-  void writeSettingsFile(currentSettings);
+  activeSlice().currentModel = undefined;
+  void persist();
 }
 
 export function getPinnedMessageId(): number | undefined {
-  return currentSettings.pinnedMessageId;
+  return activeSlice().pinnedMessageId;
 }
 
 export function setPinnedMessageId(messageId: number): void {
-  currentSettings.pinnedMessageId = messageId;
-  void writeSettingsFile(currentSettings);
+  activeSlice().pinnedMessageId = messageId;
+  void persist();
 }
 
 export function clearPinnedMessageId(): void {
-  currentSettings.pinnedMessageId = undefined;
-  void writeSettingsFile(currentSettings);
+  activeSlice().pinnedMessageId = undefined;
+  void persist();
 }
 
+// The directory cache describes directories the OpenCode server has sessions for, not
+// anything a specific account owns, so it is shared rather than per-user.
 export function getSessionDirectoryCache(): SessionDirectoryCacheInfo | undefined {
-  return currentSettings.sessionDirectoryCache;
+  return settingsRoot.sessionDirectoryCache;
 }
 
 export function setSessionDirectoryCache(cache: SessionDirectoryCacheInfo): Promise<void> {
-  currentSettings.sessionDirectoryCache = cache;
-  return writeSettingsFile(currentSettings);
+  settingsRoot.sessionDirectoryCache = cache;
+  return persist();
 }
 
 export function clearSessionDirectoryCache(): void {
-  currentSettings.sessionDirectoryCache = undefined;
-  void writeSettingsFile(currentSettings);
+  settingsRoot.sessionDirectoryCache = undefined;
+  void persist();
 }
 
 export function getScheduledTasks(): ScheduledTask[] {
-  return cloneScheduledTasks(currentSettings.scheduledTasks) ?? [];
+  return cloneScheduledTasks(activeSlice().scheduledTasks) ?? [];
 }
 
 export function setScheduledTasks(tasks: ScheduledTask[]): Promise<void> {
-  currentSettings.scheduledTasks = cloneScheduledTasks(tasks);
-  return writeSettingsFile(currentSettings);
+  activeSlice().scheduledTasks = cloneScheduledTasks(tasks);
+  return persist();
 }
 
 export function getScheduledTaskSessionIgnores(): ScheduledTaskSessionIgnoreInfo[] {
-  return cloneScheduledTaskSessionIgnores(currentSettings.scheduledTaskSessionIgnores) ?? [];
+  return cloneScheduledTaskSessionIgnores(activeSlice().scheduledTaskSessionIgnores) ?? [];
 }
 
 export function setScheduledTaskSessionIgnores(
   ignores: ScheduledTaskSessionIgnoreInfo[],
 ): Promise<void> {
-  currentSettings.scheduledTaskSessionIgnores = cloneScheduledTaskSessionIgnores(ignores);
-  return writeSettingsFile(currentSettings);
+  activeSlice().scheduledTaskSessionIgnores = cloneScheduledTaskSessionIgnores(ignores);
+  return persist();
 }
 
 export function __resetSettingsForTests(): void {
-  currentSettings = {};
+  settingsRoot = {};
+  activeUserId = null;
   settingsWriteQueue = Promise.resolve();
   skipNextBackupRotation = false;
 }
@@ -400,8 +470,8 @@ function applyInitialSettingsPreset(preset: Record<string, unknown>): void {
           `INITIAL_SETTINGS_PRESET: invalid value for "ttsMode"; expected one of ${VALID_TTS_MODES.join(", ")}.`,
         );
       }
-      if (currentSettings.ttsMode === undefined) {
-        currentSettings.ttsMode = value as TtsMode;
+      if (activeSlice().ttsMode === undefined) {
+        activeSlice().ttsMode = value as TtsMode;
       }
     } else if (key === "responseStreamingMode") {
       if (
@@ -412,8 +482,8 @@ function applyInitialSettingsPreset(preset: Record<string, unknown>): void {
           `INITIAL_SETTINGS_PRESET: invalid value for "responseStreamingMode"; expected one of ${VALID_STREAMING_MODES.join(", ")}.`,
         );
       }
-      if (currentSettings.responseStreamingMode === undefined) {
-        currentSettings.responseStreamingMode = value as ResponseStreamingMode;
+      if (activeSlice().responseStreamingMode === undefined) {
+        activeSlice().responseStreamingMode = value as ResponseStreamingMode;
       }
     } else {
       // Boolean settings: compactOutputMode, deleteCompactProgressOnFinish, showThinkingContent, showAssistantRunFooter, pinnedDashboardEnabled, sendDiffFileAttachments, promptQueueEnabled
@@ -424,32 +494,32 @@ function applyInitialSettingsPreset(preset: Record<string, unknown>): void {
       }
       switch (key) {
         case "compactOutputMode":
-          if (currentSettings.compactOutputMode === undefined)
-            currentSettings.compactOutputMode = value;
+          if (activeSlice().compactOutputMode === undefined)
+            activeSlice().compactOutputMode = value;
           break;
         case "deleteCompactProgressOnFinish":
-          if (currentSettings.deleteCompactProgressOnFinish === undefined)
-            currentSettings.deleteCompactProgressOnFinish = value;
+          if (activeSlice().deleteCompactProgressOnFinish === undefined)
+            activeSlice().deleteCompactProgressOnFinish = value;
           break;
         case "showThinkingContent":
-          if (currentSettings.showThinkingContent === undefined)
-            currentSettings.showThinkingContent = value;
+          if (activeSlice().showThinkingContent === undefined)
+            activeSlice().showThinkingContent = value;
           break;
         case "showAssistantRunFooter":
-          if (currentSettings.showAssistantRunFooter === undefined)
-            currentSettings.showAssistantRunFooter = value;
+          if (activeSlice().showAssistantRunFooter === undefined)
+            activeSlice().showAssistantRunFooter = value;
           break;
         case "pinnedDashboardEnabled":
-          if (currentSettings.pinnedDashboardEnabled === undefined)
-            currentSettings.pinnedDashboardEnabled = value;
+          if (activeSlice().pinnedDashboardEnabled === undefined)
+            activeSlice().pinnedDashboardEnabled = value;
           break;
         case "sendDiffFileAttachments":
-          if (currentSettings.sendDiffFileAttachments === undefined)
-            currentSettings.sendDiffFileAttachments = value;
+          if (activeSlice().sendDiffFileAttachments === undefined)
+            activeSlice().sendDiffFileAttachments = value;
           break;
         case "promptQueueEnabled":
-          if (currentSettings.promptQueueEnabled === undefined)
-            currentSettings.promptQueueEnabled = value;
+          if (activeSlice().promptQueueEnabled === undefined)
+            activeSlice().promptQueueEnabled = value;
           break;
       }
     }
@@ -482,14 +552,40 @@ export async function loadSettings(): Promise<void> {
     requiresRewrite = true;
   }
 
-  currentSettings = loadedSettings;
-  currentSettings.scheduledTasks = cloneScheduledTasks(loadedSettings.scheduledTasks) ?? [];
-  currentSettings.scheduledTaskSessionIgnores =
-    cloneScheduledTaskSessionIgnores(loadedSettings.scheduledTaskSessionIgnores) ?? [];
+  // Before per-user storage the file was flat, with one copy of every setting at the top
+  // level. Those values belong to whichever account was the only permitted one, so they
+  // move into that account's slice and the flat copies are dropped.
+  const flat = loadedSettings as Record<string, unknown>;
+  const legacy: UserSettings = {};
+  for (const key of PER_USER_SETTING_KEYS) {
+    if (flat[key] !== undefined) {
+      (legacy as Record<string, unknown>)[key] = flat[key];
+      delete flat[key];
+    }
+  }
+
+  settingsRoot = {
+    version: SETTINGS_VERSION,
+    users: (loadedSettings.users ?? {}) as Record<string, UserSettings>,
+    sessionDirectoryCache: loadedSettings.sessionDirectoryCache,
+  };
+  requiresRewrite = true;
+
+  if (Object.keys(legacy).length > 0) {
+    const key = userKey(null);
+    const users = settingsRoot.users ?? {};
+    users[key] = { ...legacy, ...users[key] };
+    settingsRoot.users = users;
+    logger.info(`[Settings] Migrated flat settings into the slice for user ${key}`);
+  }
+
+  activeSlice().scheduledTasks = cloneScheduledTasks(activeSlice().scheduledTasks) ?? [];
+  activeSlice().scheduledTaskSessionIgnores =
+    cloneScheduledTaskSessionIgnores(activeSlice().scheduledTaskSessionIgnores) ?? [];
 
   applyInitialSettingsPreset(config.bot.initialSettingsPreset);
 
   if (requiresRewrite) {
-    void writeSettingsFile(currentSettings);
+    void persist();
   }
 }

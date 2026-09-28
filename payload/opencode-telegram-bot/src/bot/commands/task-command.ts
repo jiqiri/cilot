@@ -6,7 +6,7 @@ import { getDateLocale, t } from "../../i18n/index.js";
 import type { InteractionState } from "../../app/types/interaction.js";
 import { getStoredModel } from "../../app/services/model-selection-service.js";
 import { getStoredAgent } from "../../app/services/agent-selection-service.js";
-import { getCurrentProject } from "../../app/stores/settings-store.js";
+import { getActiveSettingsUser, getCurrentProject } from "../../app/stores/settings-store.js";
 import { parseTaskSchedule } from "../../app/services/scheduled-task-schedule-parser-service.js";
 import { addScheduledTask, listScheduledTasks } from "../../app/stores/scheduled-task-store.js";
 import { buildCancelKeyboard, buildRetryScheduleKeyboard } from "../menus/scheduled-task-menu.js";
@@ -276,6 +276,9 @@ function buildScheduledTask(
     runCount: 0,
     lastStatus: "idle" as const,
     lastError: null,
+    // Stamped so the run result is delivered to the account that created the task.
+    ownerUserId: getActiveSettingsUser() ?? null,
+    ownerChatId: getActiveSettingsUser() ?? null,
   };
 
   if (parsedSchedule.kind === "cron") {

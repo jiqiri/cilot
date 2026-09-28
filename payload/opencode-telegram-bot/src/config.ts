@@ -162,9 +162,47 @@ function getOptionalSttRequestFormatEnvVar(
   return defaultValue;
 }
 
+/**
+ * Accepts a comma separated TELEGRAM_ALLOWED_USER_IDS list, falling back to the
+ * original single TELEGRAM_ALLOWED_USER_ID so existing deployments keep working.
+ * The first id in the list is the primary account: it is the one used for
+ * startup session restore, and the one a pre-upgrade settings.json migrates into.
+ */
+function parseAllowedUserIds(): number[] {
+  const list = getOptionalPathListEnvVar("TELEGRAM_ALLOWED_USER_IDS");
+  const single = getEnvVar("TELEGRAM_ALLOWED_USER_ID").trim();
+  const raw = list.length > 0 ? list : single ? [single] : [];
+
+  const ids: number[] = [];
+  for (const entry of raw) {
+    const trimmed = entry.trim();
+    if (!trimmed) {
+      continue;
+    }
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(
+        `Telegram user id "${trimmed}" is not a number. Ids are digits only, comma separated.`,
+      );
+    }
+    const id = Number(trimmed);
+    if (!ids.includes(id)) {
+      ids.push(id);
+    }
+  }
+
+  if (ids.length === 0) {
+    throw new Error(
+      "No Telegram user ids configured. Set TELEGRAM_ALLOWED_USER_IDS, for example 11111111,22222222.",
+    );
+  }
+
+  return ids;
+}
+
 export function buildTelegramConfig(): {
   token: string;
   allowedUserId: number;
+  allowedUserIds: number[];
   proxyUrl: string;
   apiRoot: string;
   proxySecret: string;
@@ -191,9 +229,12 @@ export function buildTelegramConfig(): {
     );
   }
 
+  const allowedUserIds = parseAllowedUserIds();
+
   return {
     token: getEnvVar("TELEGRAM_BOT_TOKEN"),
-    allowedUserId: parseInt(getEnvVar("TELEGRAM_ALLOWED_USER_ID"), 10),
+    allowedUserId: allowedUserIds[0]!,
+    allowedUserIds,
     proxyUrl,
     apiRoot,
     proxySecret,

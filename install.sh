@@ -4,6 +4,7 @@ set -Eeuo pipefail
 # Replace the placeholders below before running this script, or export the same
 # names in the shell. Do not commit real credentials.
 TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-REPLACE_WITH_TELEGRAM_BOT_TOKEN}"
+TELEGRAM_ALLOWED_USER_IDS="${TELEGRAM_ALLOWED_USER_IDS:-}"
 TELEGRAM_ALLOWED_USER_ID="${TELEGRAM_ALLOWED_USER_ID:-REPLACE_WITH_TELEGRAM_ALLOWED_USER_ID}"
 CF_WORKERS_AI_ACCOUNT="${CF_WORKERS_AI_ACCOUNT:-REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID}"
 CF_WORKERS_AI_TOKEN="${CF_WORKERS_AI_TOKEN:-REPLACE_WITH_CLOUDFLARE_API_TOKEN}"
@@ -380,7 +381,12 @@ validate_placeholders() {
     [[ "$value" != REPLACE_WITH_* ]] || die "Replace $name in install.sh before running."
     [[ -n "$value" ]] || die "$name cannot be empty."
   done
-  [[ "$TELEGRAM_ALLOWED_USER_ID" =~ ^[0-9]+$ ]] || die "TELEGRAM_ALLOWED_USER_ID must contain only digits."
+  if [[ -n "${TELEGRAM_ALLOWED_USER_IDS:-}" ]]; then
+    local_csv="$(printf '%s' "$TELEGRAM_ALLOWED_USER_IDS" | tr -d '[:space:]')"
+    [[ "$local_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ALLOWED_USER_IDS must be digits separated by commas, for example 11111111,22222222."
+  else
+    [[ "$TELEGRAM_ALLOWED_USER_ID" =~ ^[0-9]+$ ]] || die "TELEGRAM_ALLOWED_USER_ID must contain only digits."
+  fi
   if [[ -n "$POSTIZ_MCP_URL" || -n "$POSTIZ_MCP_TOKEN" ]]; then
     [[ -n "$POSTIZ_MCP_URL" && -n "$POSTIZ_MCP_TOKEN" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
     [[ "$POSTIZ_MCP_URL" =~ ^https?:// ]] || die "POSTIZ_MCP_URL must be an absolute http(s) URL."
@@ -539,6 +545,7 @@ EOF
   cat >"$telegram_env" <<EOF
 TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
 TELEGRAM_ALLOWED_USER_ID=$TELEGRAM_ALLOWED_USER_ID
+TELEGRAM_ALLOWED_USER_IDS=$TELEGRAM_ALLOWED_USER_IDS
 OPENCODE_API_URL=$OPENCODE_TELEGRAM_URL
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$main_password
