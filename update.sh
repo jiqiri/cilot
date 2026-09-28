@@ -236,8 +236,11 @@ for name in "${PRESERVE[@]}"; do
 done
 (( ${#PRESERVED[@]} > 0 )) && log "Preserved: ${PRESERVED[*]}"
 
-# Only reinstall and rebuild when the dependency set actually moved, so a routine update
-# that touches one file is a file copy rather than a five minute npm install.
+# Reinstalling is what costs minutes, so it is gated on the dependency set. The build is
+# not: `npm run build` is tsc over src/, so a change to any TypeScript file needs it even
+# when package.json is untouched. Gating both on dependencies meant an update that only
+# changed source copied the new .ts files and left dist/ stale, so the bot kept running the
+# previous build and the update looked successful while doing nothing.
 DEPS_CHANGED=0
 for f in package.json package-lock.json; do
   if ! cmp -s "$PAYLOAD_DIR/$f" "$BOT_SOURCE_DIR/$f" 2>/dev/null; then
@@ -252,7 +255,7 @@ if (( DEPS_CHANGED )); then
   log "Dependencies changed, reinstalling..."
   rm -rf "$BOT_SOURCE_DIR/dist" "$BOT_SOURCE_DIR/node_modules"
 else
-  log "Dependencies unchanged, keeping node_modules and dist."
+  log "Dependencies unchanged, keeping node_modules."
 fi
 
 cp -a "$PAYLOAD_DIR/." "$BOT_SOURCE_DIR/"
@@ -263,11 +266,17 @@ for name in "${PRESERVED[@]}"; do
   cp -a "$PRESERVED_DIR/$name" "$BOT_SOURCE_DIR/$name"
 done
 
+# Reached only when the source actually differs, so the build always runs. A missing tsc or
+# a type error must stop the update here rather than leave a half-updated tree that still
+# starts, because the failure would otherwise only appear as odd behaviour later.
 if (( DEPS_CHANGED )); then
-  log "Building..."
-  if ! (cd "$BOT_SOURCE_DIR" && npm ci --no-audit --no-fund && npm run build); then
-    die "The build failed. Check the output above; the source is in place but dist may be stale."
-  fi
+  log "Installing dependencies..."
+  (cd "$BOT_SOURCE_DIR" && npm ci --no-audit --no-fund) \
+    || die "npm ci failed. The previous source is still in place; check the output above."
+fi
+log "Building..."
+if ! (cd "$BOT_SOURCE_DIR" && npm run build); then
+  die "The build failed, so dist/ is stale or missing. The previous dist was not removed unless dependencies changed; check the output above."
 fi
 
 printf '%s' "$incoming_fingerprint" >"$FINGERPRINT_FILE"
