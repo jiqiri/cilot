@@ -323,7 +323,11 @@ design.
 ./update.sh --no-restart # update, leave the running service alone
 ```
 
-Installed machines get the same script at `~/.local/share/opencode-telegram-installer/update.sh`, so it can be run from anywhere. The bot's own `opencode-telegram update [--check]` does the same work without restarting the service.
+Installed machines get the same script at `~/.local/share/opencode-telegram-installer/update.sh`, so it can be run from anywhere.
+
+The script does the work itself instead of delegating to the bot's `update` subcommand, because that subcommand only exists from this release onwards. Delegating would make the first update impossible on any machine installed before it. The bot's own `opencode-telegram update [--check]` remains available once updated, and does the same work without restarting the service.
+
+Change detection compares a fingerprint of the tracked source files, not the bot's version number. The payload also carries personas, skills, agent guidance and tools, and those change without `package.json` moving, so a version comparison would skip most published updates. `npm ci` and the build only run when the dependency set actually changed, so a routine update that touches one file is a file copy rather than a five minute install.
 
 **Your settings are preserved.** `.env`, `settings.json` and `settings.json.bak` are copied aside and put back, so the Telegram token, the OpenCode credentials, and per-account state (persona, project, session, hidden projects, scheduled tasks) all survive. `dist/` and `node_modules/` are removed first so stale build output cannot survive an update. If the download or the build fails, the previous installation keeps running.
 
