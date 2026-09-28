@@ -8,9 +8,31 @@ A Linux user-level installer for:
 - A Cloudflare Workers AI `image_generate` tool for both OpenCode servers
 - User systemd services for OpenCode and the Telegram bot
 
-The installer does not require root. It installs into the current user's home directory and enables user services.
+The installer does not require root. It installs into the current user's home directory and enables user
+services. Root, or passwordless `sudo`, is only needed to install `curl` and `tar` when the machine is
+missing them.
 
 ## Requirements
+
+Linux with `systemctl` and a user session. That is the whole list.
+
+The installer installs what it can:
+
+- `curl` and `tar` come from your package manager if missing. Without `curl` it falls back to
+  `wget` to bootstrap the rest, and only fails outright if neither can be obtained.
+- **Node.js is downloaded from nodejs.org into `~/.local/share/opencode-telegram-installer/bin`**
+  when the machine has no Node, or has one older than the `^22.14.0 || ^23.6.0 || >=24` engine
+  the bot declares.
+
+Node is deliberately *not* installed from the distribution. Debian 12 ships Node 18 and Ubuntu
+22.04 ships Node 12, so `apt install npm` would usually succeed and then fail much later with a
+confusing TypeScript build error. The tarball needs no root, does not modify the system, and
+matches how the OpenCode binaries are already installed. Override the version with
+`NODE_VERSION=24.1.0 ./install.sh`.
+
+Package installs need root or passwordless `sudo`. `sudo` is always called as `sudo -n`, so if
+a password would be required the installer says so and stops instead of waiting on a prompt you
+cannot see. The rest of the install works as an ordinary user.
 
 - Linux with `systemd --user`
 - `bash`, `curl`, `tar`, `npm`, `node`, and `openssl`

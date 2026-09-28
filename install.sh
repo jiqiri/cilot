@@ -43,6 +43,154 @@ log() { printf '[installer] %s\n' "$*"; }
 die() { printf '[installer] ERROR: %s\n' "$*" >&2; exit 1; }
 
 require_command() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
+
+# The bot declares engines.node ^22.14.0 || ^23.6.0 || >=24. Distribution packages are
+# routinely older than that: Debian 12 ships Node 18 and Ubuntu 22.04 ships Node 12, and
+# "apt install npm" would therefore install a toolchain that fails much later with a
+# confusing build error. Node is fetched from nodejs.org into INSTALL_ROOT instead, which
+# needs no root, leaves the system alone, and matches how the OpenCode binaries are already
+# installed below.
+NODE_VERSION="${NODE_VERSION:-22.20.0}"
+
+# Downloader used for every fetch. ensure_bootstrap_tools downgrades this to wget when
+# curl has to be installed first, or cannot be installed at all.
+FETCH_CMD="curl"
+
+SUDO=""
+detect_sudo() {
+  SUDO=""
+  [[ "$(id -u)" == "0" ]] && return 0
+  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    SUDO="sudo -n"
+    return 0
+  fi
+  return 1
+}
+
+# Installs packages with whichever manager the machine has. Never prompts for a password:
+# sudo -n fails immediately when authentication would be required, so a machine without
+# passwordless sudo reports that it needs manual setup instead of hanging on a hidden
+# prompt that the user cannot see.
+pkg_install() {
+  detect_sudo || {
+    log "No root or passwordless sudo available, cannot install: $*"
+    return 1
+  }
+  if command -v apt-get >/dev/null 2>&1; then
+    $SUDO apt-get update -qq >/dev/null 2>&1
+    $SUDO DEBIAN_FRONTEND=noninteractive apt-get install -y -qq "$@"
+  elif command -v dnf >/dev/null 2>&1; then
+    $SUDO dnf install -y -q "$@"
+  elif command -v yum >/dev/null 2>&1; then
+    $SUDO yum install -y -q "$@"
+  elif command -v zypper >/dev/null 2>&1; then
+    $SUDO zypper --non-interactive install "$@"
+  elif command -v pacman >/dev/null 2>&1; then
+    $SUDO pacman -Sy --noconfirm "$@"
+  elif command -v apk >/dev/null 2>&1; then
+    $SUDO apk add --no-cache "$@"
+  elif command -v brew >/dev/null 2>&1; then
+    brew install "$@"
+  else
+    log "No supported package manager found."
+    return 1
+  fi
+}
+
+# curl and tar are needed before anything can be downloaded or unpacked, so they are the
+# only hard blockers. Everything else is installed without root.
+ensure_bootstrap_tools() {
+  local missing=() tool_name
+  for tool_name in curl tar; do
+    command -v "$tool_name" >/dev/null 2>&1 || missing+=("$tool_name")
+  done
+
+  if [[ ${#missing[@]} -eq 0 ]]; then
+    return 0
+  fi
+
+  # Without curl there is no downloader yet, so a different one has to bootstrap the rest.
+  local downloader="curl"
+  if ! command -v curl >/dev/null 2>&1; then
+    if command -v wget >/dev/null 2>&1; then
+      log "curl is missing but wget is available, using it to bootstrap"
+      downloader="wget"
+    else
+      pkg_install curl ca-certificates || true
+      command -v curl >/dev/null 2>&1 || die "curl is missing and could not be installed. Install curl and re-run."
+    fi
+  fi
+
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    log "Installing missing tools: ${missing[*]}"
+    pkg_install "${missing[@]}" ca-certificates || true
+  fi
+
+  for tool_name in "${missing[@]}"; do
+    command -v "$tool_name" >/dev/null 2>&1 || die "Could not install $tool_name. Install it manually and re-run."
+  done
+  command -v openssl >/dev/null 2>&1 || pkg_install openssl || true
+  command -v openssl >/dev/null 2>&1 || die "openssl is required to generate the server password."
+  FETCH_CMD="$downloader"
+}
+
+node_major() {
+  command -v node >/dev/null 2>&1 || return 1
+  node -p "process.versions.node.split('.')[0]" 2>/dev/null
+}
+
+node_is_supported() {
+  local major
+  major="$(node_major)" || return 1
+  [[ "$major" =~ ^[0-9]+$ ]] || return 1
+  (( major >= 22 ))
+}
+
+install_nodejs() {
+  if node_is_supported; then
+    log "Node $(node --version) already satisfies the required engine"
+    return 0
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    log "Node $(node --version 2>/dev/null || echo unknown) is older than the required ^22.14.0, replacing it"
+  fi
+
+  local asset_arch tmp target_dir
+  asset_arch="$(uname -m)"
+  [[ "$asset_arch" == "aarch64" || "$asset_arch" == "arm64" ]] && asset_arch="arm64"
+  [[ "$asset_arch" == "x86_64" || "$asset_arch" == "amd64" ]] && asset_arch="x64"
+  [[ "$asset_arch" == "x64" || "$asset_arch" == "arm64" ]] || die "No Node.js build for architecture: $(uname -m)"
+
+  target_dir="$INSTALL_ROOT/bin"
+  mkdir -p "$target_dir"
+  tmp="$(mktemp -d)"
+  local url="https://nodejs.org/dist/v$NODE_VERSION/node-v$NODE_VERSION-linux-$asset_arch.tar.xz"
+  local archive="$tmp/node.tar.xz"
+
+  log "Downloading Node.js $NODE_VERSION for $asset_arch"
+  if [[ "$FETCH_CMD" == "wget" ]]; then
+    wget -q "$url" -O "$archive" || die "Failed to download Node.js from $url"
+  else
+    curl -fsSL "$url" -o "$archive" || die "Failed to download Node.js from $url"
+  fi
+
+  tar -xJf "$archive" -C "$tmp" || die "Failed to unpack Node.js. Install xz-utils and re-run."
+
+  # The archive unpacks into a versioned directory; move its bin into place.
+  local src_bin
+  src_bin="$(find "$tmp" -maxdepth 2 -type d -name bin | head -1)"
+  [[ -n "$src_bin" ]] || die "Unexpected Node.js archive layout."
+  cp -f "$src_bin"/* "$target_dir"/ || die "Failed to install Node.js into $target_dir"
+  chmod 0755 "$target_dir"/*
+  rm -rf "$tmp"
+
+  export PATH="$target_dir:$PATH"
+  hash -r 2>/dev/null || true
+  node_is_supported || die "Node.js $NODE_VERSION did not start correctly after install."
+  log "Installed Node $(node --version) into $target_dir"
+}
+
 validate_placeholders() {
   local name value
   for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID CF_WORKERS_AI_ACCOUNT CF_WORKERS_AI_TOKEN; do
@@ -90,7 +238,11 @@ install_opencode_binary() {
     url="https://github.com/anomalyco/opencode/releases/download/v$version/opencode-linux-$asset_arch$asset_suffix.tar.gz"
   fi
   log "Downloading OpenCode $version"
-  curl -fsSL "$url" -o "$tmp/opencode.tar.gz"
+  if [[ "$FETCH_CMD" == "wget" ]]; then
+    wget -q "$url" -O "$tmp/opencode.tar.gz"
+  else
+    curl -fsSL "$url" -o "$tmp/opencode.tar.gz"
+  fi
   tar -xzf "$tmp/opencode.tar.gz" -C "$tmp"
   install -m 0755 "$tmp/opencode" "$destination"
   rm -rf "$tmp"
@@ -340,6 +492,7 @@ WorkingDirectory=$BOT_SOURCE_DIR
 Environment=HOME=$HOME
 Environment=OPENCODE_CONFIG_DIR=$OPENCODE_TELEGRAM_CONFIG_DIR/opencode
 Environment=XDG_CONFIG_HOME=$HOME/.config
+Environment=PATH=$INSTALL_ROOT/bin:$OPENCODE_TELEGRAM_BIN_DIR:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 EnvironmentFile=$BOT_SOURCE_DIR/.env
 EnvironmentFile=$INSTALL_ROOT/opencode-telegram-server.env
@@ -366,11 +519,9 @@ start_services() {
 }
 
 main() {
-  require_command curl
-  require_command tar
+  ensure_bootstrap_tools
+  install_nodejs
   require_command npm
-  require_command node
-  require_command openssl
   validate_placeholders
   check_platform
   install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
