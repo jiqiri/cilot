@@ -1,4 +1,18 @@
-# Changelog
+## 0.26.1 — Redact a plaintext Postiz token
+
+`mcp add` already writes `Authorization=Bearer {env:POSTIZ_MCP_TOKEN}`, so a token appears
+literally in `opencode.jsonc` only when a config was edited by hand, restored from a backup,
+or produced by a much older install. Those files get committed, pasted into issues and copied
+between machines, so a credential in one is a credential in all of them.
+
+The installer now repairs it: it reads the token from the mode-`600` environment file,
+rewrites the header to the environment reference matched by the token value itself so nothing
+else in the file is touched, and tightens the file to `600` whether or not it had to change.
+The token is never printed. The step is idempotent and a no-op on an already-clean config.
+
+Verified against a config holding a literal token: redacted, `600`, and a second run silent.
+Verified against a live server that `{env:POSTIZ_MCP_TOKEN}` still authenticates — the Postiz
+MCP reports `connected` with all thirteen tools present.
 
 ## 0.26.0 — Authorization, isolation and a restricted social-media agent
 

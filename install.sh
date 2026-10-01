@@ -942,7 +942,42 @@ EOF
     # Use the OpenCode CLI so existing JSONC settings and MCP entries are preserved.
     HOME="$HOME" OPENCODE_CONFIG_DIR="$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_MAIN_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
     HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' >/dev/null
+    redact_mcp_token_in_configs
   fi
+}
+
+# Replace a Postiz token written literally into an OpenCode config with the environment
+# reference.
+#
+# `mcp add` above writes the reference, so this only fires on a config that was edited by
+# hand, restored from a backup, or produced by a much older install. It matters because those
+# files get committed, pasted into issues, and copied between machines, and a credential in
+# one of them is a credential in all of them. The token is read from the mode-600 env file and
+# never printed, and the file is tightened to 600 whether or not it had to change.
+redact_mcp_token_in_configs() {
+  local token="" config
+  # Read the value out of the env file. Never echoed: this is a credential, and a log line
+  # or a shell trace would be a copy of it somewhere it does not belong.
+  if [[ -f "$INSTALL_ROOT/opencode-postiz.env" ]]; then
+    token="$(sed -n 's/^POSTIZ_MCP_TOKEN=//p' "$INSTALL_ROOT/opencode-postiz.env" | head -n 1)"
+  fi
+  if [[ -z "$token" && -n "${POSTIZ_MCP_TOKEN:-}" ]]; then
+    token="$POSTIZ_MCP_TOKEN"
+  fi
+  if [[ -z "$token" ]]; then
+    return 0
+  fi
+
+  for config in "$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" \
+    "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.jsonc"; do
+    [[ -f "$config" ]] || continue
+    if grep -qF "$token" "$config" 2>/dev/null; then
+      # Matched by the token value itself, so nothing else in the file is touched.
+      sed -i "s|Bearer $token|Bearer {env:POSTIZ_MCP_TOKEN}|g; s|\"Authorization\": \"$token\"|\"Authorization\": \"Bearer {env:POSTIZ_MCP_TOKEN}\"|g" "$config"
+      log "Redacted a plaintext Postiz token in $config"
+    fi
+    chmod 600 "$config"
+  done
 }
 
 write_systemd_units() {
