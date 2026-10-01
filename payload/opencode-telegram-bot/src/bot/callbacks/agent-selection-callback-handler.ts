@@ -1,3 +1,4 @@
+import { assertCanUseAgent } from "../../app/services/access-control.js";
 import { Context } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import {
@@ -47,6 +48,16 @@ export async function handleAgentSelect(ctx: Context, deps: AgentSelectDeps): Pr
     }
 
     const agentName = callbackQuery.data.replace("agent:", "");
+
+    // Authorized here, at the point the agent is chosen, so a restricted account cannot
+    // reach an agent it was not granted. Previously the picker filtered only on OpenCode's
+    // own hidden/mode flags, which is a presentation detail and not an access control.
+    try {
+      assertCanUseAgent(ctx.from?.id, agentName);
+    } catch {
+      await ctx.answerCallbackQuery({ text: t("agent.not_permitted"), show_alert: true });
+      return true;
+    }
 
     selectAgent(agentName);
     const settingsApplied = await applyAgentConfiguredSettings(agentName);

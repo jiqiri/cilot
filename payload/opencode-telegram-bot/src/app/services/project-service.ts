@@ -4,6 +4,8 @@ import { opencodeClient } from "../../opencode/client.js";
 import { config } from "../../config.js";
 import { getCachedSessionProjects } from "./session-cache-service.js";
 import { getDismissedProjects } from "../stores/settings-store.js";
+import { canUseProjectPath, isAdminUser } from "./access-control.js";
+import { getActiveSettingsUser } from "../stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
 import type { ProjectInfo } from "../types/project.js";
 
@@ -141,18 +143,70 @@ export function getHiddenProjectWorktrees(): string[] {
   return [...config.bot.excludedProjectPaths, ...getDismissedProjects()];
 }
 
+/**
+ * Projects this account may switch to.
+ *
+ * The authorization runs here rather than being left to the server, because OpenCode's
+ * `/project` endpoint ignores its `directory` argument and answers for the entire server: I
+ * verified it returning unrelated worktrees for a scoped request. There is therefore no
+ * scoped query to delegate to, and filtering a global list in the menu would still leak the
+ * other accounts' projects through the result count and the page count. So the list is
+ * narrowed before it is returned, and the same predicate guards the id and worktree lookups
+ * below, which is what closes the indirect `/worktree` and `/open` routes.
+ */
 export async function getProjects(): Promise<ProjectInfo[]> {
+  const userId = getActiveSettingsUser();
   const projects = await getResolvedProjects();
-  return projects.map(({ id, worktree, name }) => ({ id, worktree, name }));
+  const visible: ProjectInfo[] = [];
+  for (const { id, worktree, name } of projects) {
+    if (await isProjectVisibleToUser(userId, worktree)) {
+      visible.push({ id, worktree, name });
+    }
+  }
+  return visible;
+}
+
+/**
+ * One rule for listing and for selection, so a path hidden from the menu cannot be reached
+ * by asking for it directly. Admins bypass, which is a deliberate grant.
+ */
+export async function isProjectVisibleToUser(
+  userId: number | null | undefined,
+  worktree: string,
+): Promise<boolean> {
+  // The operator's own exclusions and this account's dismissals are a separate question
+  // from authorization, and they apply to admins too: "/" is excluded precisely so the
+  // agent does not run at the filesystem root, and that is true whoever is asking.
+  if (isExcludedOrDismissed(worktree)) {
+    return false;
+  }
+  if (isAdminUser(userId)) return true;
+  return canUseProjectPath(userId, worktree);
+}
+
+/** True when the path is hidden by configuration or dismissed by this account. */
+function isExcludedOrDismissed(worktree: string): boolean {
+  const key = worktreeKey(worktree);
+  const excluded = [
+    ...(config.bot.excludedProjectPaths ?? []),
+    ...getDismissedProjects(),
+  ];
+  return excluded.some((entry) => worktreeKey(entry) === key);
 }
 
 export async function getProjectById(id: string): Promise<ProjectInfo> {
-  const projects = await getProjects();
+  // Resolved against the full set, then authorized, because a restricted user must not be
+  // able to tell "does not exist" apart from "exists but is not yours" by the error alone.
+  const projects = await getResolvedProjects();
   const project = projects.find((p) => p.id === id);
   if (!project) {
     throw new Error(`Project with id ${id} not found`);
   }
-  return project;
+  if (!(await isProjectVisibleToUser(getActiveSettingsUser(), project.worktree))) {
+    logger.warn(`[Authz] Refused project id=${id} for userId=${getActiveSettingsUser()}`);
+    throw new Error(`Project with id ${id} not found`);
+  }
+  return { id: project.id, worktree: project.worktree, name: project.name };
 }
 
 export async function getProjectByWorktree(worktree: string): Promise<ProjectInfo> {
@@ -160,6 +214,15 @@ export async function getProjectByWorktree(worktree: string): Promise<ProjectInf
   const key = worktreeKey(worktree);
   const project = projects.find((p) => worktreeKey(p.worktree) === key);
   if (!project) {
+    throw new Error(`Project with worktree ${worktree} not found`);
+  }
+  // The same check the list applies. Previously this lookup returned before the exclusion
+  // filter and skipped the dismissal check entirely, so a project hidden from /projects was
+  // still reachable by asking for its worktree.
+  if (!(await isProjectVisibleToUser(getActiveSettingsUser(), project.worktree))) {
+    logger.warn(
+      `[Authz] Refused project worktree=${worktree} for userId=${getActiveSettingsUser()}`,
+    );
     throw new Error(`Project with worktree ${worktree} not found`);
   }
   return { id: project.id, worktree: project.worktree, name: project.name };

@@ -199,6 +199,14 @@ export const vi: I18nDictionary = {
     "🔴 Máy chủ OpenCode không khả dụng hoặc đã xảy ra lỗi khi tải danh sách phiên.",
   "sessions.select_project_first": "🔴 Chưa chọn dự án. Dùng /projects.",
   "sessions.page_empty_callback": "Trang này không có phiên nào",
+  "sessions.not_yours":
+    "Cuộc trò chuyện đó không nằm trong lịch sử của tài khoản bạn.",
+  "agent.not_permitted":
+    "Agent đó không khả dụng cho tài khoản của bạn.",
+  "mcps.not_permitted":
+    "Chỉ quản trị viên mới có thể bật/tắt máy chủ MCP.",
+  "command.admin_only":
+    "Lệnh đó chỉ dành cho quản trị viên.",
   "sessions.page_load_error_callback": "Không tải được trang này. Vui lòng thử lại.",
   "sessions.button.prev_page": "⬅️ Trước",
   "sessions.button.next_page": "Sau ➡️",

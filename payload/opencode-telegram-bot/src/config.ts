@@ -168,6 +168,13 @@ function getOptionalSttRequestFormatEnvVar(
  * The first id in the list is the primary account: it is the one used for
  * startup session restore, and the one a pre-upgrade settings.json migrates into.
  */
+function splitIdList(value: string): string[] {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
 function parseAllowedUserIds(): number[] {
   // Both variables take one id or a comma separated list, and both are merged. The
   // original variable is read first so its first id stays the primary account.
@@ -208,10 +215,39 @@ function parseAllowedUserIds(): number[] {
   return ids;
 }
 
+/**
+ * Telegram ids that get the admin policy.
+ *
+ * Follows the same comma-separated convention as the allowlist, and accepts the singular
+ * `TELEGRAM_ADMIN_USER_ID` as well so a single admin does not have to remember the plural.
+ * An id listed here is admin even if it is also in the allowlist, because the admin list is
+ * the smaller deliberate one and silently demoting an admin would be the surprising
+ * direction.
+ */
+function parseAdminUserIds(): number[] {
+  const raw = [
+    ...splitIdList(process.env.TELEGRAM_ADMIN_USER_ID ?? ""),
+    ...splitIdList(process.env.TELEGRAM_ADMIN_USER_IDS ?? ""),
+  ];
+  const ids: number[] = [];
+  for (const entry of raw) {
+    if (!/^\d+$/.test(entry)) {
+      throw new Error(
+        `Telegram admin id "${entry}" is not a number. Ids are digits only, comma separated.`,
+      );
+    }
+    const id = Number(entry);
+    if (!ids.includes(id)) ids.push(id);
+  }
+  return ids;
+}
+
 export function buildTelegramConfig(): {
   token: string;
   allowedUserId: number;
   allowedUserIds: number[];
+  adminUserId: number | null;
+  adminUserIds: number[];
   proxyUrl: string;
   apiRoot: string;
   proxySecret: string;
@@ -240,10 +276,14 @@ export function buildTelegramConfig(): {
 
   const allowedUserIds = parseAllowedUserIds();
 
+  const adminUserIds = parseAdminUserIds();
+
   return {
     token: getEnvVar("TELEGRAM_BOT_TOKEN"),
     allowedUserId: allowedUserIds[0]!,
     allowedUserIds,
+    adminUserId: adminUserIds[0] ?? null,
+    adminUserIds,
     proxyUrl,
     apiRoot,
     proxySecret,

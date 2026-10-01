@@ -196,6 +196,14 @@ export const en = {
     "🔴 OpenCode Server is unavailable or an error occurred while loading sessions.",
   "sessions.select_project_first": "🔴 Project is not selected. Use /projects.",
   "sessions.page_empty_callback": "No sessions on this page",
+  "sessions.not_yours":
+    "That conversation is not in your account's history.",
+  "agent.not_permitted":
+    "That agent is not available for your account.",
+  "mcps.not_permitted":
+    "Only an administrator can connect or disconnect MCP servers.",
+  "command.admin_only":
+    "That command is only available to an administrator.",
   "sessions.page_load_error_callback": "Cannot load this page. Please try again.",
   "sessions.button.prev_page": "⬅️ Prev",
   "sessions.button.next_page": "Next ➡️",

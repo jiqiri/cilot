@@ -23,7 +23,8 @@ import { mcpsCommand } from "../commands/mcp-catalog-command.js";
 import { startCommand } from "../commands/start-command.js";
 import { helpCommand } from "../commands/help-command.js";
 import { statusCommand } from "../commands/status-command.js";
-import { BOT_COMMANDS } from "../commands/definitions.js";
+import { getLocalizedBotCommands, isCommandAllowedForPolicy } from "../commands/definitions.js";
+import { isAdminUser } from "../../app/services/access-control.js";
 import { logger } from "../../utils/logger.js";
 import { flushPendingPrompt } from "../handlers/message-merger.js";
 import {
@@ -41,6 +42,40 @@ interface CommandRouterDeps {
 // Tracked per user id: each permitted account needs its own chat-scoped command list
 // published once, and a second account must not be skipped because the first was set up.
 const commandsInitializedFor = new Set<number>();
+/**
+ * Central gate for admin-only commands.
+ *
+ * Hiding a command from the menu is presentation, so the refusal has to live where the
+ * command is dispatched. A restricted account typing `/ls` directly is refused here rather
+ * than reaching a handler that assumes the menu already filtered it.
+ */
+/**
+ * Normalise "/ls@botname args" to "ls". Written without indexed access so it satisfies the
+ * project's unchecked-index setting rather than asserting the element exists.
+ */
+function parseCommandName(text: string): string {
+  const firstToken = text.split(/\s+/).at(0) ?? "";
+  const withoutSlash = firstToken.startsWith("/") ? firstToken.slice(1) : firstToken;
+  const atIndex = withoutSlash.indexOf("@");
+  const name = atIndex >= 0 ? withoutSlash.slice(0, atIndex) : withoutSlash;
+  return name.toLowerCase();
+}
+
+export async function enforceCommandPolicy(ctx: Context, next: NextFunction): Promise<void> {
+  const message = ctx.msg;
+  const text = message && "text" in message ? message.text ?? undefined : undefined;
+  if (text && text.startsWith("/")) {
+    const name = parseCommandName(text);
+    const userId = ctx.from?.id;
+    if (name && !isCommandAllowedForPolicy(name, isAdminUser(userId))) {
+      logger.warn(`[Authz] Refused command /${name} for userId=${userId}: admin only`);
+      await ctx.reply(t("command.admin_only"));
+      return;
+    }
+  }
+  await next();
+}
+
 export async function ensureCommandsInitialized(
   ctx: Context,
   next: NextFunction,
@@ -58,12 +93,18 @@ export async function ensureCommandsInitialized(
   }
 
   try {
-    await ctx.api.setMyCommands([...BOT_COMMANDS, ...localCommandRegistry.definitions()], {
-      scope: {
-        type: "chat",
-        chat_id: ctx.chat.id,
+    // Per policy, not per "is allowed": an admin-only account would otherwise be shown the
+    // filesystem and MCP commands it cannot use.
+    const admin = isAdminUser(ctx.from.id);
+    await ctx.api.setMyCommands(
+      [...getLocalizedBotCommands({ adminOnly: admin }), ...localCommandRegistry.definitions()],
+      {
+        scope: {
+          type: "chat",
+          chat_id: ctx.chat.id,
+        },
       },
-    });
+    );
 
     commandsInitializedFor.add(ctx.from.id);
     logger.debug(`[Bot] Commands initialized for authorized user (chat_id=${ctx.chat.id})`);

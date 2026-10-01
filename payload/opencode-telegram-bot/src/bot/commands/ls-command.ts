@@ -42,7 +42,7 @@ export async function lsCommand(
     return;
   }
 
-  if (!isWithinProjectRoot(targetDir)) {
+  if (!(await isWithinProjectRoot(targetDir))) {
     await ctx.reply(`❌ ${t("ls.access_denied")}`);
     return;
   }

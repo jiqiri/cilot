@@ -198,6 +198,14 @@ export const tr: I18nDictionary = {
     "🔴 OpenCode Sunucusu kullanılamıyor veya oturumlar yüklenirken bir hata oluştu.",
   "sessions.select_project_first": "🔴 Proje seçilmedi. /projects kullanın.",
   "sessions.page_empty_callback": "Bu sayfada oturum yok",
+  "sessions.not_yours":
+    "Bu sohbet hesabınızın geçmişinde değil.",
+  "agent.not_permitted":
+    "Bu ajan hesabınız için kullanılamıyor.",
+  "mcps.not_permitted":
+    "Yalnızca bir yönetici MCP sunucularını bağlayabilir veya ayırabilir.",
+  "command.admin_only":
+    "Bu komut yalnızca yöneticiler için kullanılabilir.",
   "sessions.page_load_error_callback": "Bu sayfa yüklenemiyor. Lütfen tekrar deneyin.",
   "sessions.button.prev_page": "⬅️ Önceki",
   "sessions.button.next_page": "Sonraki ➡️",

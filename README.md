@@ -389,6 +389,164 @@ The block is added by the installer of the persona rather than by the persona au
 persona you write yourself gets it too, and switching personas cannot drop it. Clear the active
 persona and the overlay is emptied entirely, leaving the model on its default voice.
 
+## Architecture
+
+```
+Telegram
+  │
+  ▼
+opencode-telegram-bot.service          grammy; decides who you are and what you may do
+  │  access-control.ts → policy: deny | standard | admin
+  │  per-account state in settings.json, keyed by Telegram id
+  │  realpath containment for every path it hands to OpenCode
+  ▼
+opencode-telegram-server.service      opencode 1.18.32 on 127.0.0.1:4096
+  │  enforces tool permissions itself: bash, edit, external_directory, MCP
+  │  agents: social-media (restricted), postiz-social, build, plan, …
+  ▼
+LLM provider
+
+owner's own interactive use → opencode.service   opencode 2.0.11 on 127.0.0.1:5100
+```
+
+Three user-level systemd services under one Linux user. No containers.
+
+## Why one OpenCode version
+
+The Telegram bot requires **opencode 1.18.32** and cannot use 2.x today. This is not
+backwards compatibility, it is a different API, and it was measured rather than assumed:
+
+- 1.18.32 serves **162** endpoints, including the root-level `/session`, `/project`, `/mcp`,
+  `/permission`, `/question`, `/event`, `/config`, `/command`, `/agent`, `/global/health`.
+- 2.0.11 serves **113** endpoints, **only** under `/api/*`. The entire root-level surface is
+  gone.
+- All 28 SDK calls the bot makes resolve to root-level paths: **28/28 exist on 1.18.32,
+  0/28 on 2.0.11.**
+- Three of those have no 2.x counterpart at all, deleted rather than renamed: the
+  ask-the-user flow (`/question`), session status (which the input gate uses), and
+  `prompt_async`. `/session/{id}/abort` became `interrupt`, and MCP connect/disconnect moved
+  under `/api/experimental/`.
+
+Migrating means rewriting the client onto `/api/*` and rebuilding those three. That is a
+rewrite, not a migration, so it is not attempted here.
+
+The two installations share nothing: separate binaries, separate config trees, separate
+ports. 2.0.11 serves the owner's own interactive work; the bot never talks to it.
+
+## Telegram roles
+
+| Telegram id | Policy | Workspaces | Agents | Admin commands |
+| --- | --- | --- | --- | --- |
+| not configured | **denied** | — | — | — |
+| in `TELEGRAM_ALLOWED_USER_ID(S)` | standard | own only | `social-media`, `postiz-social` | no |
+| in `TELEGRAM_ADMIN_USER_IDS` | admin | all | any the server offers | yes |
+
+Unknown ids get nothing. Adding a user is a deliberate edit, not a side effect of the bot
+being reachable. An id in both lists is admin.
+
+```bash
+# ~/.config/opencode-telegram-installer/install.env
+TELEGRAM_ALLOWED_USER_ID=111111111,222222222   # standard accounts
+TELEGRAM_ADMIN_USER_IDS=999999999              # admin
+```
+
+The decision happens in `access-control.ts`, before a session is created or selected, and
+never involves the model. Command menus are filtered per policy, and admin-only commands are
+refused at dispatch rather than merely hidden.
+
+## User isolation
+
+| Layer | What it guarantees |
+| --- | --- |
+| `access-control.ts` | who an id is, and which capability each action needs |
+| `sessions.json` ownership | an account can only open sessions it owns; checked at the point of use, not when listing |
+| project authorization | narrowed in the application, because OpenCode's `/project` ignores `directory` and answers globally |
+| realpath containment | `..` and symlinks cannot leave a root; the string-prefix version was the bug |
+| per-account workspace | `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` |
+| OpenCode permissions | `bash`, `edit` outside the workspace, `webfetch` and `external_directory` are **denied in the server**, not requested in a prompt |
+| image ownership | every generated file is recorded per account and re-checked on every read and send |
+| `postiz_upload_image` | confined to `POSTIZ_UPLOAD_ALLOWED_ROOTS`; it does its own read, which OpenCode does not cover |
+
+A restricted account has no shell, so the workspace boundary is a real boundary rather than a
+convention. Admins are trusted in this model and are not confined to their own workspace.
+
+## The social-media agent
+
+`social-media` is granted to standard accounts. It is deny-by-default, then re-opens exactly
+what the workflow needs:
+
+| Capability | Decision |
+| --- | --- |
+| `postiz_*` (the whole Postiz MCP namespace) | allow |
+| `image_generate` | allow |
+| `read`, `glob`, `grep`, `list` | allow |
+| `write`, `edit` (own workspace only) | allow |
+| `question` | allow |
+| `bash`, `task`, `webfetch`, `websearch` | **deny** |
+| `external_directory` | **deny** |
+| anything not listed | **deny** |
+
+Image reading and generation are preserved, which was a requirement: the restriction is on
+capability, not on media.
+
+The Postiz tools are granted as the `postiz_*` **namespace**, not enumerated. Adding another
+integration, a `zapier_` MCP server for instance, is a configuration change in OpenCode plus
+one line in the agent, and needs no change in the Telegram application. There is no second
+MCP authorization framework: OpenCode owns tool execution and its permission system.
+
+### Changing or adding an agent
+
+Agent definitions are markdown with a `permission` map in the frontmatter, in
+`payload/postiz-agent/agents/`, installed into
+`~/.config/opencode-telegram-server/opencode/agents/`. They are static and role-based; no
+agent is created per user. Entries declared there are **appended** to OpenCode's own defaults
+and evaluated last-match-wins, which is the same mechanism the built-in `plan` agent uses.
+
+`permission` is a map, not a list:
+
+```yaml
+permission:
+  "*": deny
+  "postiz_*": allow
+  "bash": deny
+```
+
+To add a user-visible agent, drop a markdown file there and add its name to `STANDARD_AGENTS`
+in `access-control.ts` if standard accounts should be able to select it.
+
+## Images
+
+Generated JPEGs go to `$XDG_DATA_HOME/opencode-generated-images/`, the filenames are chosen
+by the model, and the bot records who produced each one. Knowing a filename is therefore not
+permission: a standard account is refused another account's file, and an admin may read across
+accounts because that is an explicit grant. The file is sent to Telegram as a buffer, never by
+uploading the path.
+
+## Threat model and limitations
+
+Fixed in 0.26.0: cross-account session reads, global project listing, symlink and traversal
+escape, unrestricted social agent, arbitrary file read through the upload tool, missing roles,
+indirect access to excluded projects, shared persona overlay, unowned generated images,
+unauthorized agent and MCP selection. See `CHANGELOG.md` for the reproductions.
+
+Not covered, deliberately or because it is out of reach here:
+
+- **Admins are trusted.** An admin id can reach anything the Linux user can, including
+  configuration and credentials. Keep the admin list short and to people who would have shell
+  access anyway.
+- **One Linux user, no containers.** Isolation is by directory and by OpenCode's permissions,
+  not by the kernel. If a restricted account could reach a shell, the directory boundary would
+  not hold. It cannot, because `bash` is denied in the server.
+- **MCP servers are as trusted as their tools.** Granting `zapier_*` to an agent grants every
+  tool that server exposes. Review what a server can do before granting its namespace.
+- **OpenCode's runtime enforcement is not exercised by the tests.** The deny-by-default block
+  is verified at the configuration and resolution layer against a running server; a live tool
+  call was not, because the configured provider refuses out-of-process requests.
+- **A model that is being lied to** can still be talked into trying. The boundaries above are
+  not prompt-based, so a successful attempt ends in a permission refusal rather than an action.
+- **Secrets remain in the OpenCode server's environment**, reachable by anything that can run
+  code there. A restricted account cannot, an admin can.
+
 ## Translations
 
 Every user-facing string in the Telegram bot goes through `t("key")` and lives in
@@ -479,7 +637,7 @@ OPENCODE_TELEGRAM_UPDATE_URL=https://github.com/other/repo/archive/refs/heads/ma
 Each account gets its own project, session, agent, model, persona, hidden projects, settings and scheduled tasks. A second account cannot see or resume the first account's conversations.
 
 1. Get the new id from [@userinfobot](https://t.me/userinfobot). It is the number, not the username.
-2. List every permitted id in `install.env`, comma separated, first one being the primary account. Either variable works, and if you set both they are merged in that order:
+2. List every permitted id in `install.env`, comma separated, first one being the primary account. Either variable works, and if you set both they are merged in that order. An id not listed here, and not in `TELEGRAM_ADMIN_USER_IDS`, is denied:
 
    ```bash
    TELEGRAM_ALLOWED_USER_ID=111111111,987654321

@@ -202,6 +202,14 @@ export const id: I18nDictionary = {
   "sessions.fetch_error": "🔴 Server OpenCode tidak tersedia atau gagal memuat sesi.",
   "sessions.select_project_first": "🔴 Proyek belum dipilih. Gunakan /projects.",
   "sessions.page_empty_callback": "Tidak ada sesi di halaman ini",
+  "sessions.not_yours":
+    "Percakapan itu tidak ada di riwayat akun Anda.",
+  "agent.not_permitted":
+    "Agen tersebut tidak tersedia untuk akun Anda.",
+  "mcps.not_permitted":
+    "Hanya administrator yang dapat menyambungkan atau memutus server MCP.",
+  "command.admin_only":
+    "Perintah itu hanya tersedia untuk administrator.",
   "sessions.page_load_error_callback": "Tidak dapat memuat halaman ini. Coba lagi.",
   "sessions.button.prev_page": "⬅️ Sebelumnya",
   "sessions.button.next_page": "Berikutnya ➡️",

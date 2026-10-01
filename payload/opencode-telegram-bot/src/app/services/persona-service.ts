@@ -299,28 +299,55 @@ function renderPersonaOverlay(body: string): string {
  * removes the persona overlay and leaves the model on its default voice.
  */
 export async function materializeActivePersona(id: string | null): Promise<void> {
-  const target = getActivePersonaFile();
+  await writeOverlay(id);
+}
 
-  if (id === null) {
-    await fs.writeFile(target, "", { encoding: "utf8", mode: 0o600 });
+/**
+ * Put the active account's persona in place for a turn.
+ *
+ * `PERSONA.md` is one file that `config.instructions` points at, so it can only hold one
+ * account's persona at a time. Which account is active is per-account state and correct, but
+ * the artefact the model reads was shared, so a second account switching persona silently
+ * changed the first account's voice. Rewriting it per turn, scoped to the account whose turn
+ * it is, is what makes the two consistent: whoever is being served is the one in the file.
+ *
+ * Only written when the content differs, so this costs a stat rather than a write on almost
+ * every prompt, and a turn that fails partway cannot leave a persona belonging to a
+ * different account behind longer than the next turn.
+ */
+export async function ensureActivePersonaForTurn(id: string | null): Promise<void> {
+  const target = getActivePersonaFile();
+  const desired = await renderOverlayFor(id);
+  const current = await fs.readFile(target, "utf8").catch(() => "");
+  if (current === desired) {
     return;
   }
+  await fs.writeFile(target, desired, { encoding: "utf8", mode: 0o600 });
+  logger.debug(`[Persona] Overlay refreshed for persona ${id ?? "none"} before this turn`);
+}
 
+async function renderOverlayFor(id: string | null): Promise<string> {
+  if (id === null) {
+    return "";
+  }
   let source: string;
   try {
     source = await fs.readFile(path.join(getPersonaDir(), `${id}.md`), "utf8");
   } catch {
     // The file disappeared since it was selected. Fall back to no persona rather
     // than leaving a stale persona in the system prompt.
-    await fs.writeFile(target, "", { encoding: "utf8", mode: 0o600 });
-    return;
+    return "";
   }
-
   const { body } = parseFrontmatter(source);
-  if (!body) {
-    await fs.writeFile(target, "", { encoding: "utf8", mode: 0o600 });
+  return body ? renderPersonaOverlay(body) : "";
+}
+
+async function writeOverlay(id: string | null): Promise<void> {
+  const target = getActivePersonaFile();
+  const desired = await renderOverlayFor(id);
+  const current = await fs.readFile(target, "utf8").catch(() => "");
+  if (current === desired) {
     return;
   }
-
-  await fs.writeFile(target, renderPersonaOverlay(body), { encoding: "utf8", mode: 0o600 });
+  await fs.writeFile(target, desired, { encoding: "utf8", mode: 0o600 });
 }

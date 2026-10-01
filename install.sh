@@ -796,6 +796,10 @@ EOF
 POSTIZ_MCP_TOKEN=${POSTIZ_MCP_TOKEN-}
 # Read by postiz_check_post at runtime, so changing it needs no rebuild.
 POSTIZ_CONTENT_FORMAT=${POSTIZ_CONTENT_FORMAT-}
+# postiz_upload_image does its own filesystem read, which OpenCode's permission rules do not
+# cover, so it is confined to the generated-images directory. Without this it would accept
+# any absolute path the model named.
+POSTIZ_UPLOAD_ALLOWED_ROOTS=${OPENCODE_IMAGE_DIR:-$OPENCODE_TELEGRAM_DATA_DIR/opencode-generated-images}
 POSTIZ_MCP_URL=${POSTIZ_MCP_URL-}
 POSTIZ_API_URL=$postiz_api_url
 EOF
@@ -885,7 +889,11 @@ install_postiz_agent() {
   [[ -d "$src" ]] || return 0
   mkdir -p "$telegram_root/agents" "$telegram_root/skills/postiz-guidance" "$telegram_root/tools"
   cp "$src/AGENTS.md" "$telegram_root/AGENTS.md"
-  cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md"
+  cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/agents/social-media.md"
+  # The restricted social-media agent. Its deny-by-default permission block is enforced by
+  # OpenCode, so a standard account cannot reach a shell or a directory outside its
+  # workspace even if the prompt is ignored.
+  cp "$src/agents/social-media.md" "$telegram_root/agents/social-media.md"
   cp "$src/skills/postiz-guidance/SKILL.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
   cp "$src/postiz_upload_image.ts" "$telegram_root/tools/postiz_upload_image.ts"
   cp "$src/postiz_check_post.ts" "$telegram_root/tools/postiz_check_post.ts"

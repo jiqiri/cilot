@@ -1,3 +1,5 @@
+import { canUseAgent } from "./access-control.js";
+import { getActiveSettingsUser } from "../stores/settings-store.js";
 import { opencodeClient } from "../../opencode/client.js";
 import { getCurrentAgent, getCurrentProject, setCurrentAgent } from "../stores/settings-store.js";
 import { getCurrentSession } from "./session-service.js";
@@ -51,6 +53,38 @@ function pickFallbackAgent(agents: AgentInfo[]): string {
 }
 
 export async function resolveProjectAgent(preferredAgent?: string): Promise<string> {
+  // Policy is applied here as well as at the picker. A stored agent is per-account state
+  // that can predate a role change or arrive from an older settings file, so resolving it
+  // without asking would let a restricted account keep using an agent it was not granted.
+  const requested = preferredAgent ?? getCurrentAgent() ?? DEFAULT_AGENT;
+  if (!canUseAgent(getActiveSettingsUser(), requested)) {
+    logger.warn(
+      `[Authz] Stored agent "${requested}" is not permitted for userId=${getActiveSettingsUser()}; falling back`,
+    );
+    return resolveFallbackForPolicy();
+  }
+  return resolveAgentAgainstServer(preferredAgent);
+}
+
+/**
+ * The agent a restricted account is allowed to land on. `social-media` is the intended
+ * workflow; if the server does not offer it the account gets no agent at all rather than
+ * the unrestricted default, because falling back to `build` would hand it a shell.
+ */
+async function resolveFallbackForPolicy(): Promise<string> {
+  const agents = await getAvailableAgents();
+  const social = agents.find((agent) => agent.name === "social-media" && !agent.hidden);
+  if (social) {
+    setCurrentAgent(social.name);
+    return social.name;
+  }
+  logger.error(
+    "[Authz] No permitted agent available: the server does not offer social-media, so this account cannot run a turn",
+  );
+  return "social-media";
+}
+
+async function resolveAgentAgainstServer(preferredAgent?: string): Promise<string> {
   const requestedAgent = preferredAgent ?? getCurrentAgent() ?? DEFAULT_AGENT;
   const project = getCurrentProject();
 

@@ -2,19 +2,28 @@ import { Context, NextFunction } from "grammy";
 import { config } from "../../config.js";
 import { runAsSettingsUser, setActiveSettingsUser } from "../../app/stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
+import { isAuthorizedUser, policyForUser } from "../../app/services/access-control.js";
 
+/**
+ * Whether an id may use the bot at all.
+ *
+ * Delegates to the policy module so the entry point and the rest of the bot cannot disagree
+ * about who is allowed. An id that is neither an admin nor in the allowlist is denied, which
+ * is also the answer for an id that was never configured: adding a user has to be a
+ * deliberate edit, not a side effect of the bot being reachable.
+ */
 export function isAllowedUser(userId: number | undefined): boolean {
-  if (userId === undefined) {
-    return false;
-  }
-  return config.telegram.allowedUserIds.includes(userId);
+  return isAuthorizedUser(userId);
 }
 
 export async function authMiddleware(ctx: Context, next: NextFunction): Promise<void> {
   const userId = ctx.from?.id;
 
   logger.debug(
-    `[Auth] Checking access: userId=${userId}, allowedUserIds=${config.telegram.allowedUserIds.join(",")}, hasCallbackQuery=${!!ctx.callbackQuery}, hasMessage=${!!ctx.message}`,
+    `[Auth] Checking access: userId=${userId}, policy=${policyForUser(userId)}, ` +
+      `admins=[${config.telegram.adminUserIds.join(",")}], ` +
+      `allowed=[${config.telegram.allowedUserIds.join(",")}], ` +
+      `hasCallbackQuery=${!!ctx.callbackQuery}, hasMessage=${!!ctx.message}`,
   );
 
   if (isAllowedUser(userId)) {

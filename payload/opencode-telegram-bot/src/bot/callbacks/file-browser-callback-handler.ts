@@ -120,7 +120,7 @@ export async function handleOpenCallback(
 
     const navPath = decodeOpenPathFromCallback(OPEN_CALLBACK_NAV_PREFIX, data);
     if (navPath !== null) {
-      if (!isWithinAllowedRoot(navPath)) {
+      if (!(await isWithinAllowedRoot(navPath))) {
         await alert(ctx, "open.access_denied");
         return true;
       }
@@ -130,7 +130,7 @@ export async function handleOpenCallback(
 
     const pageInfo = decodeOpenPaginationCallback(data);
     if (pageInfo !== null) {
-      if (!isWithinAllowedRoot(pageInfo.path)) {
+      if (!(await isWithinAllowedRoot(pageInfo.path))) {
         await alert(ctx, "open.access_denied");
         return true;
       }
@@ -140,7 +140,7 @@ export async function handleOpenCallback(
 
     const selectPath = decodeOpenPathFromCallback(OPEN_CALLBACK_SELECT_PREFIX, data);
     if (selectPath !== null) {
-      if (!isWithinAllowedRoot(selectPath)) {
+      if (!(await isWithinAllowedRoot(selectPath))) {
         await alert(ctx, "open.access_denied");
         return true;
       }
@@ -222,7 +222,7 @@ export async function handleLsCallback(ctx: Context, deps: LsCallbackDeps): Prom
   try {
     const navPath = decodeLsPathFromCallback(LS_CALLBACK_NAV_PREFIX, data);
     if (navPath !== null) {
-      if (!isWithinProjectRoot(navPath)) {
+      if (!(await isWithinProjectRoot(navPath))) {
         await alert(ctx, "ls.access_denied");
         return true;
       }
@@ -232,7 +232,7 @@ export async function handleLsCallback(ctx: Context, deps: LsCallbackDeps): Prom
 
     const pageInfo = decodeLsPaginationCallback(data);
     if (pageInfo !== null) {
-      if (!isWithinProjectRoot(pageInfo.path)) {
+      if (!(await isWithinProjectRoot(pageInfo.path))) {
         await alert(ctx, "ls.access_denied");
         return true;
       }
@@ -242,7 +242,7 @@ export async function handleLsCallback(ctx: Context, deps: LsCallbackDeps): Prom
 
     const fileInfo = decodeLsFileCallback(data);
     if (fileInfo !== null) {
-      if (!isWithinProjectRoot(fileInfo.path)) {
+      if (!(await isWithinProjectRoot(fileInfo.path))) {
         await alert(ctx, "ls.access_denied");
         return true;
       }
@@ -252,7 +252,7 @@ export async function handleLsCallback(ctx: Context, deps: LsCallbackDeps): Prom
 
     const attachPath = decodeLsAttachCallback(data);
     if (attachPath !== null) {
-      if (!isWithinProjectRoot(attachPath)) {
+      if (!(await isWithinProjectRoot(attachPath))) {
         await alert(ctx, "ls.access_denied");
         return true;
       }
@@ -262,7 +262,7 @@ export async function handleLsCallback(ctx: Context, deps: LsCallbackDeps): Prom
 
     const downloadPath = decodeLsPathFromCallback(LS_CALLBACK_DOWNLOAD_PREFIX, data);
     if (downloadPath !== null) {
-      if (!isWithinProjectRoot(downloadPath)) {
+      if (!(await isWithinProjectRoot(downloadPath))) {
         await alert(ctx, "ls.access_denied");
         return true;
       }
@@ -272,7 +272,7 @@ export async function handleLsCallback(ctx: Context, deps: LsCallbackDeps): Prom
 
     const backInfo = decodeLsBackCallback(data);
     if (backInfo !== null) {
-      if (!isWithinProjectRoot(backInfo.path)) {
+      if (!(await isWithinProjectRoot(backInfo.path))) {
         await alert(ctx, "ls.access_denied");
         return true;
       }

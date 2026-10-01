@@ -6,7 +6,7 @@ import { config } from "../../config.js";
 import { promptAttachment } from "../managers/prompt-attachment-manager.js";
 import { logger } from "../../utils/logger.js";
 import { isFileSizeAllowed } from "./file-download-service.js";
-import { isWithinProjectRootSafe } from "./file-browser-service.js";
+import { isWithinProjectRoot } from "./file-browser-service.js";
 
 // OpenCode resolves a file: part by reading the path with its own read tool, but only when
 // the MIME type is exactly this - anything else takes the binary branch.
@@ -59,7 +59,7 @@ export async function resolvePendingAttachment(worktree: string): Promise<FilePa
     return null;
   }
 
-  if (!(await isWithinProjectRootSafe(absolutePath))) {
+  if (!(await isWithinProjectRoot(absolutePath))) {
     logger.warn(`[PromptAttachment] Dropping attachment: outside project root: ${absolutePath}`);
     promptAttachment.clear("outside_project_root");
     return null;

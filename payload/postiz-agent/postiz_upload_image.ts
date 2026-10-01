@@ -49,6 +49,73 @@ function errorDetail(body: string): string {
   return body.replace(/\s+/g, " ").trim().slice(0, 500)
 }
 
+/**
+ * Roots this tool may read from.
+ *
+ * This tool does its own filesystem read rather than going through OpenCode's read tool, so
+ * OpenCode's permission rules do not cover it, and it previously accepted any absolute
+ * path: the model could name /etc/… or another account's files and the tool would read and
+ * upload them. Containment is enforced here, on the realpath, because a prefix comparison
+ * accepts a symlink that leaves the root.
+ *
+ * Configured with POSTIZ_UPLOAD_ALLOWED_ROOTS, comma separated. It defaults to the
+ * generated-images directory and the process working directory, so an installation that
+ * sets nothing is still confined rather than open.
+ */
+function allowedRoots(): string[] {
+  const configured = (process.env.POSTIZ_UPLOAD_ALLOWED_ROOTS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+
+  const dataHome = process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), ".local", "share");
+  const defaults = [
+    process.env.OPENCODE_IMAGE_DIR?.trim() || path.join(dataHome, "opencode-generated-images"),
+    process.cwd(),
+  ];
+  return [...new Set([...configured, ...defaults])];
+}
+
+async function realpathOf(target: string): Promise<string> {
+  const { realpath } = await import("fs/promises");
+  const absolute = path.resolve(target);
+  try {
+    return await realpath(absolute);
+  } catch {
+    // Resolve the deepest existing ancestor so a not-yet-created file inside a real root
+    // is still describable, while a traversal through a missing component cannot match.
+    let current = absolute;
+    const tail: string[] = [];
+    for (;;) {
+      const parent = path.dirname(current);
+      if (parent === current) return absolute;
+      tail.unshift(path.basename(current));
+      current = parent;
+      try {
+        return path.join(await realpath(current), ...tail);
+      } catch {
+        continue;
+      }
+    }
+  }
+}
+
+async function assertWithinAllowedRoot(candidate: string): Promise<string> {
+  const resolved = await realpathOf(candidate);
+  for (const root of allowedRoots()) {
+    const resolvedRoot = await realpathOf(root);
+    if (resolved === resolvedRoot) return resolved;
+    if (resolved.startsWith(resolvedRoot.endsWith(path.sep) ? resolvedRoot : resolvedRoot + path.sep)) {
+      return resolved;
+    }
+  }
+  throw new Error(
+    "Refusing to read that path: it is outside the directories this tool may read. " +
+      `Allowed roots: ${allowedRoots().join(", ")}. ` +
+      "Copy the file into your workspace, or ask the operator to widen POSTIZ_UPLOAD_ALLOWED_ROOTS.",
+  );
+}
+
 async function upload(
   args: { path: string; filename?: string },
   context: { abort: AbortSignal },
@@ -69,7 +136,8 @@ async function upload(
     )
   }
 
-  const localPath = path.resolve(raw.startsWith("~") ? path.join(os.homedir(), raw.slice(1)) : raw)
+  const requested = path.resolve(raw.startsWith("~") ? path.join(os.homedir(), raw.slice(1)) : raw)
+  const localPath = await assertWithinAllowedRoot(requested)
   let bytes: Buffer
   try {
     bytes = await fs.readFile(localPath)

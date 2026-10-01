@@ -182,6 +182,14 @@ export const zh: I18nDictionary = {
   "sessions.fetch_error": "🔴 OpenCode 服务器不可用，或加载会话时发生错误。",
   "sessions.select_project_first": "🔴 未选择项目。使用 /projects。",
   "sessions.page_empty_callback": "这一页没有会话",
+  "sessions.not_yours":
+    "该对话不在你账号的历史记录中。",
+  "agent.not_permitted":
+    "该 agent 对你的账号不可用。",
+  "mcps.not_permitted":
+    "只有管理员可以连接或断开 MCP 服务器。",
+  "command.admin_only":
+    "该命令仅限管理员使用。",
   "sessions.page_load_error_callback": "无法加载此页面。请重试。",
   "sessions.button.prev_page": "⬅️ 上一页",
   "sessions.button.next_page": "下一页 ➡️",

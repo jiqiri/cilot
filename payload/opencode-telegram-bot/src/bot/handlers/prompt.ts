@@ -8,7 +8,8 @@ import {
   setCurrentSession,
 } from "../../app/services/session-service.js";
 import { ingestSessionInfoForCache } from "../../app/services/session-cache-service.js";
-import { getCurrentProject, getTtsMode } from "../../app/stores/settings-store.js";
+import { getCurrentProject, getTtsMode, getActivePersonaId } from "../../app/stores/settings-store.js";
+import { ensureActivePersonaForTurn } from "../../app/services/persona-service.js";
 import { getStoredAgent, resolveProjectAgent } from "../../app/services/agent-selection-service.js";
 import { getStoredModel } from "../../app/services/model-selection-service.js";
 import { formatVariantForButton } from "../../app/services/variant-selection-service.js";
@@ -286,6 +287,10 @@ export async function processUserPrompt(
   }
 
   try {
+    // The persona overlay is a single file that `config.instructions` points at, so it is
+    // refreshed here, for this account, immediately before the turn is sent. Without it a
+    // second account switching persona would change the voice of whoever is being served.
+    await ensureActivePersonaForTurn(getActivePersonaId() ?? null);
     const currentAgent = await resolveProjectAgent(getStoredAgent());
     const storedModel = (deps.getStoredModel ?? getStoredModel)();
     const preparedInput = await prepareTelegramPhotos(ctx, input, deps, storedModel);

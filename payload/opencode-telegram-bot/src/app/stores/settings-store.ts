@@ -386,6 +386,34 @@ export function claimSession(sessionId: string): void {
   void persist();
 }
 
+/**
+ * Record a generated image as belonging to the active account.
+ *
+ * Bounded so a long-running bot cannot grow the settings file without limit; the oldest
+ * entries are dropped first, and the cap is per account.
+ */
+const MAX_GENERATED_IMAGE_RECORDS = 200;
+
+export function recordGeneratedImageForUser(userId: number, localPath: string): void {
+  const key = userKey(userId);
+  const slice = activeSlice();
+  const existing = slice.generatedImages ?? [];
+  if (existing.includes(localPath)) {
+    return;
+  }
+  const next = [...existing, localPath];
+  slice.generatedImages =
+    next.length > MAX_GENERATED_IMAGE_RECORDS
+      ? next.slice(next.length - MAX_GENERATED_IMAGE_RECORDS)
+      : next;
+  logger.debug(`[Settings] Recorded generated image for user ${key}: ${localPath}`);
+  void persist();
+}
+
+export function getGeneratedImages(): string[] {
+  return activeSlice().generatedImages ?? [];
+}
+
 export function releaseSession(sessionId: string): void {
   const owned = getOwnedSessionIds();
   if (!owned.includes(sessionId)) {

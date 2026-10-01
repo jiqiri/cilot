@@ -205,6 +205,14 @@ export const ko: I18nDictionary = {
     "🔴 OpenCode 서버에 연결할 수 없거나 세션을 불러오는 중 오류가 발생했습니다.",
   "sessions.select_project_first": "🔴 프로젝트가 선택되지 않았습니다. /projects를 사용해 주세요.",
   "sessions.page_empty_callback": "이 페이지에는 세션이 없습니다",
+  "sessions.not_yours":
+    "대화는 계정 기록에 없습니다.",
+  "agent.not_permitted":
+    "그 에이전트는 계정에서 사용할 수 없습니다.",
+  "mcps.not_permitted":
+    "MCP 서버 연결/해제는 관리자만 할 수 있습니다.",
+  "command.admin_only":
+    "그 명령은 관리자만 사용할 수 있습니다.",
   "sessions.page_load_error_callback": "이 페이지를 불러올 수 없습니다. 다시 시도해 주세요.",
   "sessions.button.prev_page": "⬅️ 이전",
   "sessions.button.next_page": "다음 ➡️",

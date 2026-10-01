@@ -1,9 +1,10 @@
+import { recordSessionOwnership } from "../../app/services/session-access.js";
 import type { Bot } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import { CommandContext, Context } from "grammy";
 import { opencodeClient } from "../../opencode/client.js";
 import { setCurrentSession } from "../../app/services/session-service.js";
-import { claimSession } from "../../app/stores/settings-store.js";
+
 import type { SessionInfo } from "../../app/types/session.js";
 import { ingestSessionInfoForCache } from "../../app/services/session-cache-service.js";
 import { getCurrentProject } from "../../app/stores/settings-store.js";
@@ -65,7 +66,7 @@ export async function newCommand(ctx: CommandContext<Context>, deps: NewCommandD
       directory: currentProject.worktree,
     };
     // OpenCode does not track who created a session, so claim it for this account.
-    claimSession(sessionInfo.id);
+    recordSessionOwnership(ctx.from?.id, sessionInfo.id);
     setCurrentSession(sessionInfo);
     deps.resetInteractions("session_created");
     await ingestSessionInfoForCache(session);

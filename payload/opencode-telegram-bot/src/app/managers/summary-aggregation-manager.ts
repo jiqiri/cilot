@@ -1,3 +1,5 @@
+import { recordGeneratedImage } from "../services/image-registry.js";
+import { getActiveSettingsUser } from "../stores/settings-store.js";
 import { Event, ToolState } from "@opencode-ai/sdk/v2";
 import type { Bot } from "grammy";
 import type { CodeFileData } from "../formatters/summary-formatter.js";
@@ -2002,6 +2004,15 @@ export class SummaryAggregator {
     attachments?: Array<{ mime: string; url: string; filename?: string }>,
   ): PreparedToolFileContext {
     if (tool === "image_generate") {
+      // Record ownership as the result is seen, so the file is attributable to the account
+      // that asked for it. The tool writes into a shared directory under a model-chosen
+      // filename, so without this the name is the only thing standing between one account's
+      // image and another's, and the filename is not a secret.
+      const generatedPath = metadata?.localPath;
+      if (typeof generatedPath === "string" && generatedPath.length > 0) {
+        recordGeneratedImage(getActiveSettingsUser() ?? undefined, generatedPath);
+      }
+
       const attachment = Array.isArray(attachments)
         ? attachments.find(
             (value): value is { mime: string; url: string; filename?: string } =>

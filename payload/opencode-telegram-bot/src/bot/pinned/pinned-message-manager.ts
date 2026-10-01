@@ -4,12 +4,14 @@ import { opencodeClient } from "../../opencode/client.js";
 import { getGitWorktreeContext } from "../../app/services/worktree-service.js";
 import { getCurrentSession } from "../../app/services/session-service.js";
 import {
+  getActiveSettingsUser,
   getCurrentProject,
   getPinnedDashboardEnabled,
   getPinnedMessageId,
   setPinnedMessageId,
   clearPinnedMessageId,
 } from "../../app/stores/settings-store.js";
+import { assertSessionAccessible } from "../../app/services/session-access.js";
 import {
   DEFAULT_CONTEXT_LIMIT,
   getModelContextLimit,
@@ -607,6 +609,13 @@ export class PinnedMessageManager {
     }
 
     try {
+      // Same reasoning as /messages: the id is the account's own session, and the selection
+      // path is guarded, but a transcript is worth a redundant check.
+      if (!(await assertSessionAccessible(getActiveSettingsUser() ?? undefined, session.id))) {
+        logger.warn("[Authz] Refused pinned refresh: session not owned by the active account");
+        return;
+      }
+
       const { data: sessionData } = await opencodeClient.session.get({
         sessionID: session.id,
         directory: project.worktree,

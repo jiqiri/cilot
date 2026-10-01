@@ -15,6 +15,7 @@ import { safeBackgroundTask } from "../../utils/safe-background-task.js";
 import { config } from "../../config.js";
 import { t } from "../../i18n/index.js";
 import { alert, failure } from "./feedback.js";
+import { assertSessionAccessible } from "../../app/services/session-access.js";
 import { attachToSession } from "../../app/services/attach-service.js";
 import { renderAssistantFinalPartsSafe } from "../messages/assistant-rendering.js";
 import { sendRenderedBotPart } from "../messages/telegram-text.js";
@@ -90,6 +91,16 @@ async function selectSessionById(
   if (!currentProject) {
     deps.resetInteractions("session_select_project_missing");
     await alert(ctx, "sessions.select_project_first");
+    return;
+  }
+
+  // Ownership is checked here, at the point of use, not only when the list is rendered.
+  // The id arrives from callback data, so this is the boundary: without it a user who
+  // learned another account's session id could fetch that conversation and, because
+  // setCurrentSession follows, would then have the bot pointed at it.
+  if (!(await assertSessionAccessible(ctx.from?.id, sessionId))) {
+    logger.warn(`[Authz] Refused session ${sessionId} for userId=${ctx.from?.id}: not owned`);
+    await alert(ctx, "sessions.not_yours");
     return;
   }
 

@@ -4,6 +4,9 @@ import path from "node:path";
 import { formatFileSize } from "../../app/services/file-download-service.js";
 import { logger } from "../../utils/logger.js";
 import { t } from "../../i18n/index.js";
+import { isWithinProjectRoot } from "../../app/services/file-browser-service.js";
+import { isInGeneratedImagesDirectory, assertGeneratedImageAccessible } from "../../app/services/image-registry.js";
+import { getActiveSettingsUser } from "../../app/stores/settings-store.js";
 
 const MAX_FILE_SIZE_MB = 50;
 
@@ -50,6 +53,29 @@ export async function sendDownloadedFile(
       await ctx.reply(`📥 ${t("commands.download.downloading")} <code>${escapeHtml(fileName)}</code>`, {
         parse_mode: "HTML",
       });
+    }
+
+    // Re-checked here, not only when the file was selected. Any amount of time may pass
+    // between picking it in the browser and sending it, and this is the last point before the
+    // file leaves the machine. The check is workspace containment rather than the generated
+    // image registry: this path sends a project file the account browsed to, which is not a
+    // generated image and is not recorded as one.
+    if (!(await isWithinProjectRoot(filePath))) {
+      logger.warn(`[Authz] Refused file send: outside the project root: ${filePath}`);
+      return false;
+    }
+
+    // The generated-images directory is shared between accounts and sits outside every
+    // project root, so a project file cannot normally be one. Checked explicitly anyway: a
+    // file the model generated belongs to the account that asked for it, and knowing its name
+    // is not permission to collect it.
+    if (isInGeneratedImagesDirectory(filePath)) {
+      try {
+        assertGeneratedImageAccessible(getActiveSettingsUser() ?? undefined, filePath);
+      } catch (error) {
+        logger.warn(`[Authz] Refused file send: ${(error as Error).message}`);
+        return false;
+      }
     }
 
     const fileContent = await fs.readFile(filePath);

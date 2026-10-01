@@ -7,6 +7,7 @@ import { isForegroundBusy } from "../../app/services/run-control-service.js";
 import { getCurrentProject } from "../../app/stores/settings-store.js";
 import { t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
+import { assertSessionAccessible } from "../../app/services/session-access.js";
 import { replyBusyBlocked } from "../messages/busy-blocked-renderer.js";
 import { buildMessagesListKeyboard, formatMessagesSelectText } from "../menus/message-history-menu.js";
 
@@ -39,6 +40,16 @@ export async function messagesCommand(
 
     if (currentSession.directory !== currentProject.worktree) {
       await ctx.reply(t("messages.session_project_mismatch"));
+      return;
+    }
+
+    // Defence in depth. The id here is the account's own stored session rather than one from
+    // a callback, so it is already owned by construction, and the selection path that could
+    // have pointed it elsewhere is guarded. Checked anyway because this reads a transcript,
+    // which is the most sensitive thing the bot does, and a future caller could pass anything.
+    if (!(await assertSessionAccessible(ctx.from?.id, currentSession.id))) {
+      logger.warn(`[Authz] Refused /messages for userId=${ctx.from?.id}: session not owned`);
+      await ctx.reply(t("sessions.not_yours"));
       return;
     }
 

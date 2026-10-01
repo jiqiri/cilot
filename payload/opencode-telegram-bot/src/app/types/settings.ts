@@ -37,6 +37,13 @@ export interface UserSettings {
    * account could open and read the first account's conversations.
    */
   ownedSessionIds?: string[] | undefined;
+  /**
+   * Generated image files this account produced, recorded when the bot sees the image
+   * tool's result. The files share one directory and the filenames are model-chosen, so
+   * the name is not an access token; this is what makes an image readable, and it is
+   * re-checked on every path that reads or sends a file.
+   */
+  generatedImages?: string[] | undefined;
   activePersonaId?: string | undefined;
   scheduledTasks?: ScheduledTask[] | undefined;
   scheduledTaskSessionIgnores?: ScheduledTaskSessionIgnoreInfo[] | undefined;
@@ -61,6 +68,7 @@ export const PER_USER_SETTING_KEYS: readonly PerUserSettingKey[] = [
   "promptQueueEnabled",
   "dismissedProjects",
   "ownedSessionIds",
+  "generatedImages",
   "activePersonaId",
   "scheduledTasks",
   "scheduledTaskSessionIgnores",

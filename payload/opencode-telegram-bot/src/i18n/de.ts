@@ -205,6 +205,14 @@ export const de: I18nDictionary = {
     "🔴 OpenCode-Server ist nicht verfügbar oder beim Laden der Sitzungen ist ein Fehler aufgetreten.",
   "sessions.select_project_first": "🔴 Projekt ist nicht ausgewählt. Nutze /projects.",
   "sessions.page_empty_callback": "Auf dieser Seite gibt es keine Sitzungen",
+  "sessions.not_yours":
+    "Diese Unterhaltung ist nicht im Verlauf deines Kontos.",
+  "agent.not_permitted":
+    "Dieser Agent ist für dein Konto nicht verfügbar.",
+  "mcps.not_permitted":
+    "Nur ein Administrator kann MCP-Server verbinden oder trennen.",
+  "command.admin_only":
+    "Dieser Befehl ist nur für einen Administrator verfügbar.",
   "sessions.page_load_error_callback":
     "Diese Seite kann nicht geladen werden. Bitte versuche es erneut.",
   "sessions.button.prev_page": "⬅️ Zurück",

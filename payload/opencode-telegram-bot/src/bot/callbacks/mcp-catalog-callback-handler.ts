@@ -1,3 +1,4 @@
+import { can } from "../../app/services/access-control.js";
 import type { Context } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import type { McpCatalogServerItem } from "../../app/services/mcp-catalog-service.js";
@@ -164,6 +165,16 @@ export async function handleMcpsCallback(ctx: Context, deps: McpsCallbackDeps): 
       const server = metadata.servers.find((s) => s.name === serverName);
       if (!server) {
         await ctx.answerCallbackQuery({ text: t("inline.inactive_callback"), show_alert: true });
+        return true;
+      }
+
+      // Connecting or disconnecting an MCP server changes which tools the agent can reach,
+      // so it is an administrative act rather than a preference. Granted to admin only;
+      // a standard account can still browse the catalogue and use the tools of the servers
+      // that are already connected.
+      if (!can(ctx.from?.id, "mcp_management")) {
+        logger.warn(`[Authz] Refused MCP toggle "${serverName}" for userId=${ctx.from?.id}`);
+        await ctx.answerCallbackQuery({ text: t("mcps.not_permitted"), show_alert: true });
         return true;
       }
 

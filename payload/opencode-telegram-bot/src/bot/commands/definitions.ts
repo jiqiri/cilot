@@ -44,8 +44,35 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "help", descriptionKey: "cmd.description.help" },
 ];
 
-export function getLocalizedBotCommands(): BotCommandDefinition[] {
-  return COMMAND_DEFINITIONS.map(({ command, descriptionKey }) => ({
+/**
+ * Commands only an admin may use.
+ *
+ * These are the operations that change the machine rather than the conversation: starting and
+ * stopping the OpenCode server, browsing the filesystem, managing worktrees, and managing MCP
+ * connections. Hiding them from the menu is presentation, so the same list is also enforced
+ * in the command router below; the menu change is a courtesy that keeps the restricted menu
+ * honest about what the account can do.
+ */
+export const ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set([
+  "opencode_start",
+  "opencode_stop",
+  "open",
+  "ls",
+  "worktree",
+  "mcps",
+]);
+
+/** Whether a command is permitted for a policy. */
+export function isCommandAllowedForPolicy(command: string, isAdmin: boolean): boolean {
+  if (isAdmin) return true;
+  return !ADMIN_ONLY_COMMANDS.has(command);
+}
+
+export function getLocalizedBotCommands(options?: { adminOnly?: boolean }): BotCommandDefinition[] {
+  const visible = options?.adminOnly
+    ? COMMAND_DEFINITIONS
+    : COMMAND_DEFINITIONS.filter(({ command }) => !ADMIN_ONLY_COMMANDS.has(command));
+  return visible.map(({ command, descriptionKey }) => ({
     command,
     description: t(descriptionKey),
   }));

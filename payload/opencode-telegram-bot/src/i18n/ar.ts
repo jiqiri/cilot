@@ -196,6 +196,14 @@ export const ar: I18nDictionary = {
   "sessions.fetch_error": "🔴 تعذر تحميل الجلسات. تأكد من أن خادم OpenCode يعمل ثم حاول مرة أخرى.",
   "sessions.select_project_first": "🔴 حدد مشروعًا أولًا باستخدام /projects.",
   "sessions.page_empty_callback": "لا توجد جلسات في هذه الصفحة",
+  "sessions.not_yours":
+    "هذه المحادثة ليست ضمن سجل حسابك.",
+  "agent.not_permitted":
+    "هذا الوكيل غير متاح لحسابك.",
+  "mcps.not_permitted":
+    "يستطيع المشرف فقط توصيل خوادم MCP أو فصلها.",
+  "command.admin_only":
+    "هذا الأمر متاح للمشرفين فقط.",
   "sessions.page_load_error_callback": "تعذر تحميل هذه الصفحة. حاول مرة أخرى.",
   "sessions.button.prev_page": "⬅️ السابق",
   "sessions.button.next_page": "التالي ➡️",

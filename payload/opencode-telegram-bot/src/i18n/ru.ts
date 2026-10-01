@@ -196,6 +196,14 @@ export const ru: I18nDictionary = {
     "🔴 OpenCode Server недоступен или произошла ошибка при получении списка сессий.",
   "sessions.select_project_first": "🔴 Проект не выбран. Используйте /projects.",
   "sessions.page_empty_callback": "На этой странице нет сессий",
+  "sessions.not_yours":
+    "Этот разговор отсутствует в истории вашей учётной записи.",
+  "agent.not_permitted":
+    "Этот агент недоступен для вашей учётной записи.",
+  "mcps.not_permitted":
+    "Только администратор может подключать или отключать серверы MCP.",
+  "command.admin_only":
+    "Эта команда доступна только администратору.",
   "sessions.page_load_error_callback":
     "Не удалось загрузить эту страницу. Пожалуйста, попробуйте снова.",
   "sessions.button.prev_page": "⬅️ Назад",

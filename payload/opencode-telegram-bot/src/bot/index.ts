@@ -20,6 +20,7 @@ import { interactionGuardMiddleware } from "./middleware/interaction-guard.js";
 import { staleUpdateMiddleware } from "./middleware/stale-update.js";
 import {
   ensureCommandsInitialized,
+  enforceCommandPolicy,
   registerCommandRouter,
 } from "./routers/command-router.js";
 import { registerMessageRouter } from "./routers/message-router.js";
@@ -184,6 +185,9 @@ export function createBot(
   bot.use(staleUpdateMiddleware);
   bot.on("message:rich_message", normalizeRichMessage);
   bot.use((ctx, next) => ensureCommandsInitialized(ctx, next, localCommandRegistry));
+  // After auth, so the account is known, and before the command handlers, so an admin-only
+  // command is refused at the boundary rather than inside whichever handler owns it.
+  bot.use(enforceCommandPolicy);
   const guardDeps = { ...container, localCommandRegistry };
   bot.use((ctx, next) => interactionGuardMiddleware(ctx, next, guardDeps));
 

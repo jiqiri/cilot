@@ -212,35 +212,57 @@ export function getBrowserRootPaths(): string[] {
   return getBrowserRoots();
 }
 
-export function isWithinAllowedRoot(targetPath: string): boolean {
-  const normalizedTarget = normalizePath(targetPath);
+/**
+ * Whether a path is inside one of the browser roots.
+ *
+ * Both sides are resolved with realpath before being compared. A prefix test on the raw
+ * string accepts a symlink that points out of the root, which is not a theoretical gap: a
+ * symlink inside a root whose target is outside it returns true here and false once
+ * resolved. `..` cannot survive resolution either, so one check covers both escapes.
+ *
+ * Async because of that, and every caller awaits it. The previous `...Safe` twin existed,
+ * was correct, and had no callers in the browser paths, which is why the escape was live.
+ */
+export async function isWithinAllowedRoot(targetPath: string): Promise<boolean> {
+  const resolvedTarget = await resolveForCompare(targetPath);
+  if (!resolvedTarget) return false;
 
   for (const root of getBrowserRoots()) {
-    const normalizedRoot = normalizePath(root);
-
-    if (normalizedTarget === normalizedRoot) {
-      return true;
-    }
-
-    if (
-      normalizedTarget.startsWith(normalizedRoot + "/") ||
-      normalizedTarget.startsWith(normalizedRoot + "\\")
-    ) {
+    if (await isSameOrBelow(resolvedTarget, await resolveForCompare(root))) {
       return true;
     }
   }
-
   return false;
 }
 
-export async function isWithinAllowedRootSafe(targetPath: string): Promise<boolean> {
-  let resolved = targetPath;
+async function resolveForCompare(targetPath: string): Promise<string | null> {
+  const absolute = normalizePath(path.resolve(targetPath));
   try {
-    resolved = await realpath(targetPath);
+    return await realpath(absolute);
   } catch {
-    // Path doesn't exist yet or can't be resolved; use the original value.
+    // The path may not exist yet. Resolve the deepest existing ancestor and rebuild the
+    // tail, so a not-yet-created file inside a real root is still describable while a
+    // traversal through a missing component cannot invent a match.
+    let current = absolute;
+    const tail: string[] = [];
+    for (;;) {
+      const parent = path.dirname(current);
+      if (parent === current) return null;
+      tail.unshift(path.basename(current));
+      current = parent;
+      try {
+        return path.join(await realpath(current), ...tail);
+      } catch {
+        continue;
+      }
+    }
   }
-  return isWithinAllowedRoot(resolved);
+}
+
+async function isSameOrBelow(target: string, root: string | null): Promise<boolean> {
+  if (!root) return false;
+  if (target === root) return true;
+  return target.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
 }
 
 export function isAllowedRoot(targetPath: string): boolean {
@@ -290,19 +312,14 @@ export function getProjectRoot(): string | null {
   return getCurrentProject()?.worktree ?? null;
 }
 
-export function isWithinProjectRoot(targetPath: string): boolean {
+/** Whether a path is inside the selected project, resolved before comparison. */
+export async function isWithinProjectRoot(targetPath: string): Promise<boolean> {
   const projectRoot = getProjectRoot();
-  return projectRoot !== null && isPathWithinDirectory(targetPath, projectRoot);
-}
-
-export async function isWithinProjectRootSafe(targetPath: string): Promise<boolean> {
-  let resolved = targetPath;
-  try {
-    resolved = await realpath(targetPath);
-  } catch {
-    // Path doesn't exist yet or can't be resolved; use the original value.
-  }
-  return isWithinProjectRoot(resolved);
+  if (projectRoot === null) return false;
+  return isSameOrBelow(
+    (await resolveForCompare(targetPath)) ?? normalizePath(path.resolve(targetPath)),
+    await resolveForCompare(projectRoot),
+  );
 }
 
 export function isProjectRoot(targetPath: string): boolean {
