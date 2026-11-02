@@ -48,6 +48,76 @@ const FALLBACK_ARCHIVE_URL =
   "https://github.com/jiqiri/opencode-telegram-installer/archive/refs/heads/main.tar.gz";
 
 /**
+ * A private repository answers 404 on `github.com/OWNER/REPO/archive/...` before it even
+ * looks at a credential, and that path does not accept a token header at all. codeload
+ * does. So an archive URL is rewritten when a token is available, and the token is sent
+ * only to the rewritten host.
+ */
+export function authenticatedArchiveUrl(url: string): string {
+  const match =
+    /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/archive\/refs\/(heads|tags)\/(.+)\.tar\.gz$/.exec(url);
+  if (!match) {
+    return url;
+  }
+  const [, owner, repo, kind, ref] = match;
+  return `https://codeload.github.com/${owner}/${repo}/tar.gz/refs/${kind}/${ref}`;
+}
+
+/**
+ * Where the GitHub token comes from, in priority order: an explicit environment variable,
+ * a token file in the install root, then the credential store git itself uses. Reading the
+ * last one means a machine that can push can also update, without keeping a second copy of
+ * the same secret. Returns undefined when there is no token, which keeps public
+ * repositories working exactly as before.
+ */
+export function githubToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const explicit =
+    env.OPENCODE_TELEGRAM_GITHUB_TOKEN?.trim() || env.GITHUB_TOKEN?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  const home = env.HOME?.trim();
+  const candidates: string[] = [];
+  const installRoot = env.OPENCODE_TELEGRAM_INSTALL_ROOT?.trim();
+  if (installRoot) {
+    candidates.push(path.join(path.resolve(installRoot), "github-token"));
+  }
+  if (home) {
+    candidates.push(
+      path.join(home, ".local", "share", "opencode-telegram-installer", "github-token"),
+    );
+  }
+
+  for (const candidate of candidates) {
+    try {
+      const token = readFileSync(candidate, "utf8").split("\n")[0]?.trim();
+      if (token) {
+        return token;
+      }
+    } catch {
+      // Try the next candidate.
+    }
+  }
+
+  if (home) {
+    try {
+      const credentials = readFileSync(path.join(home, ".git-credentials"), "utf8");
+      const match = /^https:\/\/[^:]*:([^@]*)@github\.com$/m.exec(credentials);
+      if (match?.[1]) {
+        // The store helper URL-encodes the password.
+        return decodeURIComponent(match[1]);
+      }
+    } catch {
+      // No credential store.
+    }
+  }
+
+  return undefined;
+}
+
+
+/**
  * Where updates come from, in priority order:
  *
  *  1. OPENCODE_TELEGRAM_UPDATE_URL, for a one-off override.
@@ -92,9 +162,20 @@ function writeStdout(line: string): void {
 async function download(url: string, destination: string): Promise<void> {
   // tar.gz is not plain text, so the body is fetched with a binary-safe helper rather
   // than written by hand.
-  const response = await fetch(url, { redirect: "follow" });
+  const token = githubToken();
+  const target = token ? authenticatedArchiveUrl(url) : url;
+  const response = await fetch(target, {
+    redirect: "follow",
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  });
   if (!response.ok) {
-    throw new Error(`Download failed: ${response.status} ${response.statusText}`);
+    const hint =
+      response.status === 404 && token
+        ? " The repository may be private and the token may not have access to it."
+        : response.status === 404
+          ? " The repository may be private; no GitHub token was found."
+          : "";
+    throw new Error(`Download failed: ${response.status} ${response.statusText}.${hint}`);
   }
   const bytes = Buffer.from(await response.arrayBuffer());
   if (bytes.length === 0) {

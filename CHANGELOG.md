@@ -1,3 +1,26 @@
+## 0.26.2 — Updates from a private repository
+
+The repository went private, and every update path broke at once. `github.com/OWNER/REPO/archive/...`
+answers 404 for a private repository *before* it considers a credential, and that endpoint does not
+accept a token header at all, so no amount of authentication at the same URL can work. Meanwhile no
+part of this project sent a credential in the first place: `update.sh`, `install.sh` and the bot's
+`update` command all fetched anonymously. It only ever appeared to work because the repository was
+public.
+
+All three now resolve a token — `OPENCODE_TELEGRAM_GITHUB_TOKEN`, then a `github-token` file in the
+install root, then the credential store git itself uses — and, when one is present, rewrite the
+archive URL to `codeload.github.com`, which does accept a bearer token. No token means the old
+anonymous behaviour, so a public fork keeps working unchanged. The token is fed to `curl` on stdin
+and to `wget` through a mode-`600` config file, not passed as an argument, because arguments are
+readable in `ps`.
+
+A 404 from a private repository is also reported as such instead of as a bare status code, since
+"not found" and "not allowed" are the same answer from this endpoint.
+
+Verified end to end: `update.sh --check` reaches the private repository and reports the correct
+installed and available versions, and `git ls-remote` succeeds through the local credential helper
+with no prompt.
+
 ## 0.26.1 — Redact a plaintext Postiz token
 
 `mcp add` already writes `Authorization=Bearer {env:POSTIZ_MCP_TOKEN}`, so a token appears
