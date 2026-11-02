@@ -125,12 +125,74 @@ if ! command -v node >/dev/null 2>&1; then
 fi
 command -v npm >/dev/null 2>&1 || die "npm is required but was not found on PATH."
 
+# A private repository cannot be fetched anonymously, and github.com/OWNER/REPO/archive/...
+# answers 404 before it ever looks at a credential: it does not accept a token header at all.
+# codeload does. So when a token is available the archive URL is rewritten, and the token is
+# sent only there.
+#
+# Order: an explicit environment variable, then a token file in the install root, then the
+# credential store git itself uses. Reading the last one means a machine that can push can
+# also update, without keeping a second copy of the same secret.
+github_token() {
+  local token="${OPENCODE_TELEGRAM_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+  if [[ -n "$token" ]]; then
+    printf '%s' "$token"
+    return
+  fi
+  if [[ -f "$INSTALL_ROOT/github-token" ]]; then
+    token="$(sed -n '1p' "$INSTALL_ROOT/github-token")"
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token"
+      return
+    fi
+  fi
+  if [[ -f "$HOME/.git-credentials" ]]; then
+    token="$(sed -n 's|^https://[^:]*:\([^@]*\)@github\.com$|\1|p' "$HOME/.git-credentials" | head -n 1)"
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token"
+    fi
+  fi
+}
+
+# https://github.com/O/R/archive/refs/heads/B.tar.gz
+#   -> https://codeload.github.com/O/R/tar.gz/refs/heads/B
+# Anything else, including a URL the operator supplied by hand, is left alone.
+authenticated_url() {
+  local url="$1"
+  if [[ "$url" =~ ^https://github\.com/([^/]+)/([^/]+)/archive/refs/(heads|tags)/(.+)\.tar\.gz$ ]]; then
+    printf 'https://codeload.github.com/%s/%s/tar.gz/refs/%s/%s' \
+      "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
+    return
+  fi
+  printf '%s' "$url"
+}
+
 fetch() {
-  local url="$1" dest="$2"
+  local url="$1" dest="$2" token target
+  token="$(github_token)"
+  target="$url"
+  if [[ -n "$token" ]]; then
+    target="$(authenticated_url "$url")"
+  fi
+
   if command -v curl >/dev/null 2>&1; then
-    curl -fsSL "$url" -o "$dest"
+    if [[ -n "$token" ]]; then
+      # Fed through stdin: an argument would be visible in `ps` to every user on the box.
+      printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -fsSL -K - "$target" -o "$dest"
+    else
+      curl -fsSL "$target" -o "$dest"
+    fi
   elif command -v wget >/dev/null 2>&1; then
-    wget -q "$url" -O "$dest"
+    if [[ -n "$token" ]]; then
+      local rc
+      rc="$(mktemp)"
+      chmod 600 "$rc"
+      printf 'header = Authorization: Bearer %s\n' "$token" >"$rc"
+      WGETRC="$rc" wget -q "$target" -O "$dest"
+      rm -f "$rc"
+    else
+      wget -q "$target" -O "$dest"
+    fi
   else
     die "Neither curl nor wget is available."
   fi

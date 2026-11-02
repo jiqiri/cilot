@@ -650,17 +650,80 @@ install_opencode_binary() {
   "$destination" --version | grep -q "$version" || die "Downloaded OpenCode version check failed."
 }
 
+# A private repository answers 404 on github.com/OWNER/REPO/archive/... before it looks at
+# any credential, and that path does not accept a token header at all. codeload does, so the
+# URL is rewritten and the token is sent only there.
+#
+# The token comes from an explicit environment variable, a token file in the install root,
+# or the credential store git itself uses — the last so a machine that can push can also
+# install, without a second copy of the same secret.
+github_token() {
+  local token="${OPENCODE_TELEGRAM_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+  if [[ -n "$token" ]]; then
+    printf '%s' "$token"
+    return
+  fi
+  if [[ -f "$INSTALL_ROOT/github-token" ]]; then
+    token="$(sed -n '1p' "$INSTALL_ROOT/github-token")"
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token"
+      return
+    fi
+  fi
+  if [[ -f "$HOME/.git-credentials" ]]; then
+    token="$(sed -n 's|^https://[^:]*:\([^@]*\)@github\.com$|\1|p' "$HOME/.git-credentials" | head -n 1)"
+    if [[ -n "$token" ]]; then
+      printf '%s' "$token"
+    fi
+  fi
+}
+
+authenticated_url() {
+  local url="$1"
+  if [[ "$url" =~ ^https://github\.com/([^/]+)/([^/]+)/archive/refs/(heads|tags)/(.+)\.tar\.gz$ ]]; then
+    printf 'https://codeload.github.com/%s/%s/tar.gz/refs/%s/%s' \
+      "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${BASH_REMATCH[4]}"
+    return
+  fi
+  printf '%s' "$url"
+}
+
+fetch_payload_archive() {
+  local destination="$1" token target
+  token="$(github_token)"
+  target="$PAYLOAD_ARCHIVE_URL"
+  if [[ -n "$token" ]]; then
+    target="$(authenticated_url "$PAYLOAD_ARCHIVE_URL")"
+  fi
+
+  if [[ "$FETCH_CMD" == "wget" ]]; then
+    if [[ -n "$token" ]]; then
+      local rc
+      rc="$(mktemp)"
+      chmod 600 "$rc"
+      printf 'header = Authorization: Bearer %s\n' "$token" >"$rc"
+      WGETRC="$rc" wget -q "$target" -O "$destination"
+      rm -f "$rc"
+    else
+      wget -q "$target" -O "$destination"
+    fi
+  else
+    require_command curl
+    if [[ -n "$token" ]]; then
+      # Through stdin: a command-line argument is visible in `ps` to every user.
+      printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -fsSL -K - "$target" -o "$destination"
+    else
+      curl -fsSL "$target" -o "$destination"
+    fi
+  fi
+}
+
 copy_payload() {
   if [[ ! -d "$PAYLOAD_DIR/opencode-telegram-bot" ]]; then
-    require_command curl
     require_command tar
     local archive_dir extracted_dir
     archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/opencode-payload.XXXXXX")"
-    if [[ "$FETCH_CMD" == "wget" ]]; then
-      wget -q "$PAYLOAD_ARCHIVE_URL" -O "$archive_dir/installer.tar.gz"
-    else
-      curl -fsSL "$PAYLOAD_ARCHIVE_URL" -o "$archive_dir/installer.tar.gz"
-    fi
+    fetch_payload_archive "$archive_dir/installer.tar.gz"
     tar -xzf "$archive_dir/installer.tar.gz" -C "$archive_dir"
     extracted_dir="$(find "$archive_dir" -mindepth 1 -maxdepth 1 -type d -name 'opencode-telegram-installer-*' -print -quit)"
     [[ -n "$extracted_dir" ]] || die "Could not locate the downloaded installer payload."
