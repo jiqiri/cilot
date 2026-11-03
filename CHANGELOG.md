@@ -1,3 +1,20 @@
+## 0.27.0 — `/model` reaches the picker from any client
+
+The model picker has always been there, but the only way in was to notice that the current
+model name in the reply keyboard is itself a button. A collapsed keyboard hides it, a new
+account has no reason to guess it, and nothing lists it as a command — so the feature was
+effectively invisible.
+
+`/model` opens the same inline picker: favourites, recent, a provider list of everything the
+server actually offers, and search. It is available to every account, not only admins, because
+the choice is stored in that account's own settings slice and applies to that account's
+prompts. The command is published in the per-chat command menu, so it survives the client
+restarting with a collapsed keyboard.
+
+Verified against the live server: the picker reports the model currently selected, and the
+provider list contains all ten models the server advertises. Forty-eight tests pass, including
+that a standard account can use the command and that admin-only commands stay hidden from it.
+
 ## 0.26.2 — Updates from a private repository
 
 The repository went private, and every update path broke at once. `github.com/OWNER/REPO/archive/...`

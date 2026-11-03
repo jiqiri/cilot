@@ -2,6 +2,7 @@ import type { Bot, Context, NextFunction } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import { isAllowedUser } from "../middleware/auth.js";
 import { settingsCommand } from "../commands/settings-command.js";
+import { modelCommand } from "../commands/model-command.js";
 import { personaCommand } from "../commands/persona-command.js";
 import { opencodeStartCommand } from "../commands/opencode-start-command.js";
 import { opencodeStopCommand } from "../commands/opencode-stop-command.js";
@@ -130,6 +131,7 @@ export function registerCommandRouter(bot: Bot<Context>, deps: CommandRouterDeps
   bot.command("help", helpCommand);
   bot.command("status", (ctx) => statusCommand(ctx, container));
   bot.command("settings", (ctx) => settingsCommand(ctx, container));
+  bot.command("model", (ctx) => modelCommand(ctx, container));
   bot.command("persona", (ctx) => personaCommand(ctx));
   bot.command("opencode_start", (ctx) => opencodeStartCommand(ctx, container));
   bot.command("opencode_stop", (ctx) => opencodeStopCommand(ctx, container));

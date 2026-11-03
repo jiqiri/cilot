@@ -15,6 +15,7 @@ export const ko: I18nDictionary = {
   "cmd.description.sessions": "세션 목록 보기",
   "cmd.description.messages": "세션 메시지 탐색",
   "cmd.description.settings": "봇 설정 변경",
+  "cmd.description.model": "모델 선택",
   "cmd.description.projects": "프로젝트 목록 보기",
   "cmd.description.worktree": "git 워크트리 전환",
   "cmd.description.task": "예약 작업 만들기",

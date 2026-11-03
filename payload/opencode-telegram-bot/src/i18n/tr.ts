@@ -8,6 +8,7 @@ export const tr: I18nDictionary = {
   "cmd.description.sessions": "Oturumları listele",
   "cmd.description.messages": "Oturum mesajlarına göz at",
   "cmd.description.settings": "Bot ayarlarını değiştir",
+  "cmd.description.model": "Model seç",
   "cmd.description.projects": "Projeleri listele",
   "cmd.description.worktree": "Git worktree değiştir",
   "cmd.description.task": "Zamanlanmış görev oluştur",

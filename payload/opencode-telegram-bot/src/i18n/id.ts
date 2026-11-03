@@ -15,6 +15,7 @@ export const id: I18nDictionary = {
   "cmd.description.sessions": "Daftar sesi",
   "cmd.description.messages": "Telusuri pesan sesi",
   "cmd.description.settings": "Ubah pengaturan bot",
+  "cmd.description.model": "Pilih model",
   "cmd.description.projects": "Daftar proyek",
   "cmd.description.worktree": "Ganti git worktree",
   "cmd.description.task": "Buat tugas terjadwal",

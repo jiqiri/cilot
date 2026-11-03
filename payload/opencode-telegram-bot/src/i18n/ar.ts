@@ -15,6 +15,7 @@ export const ar: I18nDictionary = {
   "cmd.description.sessions": "عرض الجلسات السابقة",
   "cmd.description.messages": "استعراض رسائل الجلسة",
   "cmd.description.settings": "تغيير إعدادات البوت",
+  "cmd.description.model": "اختيار النموذج",
   "cmd.description.projects": "عرض المشاريع",
   "cmd.description.worktree": "التبديل بين نسخ العمل في Git",
   "cmd.description.task": "إنشاء مهمة مجدولة",
