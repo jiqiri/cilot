@@ -1,3 +1,29 @@
+## 0.27.1 — Never offer a model the provider has retired
+
+The configured model on this machine, `opencode/space-bunny-free`, no longer exists in the
+provider catalog. Nothing noticed. It was appended to the favourites list without being
+checked, so the picker offered it as selectable, and because no model was stored per account
+the prompt path fell back to it too. Opening `/model` would have shown a model that cannot
+answer, and choosing it would have failed later with no clue why.
+
+Two places were wrong:
+
+- The favourites builder validated the models read from OpenCode's state file but appended
+  the configured model unchecked. It is now filtered against the catalog with everything
+  else, and a retired config model is no longer listed.
+- The reconciler only validated a *stored* model. With nothing stored, the prompt path uses
+  the configured one, so that is what must be checked. It now validates whichever model a
+  prompt would actually use and selects a replacement — preferring one this machine used
+  recently, then the same provider, then catalog order — and persists the choice to that
+  account's slice.
+
+The picker also reconciles when it opens, so an account whose model was retired mid-session
+self-heals the next time it looks, instead of waiting for a restart.
+
+Verified against the running server: the retired model disappears from the menu, the
+replacement selected was `opencode/deepseek-v4.1-flash-free` — the most recently used model
+that still exists — and all ten advertised models remain selectable.
+
 ## 0.27.0 — `/model` reaches the picker from any client
 
 The model picker has always been there, but the only way in was to notice that the current
