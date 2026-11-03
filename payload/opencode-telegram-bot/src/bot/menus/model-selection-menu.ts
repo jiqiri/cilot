@@ -2,6 +2,7 @@ import { Context, InlineKeyboard } from "grammy";
 import {
   fetchCurrentModel,
   getModelSelectionLists,
+  reconcileStoredModelSelection,
 } from "../../app/services/model-selection-service.js";
 import type {
   FavoriteModel,
@@ -324,6 +325,10 @@ export function buildProviderModelsMenuView(
  */
 export async function showModelSelectionMenu(ctx: Context, deps: InlineMenuDeps): Promise<void> {
   try {
+    // Opening the picker is the moment the account looks at its model, so it is also the
+    // right moment to notice that the selected one is gone. Without this, a model the
+    // provider retired stays selected until the next restart.
+    await reconcileStoredModelSelection();
     const currentModel = fetchCurrentModel();
     const modelLists = await getModelSelectionLists();
     const { text, keyboard } = await buildModelRootMenuView(currentModel, modelLists);

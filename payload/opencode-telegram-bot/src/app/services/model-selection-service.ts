@@ -229,17 +229,30 @@ export async function getModelSelectionLists(): Promise<ModelSelectionLists> {
 
     const rawFavorites = normalizeFavoriteModels(state);
     const rawRecent = normalizeRecentModels(state);
-    const shouldValidateWithCatalog = rawFavorites.length > 0 || rawRecent.length > 0;
+    // The configured model is shown as a favourite even when state has none, so it has to be
+    // checked against the catalog too. Otherwise a model the provider removed stays in the
+    // menu, looks selectable, and only fails later when a prompt is actually sent.
+    const shouldValidateWithCatalog =
+      rawFavorites.length > 0 || rawRecent.length > 0 || envDefaultModel !== null;
     const validModelKeys = shouldValidateWithCatalog ? await getValidModelKeys() : null;
 
     const validatedFavorites = filterModelsByCatalog(rawFavorites, validModelKeys);
     const validatedRecent = filterModelsByCatalog(rawRecent, validModelKeys);
+    const availableEnvDefault = envDefaultModel
+      ? (filterModelsByCatalog([envDefaultModel], validModelKeys)[0] ?? null)
+      : null;
 
-    const favorites = envDefaultModel
-      ? dedupeModels([...validatedFavorites, envDefaultModel])
+    if (envDefaultModel && !availableEnvDefault) {
+      logger.info(
+        `[ModelManager] Config model ${getModelKey(envDefaultModel.providerID, envDefaultModel.modelID)} is not offered by any provider; not listing it`,
+      );
+    }
+
+    const favorites = availableEnvDefault
+      ? dedupeModels([...validatedFavorites, availableEnvDefault])
       : validatedFavorites;
 
-    if (rawFavorites.length === 0 && envDefaultModel) {
+    if (rawFavorites.length === 0 && availableEnvDefault) {
       logger.info(
         `[ModelManager] No favorites in ${stateFilePath}, using config model as favorite`,
       );
@@ -291,22 +304,61 @@ export async function getModelSelectionLists(): Promise<ModelSelectionLists> {
 }
 
 /**
- * Validate stored selected model against OpenCode providers catalog.
- * If selected model is unavailable, fallback to env default model.
+ * Choose a replacement from the catalog, preferring the provider of the model that went
+ * away so a switch changes as little as possible.
+ */
+function pickAvailableModel(
+  preferred: FavoriteModel,
+  lists: ModelSelectionLists | null,
+): FavoriteModel | null {
+  if (!cachedAllModels || cachedAllModels.length === 0) {
+    return null;
+  }
+
+  // The models this machine used most recently are the least surprising replacement for one
+  // that has gone away, so they are tried before falling back to the catalog order.
+  for (const candidate of [...(lists?.recent ?? []), ...(lists?.favorites ?? [])]) {
+    const sameAsPreferred =
+      candidate.providerID === preferred.providerID && candidate.modelID === preferred.modelID;
+    if (
+      !sameAsPreferred &&
+      cachedValidModelKeys?.has(getModelKey(candidate.providerID, candidate.modelID))
+    ) {
+      return candidate;
+    }
+  }
+
+  const sorted = [...cachedAllModels].sort((a, b) =>
+    getModelKey(a.providerID, a.modelID).localeCompare(getModelKey(b.providerID, b.modelID)),
+  );
+
+  return (
+    sorted.find((model) => model.providerID === preferred.providerID) ?? sorted[0] ?? null
+  );
+}
+
+/**
+ * Validate the model a prompt would actually use against the OpenCode providers catalog.
+ * If it is unavailable, select an available one.
  */
 export async function reconcileStoredModelSelection(options?: {
   forceCatalogRefresh?: boolean;
 }): Promise<void> {
-  const currentModel = getCurrentModel();
-
-  if (!currentModel?.providerID || !currentModel.modelID) {
-    return;
-  }
-
   const validModelKeys = await getValidModelKeys({ force: options?.forceCatalogRefresh });
 
   if (!validModelKeys) {
     logger.warn("[ModelManager] Skipping stored model validation: model catalog unavailable");
+    return;
+  }
+
+  const storedModel = getCurrentModel();
+  // With nothing stored, getStoredModel() falls back to the configured model, so that is
+  // the model a prompt will use and the one that has to be checked. Validating only the
+  // stored value left a removed config model in use indefinitely.
+  const currentModel =
+    storedModel?.providerID && storedModel.modelID ? storedModel : getEnvDefaultModel();
+
+  if (!currentModel) {
     return;
   }
 
@@ -316,22 +368,21 @@ export async function reconcileStoredModelSelection(options?: {
     return;
   }
 
-  const envDefaultModel = getEnvDefaultModel();
-  if (!envDefaultModel) {
+  const fallback = pickAvailableModel(currentModel, await getModelSelectionLists());
+  if (!fallback) {
     logger.warn(
-      `[ModelManager] Stored model ${currentModelKey} is unavailable and env default model is missing`,
+      `[ModelManager] Model ${currentModelKey} is unavailable and no alternative was found`,
     );
     return;
   }
 
-  const fallbackKey = getModelKey(envDefaultModel.providerID, envDefaultModel.modelID);
   logger.warn(
-    `[ModelManager] Stored model ${currentModelKey} is unavailable, falling back to ${fallbackKey}`,
+    `[ModelManager] Model ${currentModelKey} is unavailable, selecting ${getModelKey(fallback.providerID, fallback.modelID)}`,
   );
 
   setCurrentModel({
-    providerID: envDefaultModel.providerID,
-    modelID: envDefaultModel.modelID,
+    providerID: fallback.providerID,
+    modelID: fallback.modelID,
     variant: "default",
   });
 }
