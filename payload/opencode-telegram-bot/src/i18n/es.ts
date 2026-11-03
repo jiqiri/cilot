@@ -8,6 +8,7 @@ export const es: I18nDictionary = {
   "cmd.description.sessions": "Listar sesiones",
   "cmd.description.messages": "Ver mensajes de la sesión",
   "cmd.description.settings": "Cambiar ajustes del bot",
+  "cmd.description.model": "Elegir el modelo",
   "cmd.description.projects": "Listar proyectos",
   "cmd.description.worktree": "Cambiar worktrees de git",
   "cmd.description.task": "Crear tarea programada",

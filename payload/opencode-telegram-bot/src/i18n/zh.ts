@@ -8,6 +8,7 @@ export const zh: I18nDictionary = {
   "cmd.description.sessions": "列出会话",
   "cmd.description.messages": "浏览会话消息",
   "cmd.description.settings": "更改机器人设置",
+  "cmd.description.model": "选择模型",
   "cmd.description.projects": "列出项目",
   "cmd.description.worktree": "切换 git worktree",
   "cmd.description.task": "创建定时任务",

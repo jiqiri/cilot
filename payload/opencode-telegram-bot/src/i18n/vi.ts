@@ -8,6 +8,7 @@ export const vi: I18nDictionary = {
   "cmd.description.sessions": "Danh sách phiên",
   "cmd.description.messages": "Xem các tin nhắn trong phiên",
   "cmd.description.settings": "Đổi cài đặt bot",
+  "cmd.description.model": "Chọn model",
   "cmd.description.projects": "Danh sách dự án",
   "cmd.description.worktree": "Chuyển git worktree",
   "cmd.description.task": "Tạo tác vụ hẹn giờ",
