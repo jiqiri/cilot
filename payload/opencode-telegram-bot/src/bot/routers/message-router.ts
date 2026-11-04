@@ -28,6 +28,7 @@ import { createMediaGroupAttachmentMiddleware } from "../handlers/media-group-ha
 import { handlePhotoMessage } from "../handlers/photo-handler.js";
 import { queuePromptForMerging } from "../handlers/message-merger.js";
 import { handleCatalogTextArguments } from "../handlers/text-message-handler.js";
+import { handleVaultTextInput } from "../callbacks/vault-callback-handler.js";
 import { handleVoiceMessage } from "../handlers/voice-handler.js";
 import { unknownCommandMiddleware } from "../middleware/unknown-command.js";
 import { getIncomingPrompt } from "../handlers/rich-message-handler.js";
@@ -213,6 +214,13 @@ export function registerMessageRouter(bot: Bot<Context>, deps: MessageRouterDeps
 
     const handledRename = await handleRenameTextAnswer(ctx, container);
     if (handledRename) {
+      return;
+    }
+
+    // Before the catalog handlers: a vault step is waiting for a credential and the text
+    // must never be treated as command arguments or a prompt.
+    const handledVault = await handleVaultTextInput(ctx, container);
+    if (handledVault) {
       return;
     }
 

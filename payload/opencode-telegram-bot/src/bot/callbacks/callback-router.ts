@@ -33,6 +33,7 @@ import {
   handleTaskListCallback,
 } from "./scheduled-task-callback-handler.js";
 import { handleVariantSelect } from "./variant-selection-callback-handler.js";
+import { handleVaultCallback } from "./vault-callback-handler.js";
 import { handleWorktreeCallback } from "./worktree-callback-handler.js";
 import { clearLsPathIndex, clearOpenPathIndex } from "../menus/file-browser-menu.js";
 
@@ -227,6 +228,14 @@ export function registerCallbackRouter(bot: Bot<Context>, deps: CallbackRouterDe
       {
         name: "variant",
         handlers: [(ctx) => handleVariantSelect(ctx, container)],
+        errorScope: "interaction",
+      },
+    ],
+    [
+      "vault",
+      {
+        name: "vault",
+        handlers: [(ctx) => handleVaultCallback(ctx, container)],
         errorScope: "interaction",
       },
     ],

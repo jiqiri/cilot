@@ -3,9 +3,11 @@
 A Linux user-level installer for:
 
 - OpenCode V2 (`2.0.11`) on `127.0.0.1:5100`
-- An isolated OpenCode `1.18.32` server for the Telegram bot on `127.0.0.1:4096`
+- An isolated OpenCode `2.2.5` server for the Telegram bot on `127.0.0.1:4096`
 - The current `opencode-telegram-bot` source, built with npm
-- A Cloudflare Workers AI `image_generate` tool for both OpenCode servers
+- The Telegram tools (`image_generate`, `postiz_check_post`, `postiz_upload_image`) served
+  by the bot's own local MCP server, plus a Cloudflare Workers AI `image_generate` plugin
+  for the main OpenCode server
 - User systemd services for OpenCode and the Telegram bot
 
 The installer does not require root. It installs into the current user's home directory and enables user
@@ -189,6 +191,29 @@ To put the file somewhere else entirely, name the path:
 
 `./install.sh --no-settings-file` skips writing the file on first run, for machines that supply everything through the environment.
 
+### The /vault menu
+
+`/vault` is where provider keys and env secrets are entered, so a credential never has to be
+typed into a prompt, pasted into a config file in the repository, or committed.
+
+It is visible only to the **first** id in `TELEGRAM_ADMIN_USER_IDS`. A later admin can
+restart services but cannot read the vault: it holds credentials for every account on the
+machine. Values are masked in the menu, the message that carried them is deleted after it is
+read, and they are never sent to the model.
+
+Two kinds of secret are stored differently:
+
+| Kind | Stored as | Takes effect |
+| --- | --- | --- |
+| Provider key | written through the server's integration API | immediately |
+| Env secret | `~/.config/opencode-telegram-server/secrets.json` (mode `600`), rendered to `secrets.env` (mode `600`) | after the button that restarts `opencode-telegram-server.service` is pressed |
+
+The restart is a button rather than automatic so a half-entered set of secrets never reaches
+a running server. The installer writes `SECRETS_FILE` and `SECRETS_ENV_FILE` to
+`opencode-telegram-server.env`, which both units load, and `OPENCODE_SERVER_UNIT` to the bot's
+`.env`; the server unit loads `secrets.env` with an optional `EnvironmentFile` so the first
+install works before any secret exists.
+
 ## Installed paths
 
 By default:
@@ -198,11 +223,12 @@ By default:
 ~/.opencode-telegram/bin/opencode
 ~/.local/share/opencode-telegram-installer/opencode-telegram-bot
 ~/.config/opencode/plugins/cloudflare-image/index.js
-~/.config/opencode-telegram-server/opencode/tools/image_generate.ts
-~/.config/opencode-telegram-server/opencode/tools/postiz_upload_image.ts
+~/.config/opencode-telegram-server/opencode/opencode.jsonc   # registers mcp.servers.telegram
 ~/.config/opencode-telegram-server/opencode/AGENTS.md
 ~/.config/opencode-telegram-server/opencode/agents/postiz-social.md
 ~/.config/opencode-telegram-server/opencode/skills/postiz-guidance/SKILL.md
+~/.config/opencode-telegram-server/secrets.json              # /vault store, mode 600
+~/.config/opencode-telegram-server/secrets.env               # rendered for the server unit, mode 600
 ~/.config/systemd/user/opencode.service
 ~/.config/systemd/user/opencode-telegram-server.service
 ~/.config/systemd/user/opencode-telegram-bot.service
@@ -244,19 +270,28 @@ systemctl --user restart opencode-telegram-server.service
 
 ### Image attachments and Postiz
 
-`image_generate` (Cloudflare Workers AI) generates the JPEG and saves it to disk, returning
-the absolute path in `localPath`. Postiz schedules posts with
+`telegram_image_generate` (Cloudflare Workers AI) generates the JPEG and saves it to disk,
+returning the absolute path in its output text. Postiz schedules posts with
 `postsAndComments[].attachments` as an array of hosted HTTPS URLs, so a local file cannot be
 attached directly. The sequence is:
 
-1. `image_generate` -> returns `localPath`
-2. `postiz_upload_image` with that `localPath` -> returns a hosted `path`
+1. `telegram_image_generate` -> reports the saved `localPath`
+2. `telegram_postiz_upload_image` with that `localPath` -> returns a hosted `path`
 3. `postiz_integrationSchedulePostTool` with that `path` in `attachments`
 
-`postiz_upload_image` exists because the Postiz MCP surface only exposes
+The `telegram_` prefix is the MCP server name: these three tools come from the bot's local
+MCP server, not from a `tools/` directory. The agent prompts and skills use those names; the
+bot's own event handling still keys off the V1 names through the adapter.
+
+`telegram_postiz_upload_image` exists because the Postiz MCP surface only exposes
 `uploadFromUrlTool(url)`, which makes Postiz fetch a **public** URL itself. Locally generated
 files have no public URL and there is no inbound port, so the upload goes through the Postiz
 public API at `POST $POSTIZ_API_URL/public/v1/upload` instead.
+
+Because the tool reads files itself, it does not go through OpenCode's `read` permission.
+It is confined to `POSTIZ_UPLOAD_ALLOWED_ROOTS`, and a file in the shared
+`opencode-generated-images` directory is refused unless the same MCP process wrote it: each
+workspace gets its own process, so one account cannot publish another account's image.
 
 That endpoint uses a different auth header format than the MCP transport:
 
@@ -344,7 +379,7 @@ either permissive, which let `<em>` through to Facebook, or strict, which broke 
 image rule. As a property of the destination, a plain-text Facebook post and a
 `<p>`-formatted WordPress post can be produced in the same run with nothing to reconcile.
 
-`postiz_check_post` enforces it. Run on the finished `content` of every post and every
+`telegram_postiz_check_post` enforces it. Run on the finished `content` of every post and every
 comment, it reports HTML tags, inline emphasis tags by name, Markdown images, `<u>` overlapping
 `<strong>`, and anything over the platform's `maxLength`, counting visible characters rather
 than markup. It tells you which rule it applied:
@@ -400,9 +435,10 @@ opencode-telegram-bot.service          grammy; decides who you are and what you 
   │  per-account state in settings.json, keyed by Telegram id
   │  realpath containment for every path it hands to OpenCode
   ▼
-opencode-telegram-server.service      opencode 1.18.32 on 127.0.0.1:4096
+opencode-telegram-server.service      opencode 2.2.5 on 127.0.0.1:4096
   │  enforces tool permissions itself: bash, edit, external_directory, MCP
   │  agents: social-media (restricted), postiz-social, build, plan, …
+  │  MCP servers: telegram (image_generate, postiz_check_post, postiz_upload_image), postiz
   ▼
 LLM provider
 
@@ -411,27 +447,26 @@ owner's own interactive use → opencode.service   opencode 2.0.11 on 127.0.0.1:
 
 Three user-level systemd services under one Linux user. No containers.
 
-## Why one OpenCode version
+## Why two OpenCode servers
 
-The Telegram bot requires **opencode 1.18.32** and cannot use 2.x today. This is not
-backwards compatibility, it is a different API, and it was measured rather than assumed:
+Both run the 2.x API, but they are separate installations with separate binaries, config
+trees and ports: 2.0.11 serves the owner's own interactive work, and the bot never talks to
+it.
 
-- 1.18.32 serves **162** endpoints, including the root-level `/session`, `/project`, `/mcp`,
-  `/permission`, `/question`, `/event`, `/config`, `/command`, `/agent`, `/global/health`.
-- 2.0.11 serves **113** endpoints, **only** under `/api/*`. The entire root-level surface is
-  gone.
-- All 28 SDK calls the bot makes resolve to root-level paths: **28/28 exist on 1.18.32,
-  0/28 on 2.0.11.**
-- Three of those have no 2.x counterpart at all, deleted rather than renamed: the
-  ask-the-user flow (`/question`), session status (which the input gate uses), and
-  `prompt_async`. `/session/{id}/abort` became `interrupt`, and MCP connect/disconnect moved
-  under `/api/experimental/`.
+The bot used to require `1.18.32` because it called the root-level endpoints (`/session`,
+`/project`, `/event`, …), which 2.x replaced with `/api/*`, and because 2.x has no `tool`
+config key to load the three TypeScript tools from disk. Both gaps are closed in the bot:
 
-Migrating means rewriting the client onto `/api/*` and rebuilding those three. That is a
-rewrite, not a migration, so it is not attempted here.
+- `OPENCODE_API_FLAVOR=v2` switches the client to the `/api/*` surface and adapts the
+  responses and events back to the shapes the Telegram UI already understands.
+- The three tools are served by a local stdio MCP server (`dist/mcp/server.js`, registered
+  as `mcp.servers.telegram` with `"codemode": false`). OpenCode names them
+  `telegram_image_generate`, `telegram_postiz_check_post` and
+  `telegram_postiz_upload_image`; the adapter maps them back to the V1 names for the bot,
+  while the agent prompts and skills use the MCP names.
 
-The two installations share nothing: separate binaries, separate config trees, separate
-ports. 2.0.11 serves the owner's own interactive work; the bot never talks to it.
+`"codemode": false` is required: with the default, OpenCode only exposes an MCP server's
+tools inside a `tools.<server>.*` sandbox, and a direct call fails.
 
 ## Telegram roles
 
@@ -465,7 +500,7 @@ refused at dispatch rather than merely hidden.
 | per-account workspace | `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` |
 | OpenCode permissions | `bash`, `edit` outside the workspace, `webfetch` and `external_directory` are **denied in the server**, not requested in a prompt |
 | image ownership | every generated file is recorded per account and re-checked on every read and send |
-| `postiz_upload_image` | confined to `POSTIZ_UPLOAD_ALLOWED_ROOTS`; it does its own read, which OpenCode does not cover |
+| `telegram_postiz_upload_image` | confined to `POSTIZ_UPLOAD_ALLOWED_ROOTS`, and a shared-directory file must have been written by the same MCP process; it does its own read, which OpenCode does not cover |
 
 A restricted account has no shell, so the workspace boundary is a real boundary rather than a
 convention. Admins are trusted in this model and are not confined to their own workspace.
@@ -478,7 +513,7 @@ what the workflow needs:
 | Capability | Decision |
 | --- | --- |
 | `postiz_*` (the whole Postiz MCP namespace) | allow |
-| `image_generate` | allow |
+| `telegram_image_generate`, `telegram_postiz_check_post`, `telegram_postiz_upload_image` | allow |
 | `read`, `glob`, `grep`, `list` | allow |
 | `write`, `edit` (own workspace only) | allow |
 | `question` | allow |
@@ -665,7 +700,7 @@ systemctl --user status opencode-telegram-server.service
 systemctl --user status opencode-telegram-bot.service
 ```
 
-The Telegram-side OpenCode server should list `image_generate` among its tools. From Telegram, start a new session and request an image, for example:
+The Telegram-side OpenCode server should list the three `telegram_*` tools among its tools. From Telegram, start a new session and request an image, for example:
 
 ```text
 /new

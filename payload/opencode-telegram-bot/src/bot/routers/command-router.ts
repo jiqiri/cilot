@@ -21,11 +21,12 @@ import { renameCommand } from "../commands/rename-command.js";
 import { commandsCommand } from "../commands/command-catalog-command.js";
 import { skillsCommand } from "../commands/skills-catalog-command.js";
 import { mcpsCommand } from "../commands/mcp-catalog-command.js";
+import { vaultCommand } from "../commands/vault-command.js";
 import { startCommand } from "../commands/start-command.js";
 import { helpCommand } from "../commands/help-command.js";
 import { statusCommand } from "../commands/status-command.js";
 import { getLocalizedBotCommands, isCommandAllowedForPolicy } from "../commands/definitions.js";
-import { isAdminUser } from "../../app/services/access-control.js";
+import { isAdminUser, isPrimaryAdmin } from "../../app/services/access-control.js";
 import { logger } from "../../utils/logger.js";
 import { flushPendingPrompt } from "../handlers/message-merger.js";
 import {
@@ -68,8 +69,8 @@ export async function enforceCommandPolicy(ctx: Context, next: NextFunction): Pr
   if (text && text.startsWith("/")) {
     const name = parseCommandName(text);
     const userId = ctx.from?.id;
-    if (name && !isCommandAllowedForPolicy(name, isAdminUser(userId))) {
-      logger.warn(`[Authz] Refused command /${name} for userId=${userId}: admin only`);
+    if (name && !isCommandAllowedForPolicy(name, isAdminUser(userId), isPrimaryAdmin(userId))) {
+      logger.warn(`[Authz] Refused command /${name} for userId=${userId}: not permitted`);
       await ctx.reply(t("command.admin_only"));
       return;
     }
@@ -98,7 +99,10 @@ export async function ensureCommandsInitialized(
     // filesystem and MCP commands it cannot use.
     const admin = isAdminUser(ctx.from.id);
     await ctx.api.setMyCommands(
-      [...getLocalizedBotCommands({ adminOnly: admin }), ...localCommandRegistry.definitions()],
+      [
+        ...getLocalizedBotCommands({ adminOnly: admin, primaryAdmin: isPrimaryAdmin(ctx.from.id) }),
+        ...localCommandRegistry.definitions(),
+      ],
       {
         scope: {
           type: "chat",
@@ -150,6 +154,7 @@ export function registerCommandRouter(bot: Bot<Context>, deps: CommandRouterDeps
   bot.command("commands", (ctx) => commandsCommand(ctx, container));
   bot.command("skills", (ctx) => skillsCommand(ctx, container));
   bot.command("mcps", (ctx) => mcpsCommand(ctx, container));
+  bot.command("vault", (ctx) => vaultCommand(ctx, container));
   for (const definition of registry.definitions()) {
     bot.command(definition.command, async (ctx) => {
       const result = await registry.execute(definition.command);

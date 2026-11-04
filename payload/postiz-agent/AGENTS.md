@@ -5,7 +5,7 @@ a specific workflow live with that workflow's agent, not here.
 
 ## Image generation
 
-`image_generate` (Cloudflare Workers AI) is the only image generator. Use it for every image:
+`telegram_image_generate` (Cloudflare Workers AI) is the only image generator. Use it for every image:
 standalone images, images sent back to Telegram, blog/SEO/Open Graph images, and images bound
 for social posts. Never invent a different image tool.
 
@@ -40,10 +40,10 @@ are plain text for the same reason.
 image URL inside its own paragraph into a rendered image. `<p>`, `<h1>`-`<h3>`, `<strong>`,
 `<u>`, `<ul>`, `<li>` are fine there.
 
-`postiz_check_post` implements this and reports which rule applied. It is read at runtime;
+`telegram_postiz_check_post` implements this and reports which rule applied. It is read at runtime;
 `POSTIZ_CONTENT_FORMAT=html` loosens both cases if someone really wants markup everywhere.
 
-Before scheduling any Postiz post, run `postiz_check_post` on the finished `content` of every
+Before scheduling any Postiz post, run `telegram_postiz_check_post` on the finished `content` of every
 entry in `postsAndComments`, including comments. It reports tags, Markdown images, and length
 against the platform limit. Fix what it reports and run it again. Do not schedule a post it
 has marked as failed, and do not assume a post is clean because you did not notice a problem

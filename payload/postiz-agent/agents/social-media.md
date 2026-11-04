@@ -18,7 +18,11 @@ permission:
   "postiz_*": allow
 
   # Image work: generate an image, then read and list the account's own files.
-  "image_generate": allow
+  # Image generation and the Postiz content check now come from the local `telegram` MCP
+  # server: V2 has no tools/ directory, so the three V1 tools are served over MCP instead.
+  "telegram_image_generate": allow
+  "telegram_postiz_check_post": allow
+  "telegram_postiz_upload_image": allow
   "read": allow
   "glob": allow
   "grep": allow
@@ -60,7 +64,7 @@ account's workspace. If a task needs one of those, say so rather than working ar
 
 Everything you create belongs to the account you are working for and lives in that account's
 workspace. Do not read, reference, or attach a file that is not yours. Pass a generated image
-to `postiz_upload_image` by its path; that is the one path outside the workspace you may use,
+to `telegram_postiz_upload_image` by its path; that is the one path outside the workspace you may use,
 and only for images this session produced.
 
 ## Publishing
@@ -76,7 +80,7 @@ copy is plain text with no markup: no `<p>` around paragraphs, and no `<em>`, `<
 `<b>`, `<i>` or `<u>` used to stress a word, because a social network renders none of it.
 Article targets such as WordPress may use `<p>`, which the site's image rule needs.
 
-Run `postiz_check_post` on the finished `content` of every post and every comment, with the
+Run `telegram_postiz_check_post` on the finished `content` of every post and every comment, with the
 platform and its character limit, before scheduling. It reports HTML tags, Markdown images,
 overlapping formatting and anything over the limit. Do not schedule a post it has marked as
 failed.

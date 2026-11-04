@@ -9,7 +9,7 @@ Read this before creating a Postiz post that carries an image.
 
 ## The constraint
 
-`image_generate` (Cloudflare Workers AI) generates the image and saves it to disk. It
+`telegram_image_generate` (Cloudflare Workers AI) generates the image and saves it to disk. It
 returns an absolute `localPath`.
 
 Postiz schedules posts with hosted URLs only:
@@ -29,15 +29,15 @@ private addresses, localhost, and anything not publicly resolvable over HTTPS. A
 machine has no public URL, and there is no inbound port.
 
 There is no MCP tool that accepts raw bytes or a local path, so the upload goes through the
-Postiz public API instead. That is what `postiz_upload_image` does.
+Postiz public API instead. That is what `telegram_postiz_upload_image` does.
 
 ## The sequence
 
-1. `image_generate` with platform-appropriate dimensions. Read `localPath` from the output.
-2. `postiz_upload_image` with `{ "path": "<localPath>" }`. It returns `id` and a hosted `path`.
+1. `telegram_image_generate` with platform-appropriate dimensions. Read `localPath` from the output.
+2. `telegram_postiz_upload_image` with `{ "path": "<localPath>" }`. It returns `id` and a hosted `path`.
 3. `postiz_integrationSchedulePostTool` with that `path` in `attachments`.
 
-`postiz_upload_image` returns a public `https://` URL, so `postiz_uploadFromUrlTool` is not
+`telegram_postiz_upload_image` returns a public `https://` URL, so `postiz_uploadFromUrlTool` is not
 needed and would be wrong here — it would try to fetch the file again from a host that
 cannot reach it.
 
@@ -52,8 +52,8 @@ or, with an image:
 
 postiz_integrationList
   -> postiz_integrationSchema(platform, isPremium)
-  -> image_generate
-  -> postiz_upload_image
+  -> telegram_image_generate
+  -> telegram_postiz_upload_image
   -> postiz_integrationSchedulePostTool
 ```
 
@@ -81,7 +81,7 @@ and character limits.
 
 - First `postsAndComments` entry is the post. Every entry after it is a comment.
 - Only send the entries you need.
-- `attachments` entries must be the `path` string returned by `postiz_upload_image`.
+- `attachments` entries must be the `path` string returned by `telegram_postiz_upload_image`.
 - `content` is **plain text for a social platform**. No tags: not `<p>`, and not `<em>`,
   `<strong>`, `<b>`, `<i>` or `<u>` used to stress a word. Paragraphs are separated by a
   blank line. A social network renders none of that markup, so the tag is either stripped
@@ -89,7 +89,7 @@ and character limits.
 - `content` for an **article target such as WordPress** may use `<p>` per paragraph, plus
   `<h1>`-`<h3>`, `<strong>`, `<u>`, `<ul>`, `<li>`. That is the site's image-in-paragraph
   rule, not a general licence to use markup.
-- Run `postiz_check_post` on the finished `content` of every entry, including comments, with
+- Run `telegram_postiz_check_post` on the finished `content` of every entry, including comments, with
   the platform and `maxLength`, before scheduling. It applies this per-platform policy, so it
   is what makes the rule enforceable rather than merely stated. Do not schedule anything it
   marks as failed.

@@ -325,7 +325,10 @@ describe("the social workflow is preserved", () => {
     const body = await fs.readFile(agentPath, "utf8");
     // Namespace grant rather than an enumerated list, so a new integration is one line.
     expect(body).toMatch(/^\s*"postiz_\*":\s*allow\s*$/m);
-    expect(body).toMatch(/^\s*"image_generate":\s*allow\s*$/m);
+    // The bot's own tools come from its MCP server, so they carry the server prefix.
+    expect(body).toMatch(/^\s*"telegram_image_generate":\s*allow\s*$/m);
+    expect(body).toMatch(/^\s*"telegram_postiz_check_post":\s*allow\s*$/m);
+    expect(body).toMatch(/^\s*"telegram_postiz_upload_image":\s*allow\s*$/m);
     expect(body).toMatch(/^\s*"bash":\s*deny\s*$/m);
     expect(body).toMatch(/^\s*"external_directory":\s*deny\s*$/m);
     // Deny by default first, so an unlisted tool is refused.
@@ -343,7 +346,9 @@ describe("the social workflow is preserved", () => {
     const frontmatter = body.split("---")[1] ?? "";
     expect(frontmatter).toContain('"postiz_*": allow');
     expect(frontmatter).not.toMatch(/postiz_integrationSchedulePostTool/);
-    expect(frontmatter).not.toMatch(/postiz_upload_image/);
+    // The bot's own `telegram_*` tools are enumerated because they are not part of the
+    // Postiz namespace; no Postiz API tool is named one by one.
+    expect(frontmatter).not.toMatch(/"postiz_[a-z]/);
     // And the bot's own code holds no Postiz tool allowlist to keep in step.
     const accessControl = await fs.readFile(
       path.resolve(import.meta.dirname, "../src/app/services/access-control.ts"),

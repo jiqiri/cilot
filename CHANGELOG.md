@@ -1,3 +1,37 @@
+## 0.28.0 — OpenCode 2.x, a local MCP server, and a vault for secrets
+
+The Telegram bot now runs on the 2.x API. It used to need `1.18.32` because it called the
+root-level endpoints and because 2.x had no `tool` key to load the three TypeScript tools from
+`opencode/tools/`. Both are closed:
+
+- `OPENCODE_API_FLAVOR=v2` switches the client to `/api/*` and adapts the responses and events
+  back to the shapes the Telegram UI already understands. The live reply, tool and session
+  paths were re-tested against `2.2.5`.
+- `image_generate`, `postiz_check_post` and `postiz_upload_image` are served by the bot's own
+  stdio MCP server and registered as `mcp.servers.telegram` with `"codemode": false`. Without
+  that flag OpenCode only exposes the tools inside a `tools.telegram.*` sandbox and a direct
+  call fails. The agent prompts and skills now use the `telegram_*` names OpenCode actually
+  exposes; the adapter maps them back to the V1 names for the bot's own logic.
+- Generated images come back as MCP `image` content and are forwarded to Telegram from the
+  tool result, not by re-reading disk.
+- `telegram_postiz_upload_image` reads files itself, outside OpenCode's `read` permission, so
+  it stays inside `POSTIZ_UPLOAD_ALLOWED_ROOTS` **and** refuses a file in the shared
+  generated-images directory that the same MCP process did not write. One MCP process runs per
+  workspace, which is enough to stop one account publishing another account's image.
+
+New `/vault` menu for the first configured admin: provider keys go through the server's
+integration API, custom env secrets go to `secrets.json` (mode `600`) and are rendered to
+`secrets.env` for the server unit. Values are masked, the message is deleted after entry, and
+they are never sent to the model. The server restarts only when the button is pressed.
+
+Also in this release:
+
+- The live default model is `opencode/crouton-alpha-free`. `nvidia/nemotron-3.5-lightning:free`
+  called the wrong tool and mixed `experimental_image_generate` into replies.
+- The `postiz-social` agent had no `permission:` block at all while standard accounts could
+  select it, which left a shell reachable. It is now deny-by-default like `social-media`.
+- Installing a fresh copy drops stale `tools/*.ts` files left by 1.x.
+
 ## 0.27.1 — Never offer a model the provider has retired
 
 The configured model on this machine, `opencode/space-bunny-free`, no longer exists in the

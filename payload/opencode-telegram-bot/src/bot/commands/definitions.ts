@@ -38,6 +38,7 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "commands", descriptionKey: "cmd.description.commands" },
   { command: "skills", descriptionKey: "cmd.description.skills" },
   { command: "mcps", descriptionKey: "cmd.description.mcps" },
+  { command: "vault", descriptionKey: "cmd.description.vault" },
   { command: "opencode_start", descriptionKey: "cmd.description.opencode_start" },
   { command: "opencode_stop", descriptionKey: "cmd.description.opencode_stop" },
   { command: "open", descriptionKey: "cmd.description.open" },
@@ -61,18 +62,43 @@ export const ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set([
   "ls",
   "worktree",
   "mcps",
+  "vault",
 ]);
 
-/** Whether a command is permitted for a policy. */
-export function isCommandAllowedForPolicy(command: string, isAdmin: boolean): boolean {
-  if (isAdmin) return true;
-  return !ADMIN_ONLY_COMMANDS.has(command);
+/**
+ * Commands reserved for the first admin id.
+ *
+ * `/vault` holds credentials for the whole machine, so a second admin — who may start
+ * servers and read the filesystem — still does not get it. Removing it from the menu is
+ * presentation; `isCommandAllowedForPolicy` refuses it at dispatch.
+ */
+export const PRIMARY_ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set(["vault"]);
+
+/** Whether a command is permitted for a policy and, for the vault, a specific id. */
+export function isCommandAllowedForPolicy(
+  command: string,
+  isAdmin: boolean,
+  isPrimaryAdmin: boolean = false,
+): boolean {
+  if (!isAdmin) return !ADMIN_ONLY_COMMANDS.has(command);
+  if (PRIMARY_ADMIN_ONLY_COMMANDS.has(command)) return isPrimaryAdmin;
+  return true;
 }
 
-export function getLocalizedBotCommands(options?: { adminOnly?: boolean }): BotCommandDefinition[] {
-  const visible = options?.adminOnly
-    ? COMMAND_DEFINITIONS
-    : COMMAND_DEFINITIONS.filter(({ command }) => !ADMIN_ONLY_COMMANDS.has(command));
+export function getLocalizedBotCommands(options?: {
+  adminOnly?: boolean;
+  primaryAdmin?: boolean;
+}): BotCommandDefinition[] {
+  const visible = COMMAND_DEFINITIONS.filter(({ command }) => {
+    if (!options?.adminOnly && ADMIN_ONLY_COMMANDS.has(command)) {
+      return false;
+    }
+    if (PRIMARY_ADMIN_ONLY_COMMANDS.has(command)) {
+      return options?.primaryAdmin === true;
+    }
+    return true;
+  });
+
   return visible.map(({ command, descriptionKey }) => ({
     command,
     description: t(descriptionKey),

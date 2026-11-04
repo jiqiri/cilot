@@ -200,7 +200,9 @@ BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/opencode-telegram-bot}"
 OPENCODE_MAIN_URL="${OPENCODE_MAIN_URL:-http://127.0.0.1:5100}"
 OPENCODE_TELEGRAM_URL="${OPENCODE_TELEGRAM_URL:-http://127.0.0.1:4096}"
 OPENCODE_MAIN_VERSION="2.0.11"
-OPENCODE_TELEGRAM_VERSION="1.18.32"
+# The Telegram server runs the 2.x API: the bot's V2 adapter talks to it, and the three
+# tools that used to be files in `opencode/tools/` are served by the bot's own MCP server.
+OPENCODE_TELEGRAM_VERSION="2.2.5"
 
 require_command() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 
@@ -832,6 +834,10 @@ TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN-}
 TELEGRAM_ALLOWED_USER_ID=${TELEGRAM_ALLOWED_USER_ID-}
 TELEGRAM_ALLOWED_USER_IDS=${TELEGRAM_ALLOWED_USER_IDS-}
 OPENCODE_API_URL=$OPENCODE_TELEGRAM_URL
+# The bot speaks the 2.x API and adapts it to the event shapes the Telegram UI expects.
+OPENCODE_API_FLAVOR=v2
+# The /vault menu restarts this unit so a new env secret reaches the agent.
+OPENCODE_SERVER_UNIT=opencode-telegram-server.service
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$main_password
 OPENCODE_MODEL_PROVIDER=${OPENCODE_MODEL_PROVIDER-}
@@ -873,6 +879,10 @@ EOF
   cat >"$telegram_server_env" <<EOF
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$(awk -F= '$1=="OPENCODE_SERVER_PASSWORD" {print $2}' "$main_env")
+# The vault the /vault menu writes. Both the bot and the MCP server resolve the same
+# files, so a secret entered in Telegram reaches the tool that needs it.
+SECRETS_FILE=$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.json
+SECRETS_ENV_FILE=$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.env
 EOF
   chmod 600 "$telegram_env" "$main_env" "$cloudflare_env" "$telegram_server_env"
   unset OPENCODE_SERVER_PASSWORD
@@ -950,7 +960,7 @@ install_postiz_agent() {
   local telegram_root="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
   local src="$PAYLOAD_DIR/postiz-agent"
   [[ -d "$src" ]] || return 0
-  mkdir -p "$telegram_root/agents" "$telegram_root/skills/postiz-guidance" "$telegram_root/tools"
+  mkdir -p "$telegram_root/agents" "$telegram_root/skills/postiz-guidance"
   cp "$src/AGENTS.md" "$telegram_root/AGENTS.md"
   cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/agents/social-media.md"
   # The restricted social-media agent. Its deny-by-default permission block is enforced by
@@ -958,22 +968,26 @@ install_postiz_agent() {
   # workspace even if the prompt is ignored.
   cp "$src/agents/social-media.md" "$telegram_root/agents/social-media.md"
   cp "$src/skills/postiz-guidance/SKILL.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
-  cp "$src/postiz_upload_image.ts" "$telegram_root/tools/postiz_upload_image.ts"
-  cp "$src/postiz_check_post.ts" "$telegram_root/tools/postiz_check_post.ts"
-  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/skills/postiz-guidance/SKILL.md" "$telegram_root/tools/postiz_upload_image.ts" "$telegram_root/tools/postiz_check_post.ts"
+  # An earlier version installed these two as `tools/*.ts`, which 1.x loaded from disk.
+  # The 2.x server cannot, and the bot's MCP server provides them instead, so leaving the
+  # files behind would only mislead the next reader of the config directory.
+  rm -f "$telegram_root/tools/postiz_upload_image.ts" "$telegram_root/tools/postiz_check_post.ts"
+  rmdir "$telegram_root/tools" 2>/dev/null || true
+  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
 }
 
 install_image_plugin() {
   local plugin_dir="$OPENCODE_MAIN_CONFIG_DIR/plugins/cloudflare-image"
-  local telegram_plugin_dir="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/tools"
   local skill_dir="$OPENCODE_MAIN_CONFIG_DIR/skills/cf-image-guidance"
   local telegram_skill_dir="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/skills/cf-image-guidance"
-  mkdir -p "$plugin_dir" "$telegram_plugin_dir" "$skill_dir" "$telegram_skill_dir" "$OPENCODE_MAIN_CONFIG_DIR"
+  mkdir -p "$plugin_dir" "$skill_dir" "$telegram_skill_dir" "$OPENCODE_MAIN_CONFIG_DIR"
   cp "$PAYLOAD_DIR/opencode-image-plugin/v2-plugin.js" "$plugin_dir/index.js"
-  cp "$PAYLOAD_DIR/opencode-image-plugin/v1-tool.ts" "$telegram_plugin_dir/image_generate.ts"
   cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.md" "$skill_dir/SKILL.md"
-  cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.md" "$telegram_skill_dir/SKILL.md"
-  chmod 644 "$plugin_dir/index.js" "$telegram_plugin_dir/image_generate.ts" "$skill_dir/SKILL.md" "$telegram_skill_dir/SKILL.md"
+  # Same skill, but it names the tool the Telegram server exposes: an MCP server named
+  # `telegram` turns `image_generate` into `telegram_image_generate`.
+  cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.telegram.md" "$telegram_skill_dir/SKILL.md"
+  chmod 644 "$plugin_dir/index.js" "$skill_dir/SKILL.md" "$telegram_skill_dir/SKILL.md"
+  rm -f "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/tools/image_generate.ts"
   install_postiz_agent
   install_personas
   mkdir -p "$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
@@ -984,7 +998,6 @@ install_image_plugin() {
     printf '%s\n' '{"private":true,"type":"module"}' >"$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/package.json"
   fi
   npm install --prefix "$OPENCODE_MAIN_CONFIG_DIR" --no-audit --no-fund --save-exact @opencode/plugin@2.0.11 >/dev/null
-  npm install --prefix "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" --no-audit --no-fund --save-exact @opencode-ai/plugin@1.18.32 >/dev/null
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" && ! -f "$OPENCODE_MAIN_CONFIG_DIR/opencode.json" ]]; then
     cat >"$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" <<'EOF'
 {
@@ -999,14 +1012,55 @@ EOF
 }
 EOF
   fi
+  register_telegram_mcp
   # Add the optional Postiz MCP server without overwriting unrelated config.
   if [[ -n "${POSTIZ_MCP_TOKEN:-}" && -n "${POSTIZ_MCP_URL:-}" ]]; then
     local postiz_url="${POSTIZ_MCP_URL:-}"
     # Use the OpenCode CLI so existing JSONC settings and MCP entries are preserved.
     HOME="$HOME" OPENCODE_CONFIG_DIR="$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_MAIN_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
-    HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' >/dev/null
+    HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
     redact_mcp_token_in_configs
   fi
+}
+
+# The three tools that 1.x loaded from `opencode/tools/*.ts`.
+#
+# A 2.x server has no tools directory, so the bot serves them from its own stdio MCP
+# server. `codemode: false` is load-bearing: with the default, OpenCode only exposes the
+# tools inside a `tools.telegram.*` sandbox and a direct call fails, which would leave the
+# agent with no image generator at all.
+register_telegram_mcp() {
+  local node_bin
+  node_bin="$(command -v node)"
+  local image_dir="${OPENCODE_IMAGE_DIR:-$OPENCODE_TELEGRAM_DATA_DIR/opencode-generated-images}"
+  local telegram_config="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.jsonc"
+  [[ -f "$telegram_config" ]] || telegram_config="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.json"
+  [[ -f "$node_bin" && -f "$BOT_SOURCE_DIR/dist/mcp/server.js" ]] \
+    || die "The bot's MCP server was not built: $BOT_SOURCE_DIR/dist/mcp/server.js"
+
+  HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" \
+    OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" \
+    "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add telegram --global \
+    --env "SECRETS_FILE=$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.json" \
+    --env "OPENCODE_IMAGE_DIR=$image_dir" \
+    -- "$node_bin" "$BOT_SOURCE_DIR/dist/mcp/server.js" >/dev/null \
+    || die "Could not add the telegram MCP server to $telegram_config"
+
+  # `mcp add` has no flag for this key, and without it the tools are unreachable.
+  "$node_bin" - "$telegram_config" <<'NODE' || die "Could not disable codemode for the telegram MCP server"
+const fs = require("node:fs");
+const file = process.argv[2];
+const config = JSON.parse(fs.readFileSync(file, "utf8"));
+const server = config && config.mcp && config.mcp.servers && config.mcp.servers.telegram;
+if (!server) {
+  console.error(`No mcp.servers.telegram entry in ${file}`);
+  process.exit(1);
+}
+server.codemode = false;
+fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+NODE
+  chmod 600 "$telegram_config"
+  log "Telegram tools registered as MCP server 'telegram' in $telegram_config"
 }
 
 # Replace a Postiz token written literally into an OpenCode config with the environment
@@ -1081,6 +1135,9 @@ Environment=XDG_DATA_HOME=$OPENCODE_TELEGRAM_DATA_DIR
 Environment=XDG_STATE_HOME=$OPENCODE_TELEGRAM_STATE_DIR
 Environment=XDG_CACHE_HOME=$OPENCODE_TELEGRAM_CACHE_DIR
 EnvironmentFile=$INSTALL_ROOT/opencode-telegram-server.env
+# Custom env secrets from the bot's /vault menu. The file appears after the first secret
+# is added, and the bot restarts this unit itself when that happens.
+EnvironmentFile=-$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.env
 EnvironmentFile=$INSTALL_ROOT/opencode-cloudflare.env
 EnvironmentFile=$INSTALL_ROOT/opencode-postiz.env
 ExecStart=$OPENCODE_TELEGRAM_BIN_DIR/opencode serve --hostname=127.0.0.1 --port=4096

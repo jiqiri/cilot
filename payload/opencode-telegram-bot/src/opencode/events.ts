@@ -1,4 +1,5 @@
 import { opencodeClient } from "./client.js";
+import { opencodeFlavor } from "./flavor.js";
 import { Event } from "@opencode-ai/sdk/v2";
 import { logger } from "../utils/logger.js";
 import { isRecord } from "../utils/type-guards.js";
@@ -105,13 +106,19 @@ function readStreamWithIdleTimeout(
       }
 
       settled = true;
-      clearTimeout(timeout);
+      if (timeout !== null) {
+        clearTimeout(timeout);
+      }
       signal.removeEventListener("abort", onAbort);
       resolve(result);
     };
 
     const onAbort = () => finish({ type: "aborted" });
-    const timeout = setTimeout(() => finish({ type: "timeout" }), sseIdleTimeoutMs);
+    // V2 sends nothing while no session is working and has no heartbeat event,
+    // so a silent stream is healthy there: only a closed stream means trouble.
+    const idleTimeoutMs = opencodeFlavor === "v2" ? null : sseIdleTimeoutMs;
+    const timeout =
+      idleTimeoutMs === null ? null : setTimeout(() => finish({ type: "timeout" }), idleTimeoutMs);
 
     if (signal.aborted) {
       finish({ type: "aborted" });
@@ -243,7 +250,10 @@ export async function subscribeToEvents(directory: string, callback: EventCallba
       try {
         let subscription: EventStreamSubscription;
         attemptAbort = createAttemptAbortController(controller.signal);
-        if (useLegacyEventsOnce) {
+        // The V2 adapter only exposes the project-scoped stream (it filters the
+        // shared V2 stream per directory), so asking for the global one would
+        // log a fallback warning on every reconnect.
+        if (useLegacyEventsOnce || opencodeFlavor === "v2") {
           useLegacyEventsOnce = false;
           subscription = await subscribeToLegacyEventStream(directory, attemptAbort.controller.signal);
         } else {

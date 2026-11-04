@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { resolveVaultPaths } from "./app/services/vault-paths.js";
 import { getRuntimePaths } from "./runtime/paths.js";
 import { normalizeLocale, type Locale } from "./i18n/index.js";
 
@@ -334,6 +335,15 @@ export const config = {
   },
   files: {
     maxFileSizeKb: parseInt(getEnvVar("CODE_FILE_MAX_SIZE_KB", false) || "100", 10),
+  },
+  vault: {
+    // Single source of truth for user-defined env secrets, mode 0600, and the env file
+    // rendered from it for the OpenCode unit. Paths live in `vault-paths.ts` so the MCP
+    // server can resolve them without loading this module.
+    ...resolveVaultPaths(),
+    // Restarting the server is how a new env var reaches the agent's process.
+    serverUnit:
+      getEnvVar("OPENCODE_SERVER_UNIT", false) || "opencode-telegram-server-v2.service",
   },
   open: {
     browserRoots: getEnvVar("OPEN_BROWSER_ROOTS", false),

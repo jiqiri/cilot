@@ -84,6 +84,20 @@ export function isAdminUser(userId: number | null | undefined): boolean {
   return policyForUser(userId) === "admin";
 }
 
+/**
+ * Whether this user is the first configured admin.
+ *
+ * The vault holds credentials for every account on the machine, so it is narrower than the
+ * admin policy: one deliberate operator rather than anyone who can restart the server.
+ * Position is the identity, matching how the admin list is ordered in configuration.
+ */
+export function isPrimaryAdmin(userId: number | null | undefined): boolean {
+  if (userId === null || userId === undefined || !Number.isFinite(userId)) {
+    return false;
+  }
+  return config.telegram.adminUserId === userId;
+}
+
 export function can(userId: number | null | undefined, capability: Capability): boolean {
   return POLICY_CAPABILITIES[policyForUser(userId)].has(capability);
 }
