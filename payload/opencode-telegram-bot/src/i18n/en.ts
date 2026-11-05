@@ -14,8 +14,8 @@ export const en = {
   "cmd.description.commands": "Custom commands",
   "cmd.description.skills": "Skills catalog",
   "cmd.description.mcps": "MCP servers",
-  "cmd.description.opencode_start": "Start OpenCode server",
-  "cmd.description.opencode_stop": "Stop OpenCode server",
+  "cmd.description.start": "Start or reset the bot",
+  "cmd.description.server_stop": "Stop OpenCode server",
   "cmd.description.ls": "List directory contents",
   "cmd.description.help": "Help",
 
@@ -144,7 +144,7 @@ export const en = {
   "status.session_not_selected": "Current session: not selected",
   "status.session_hint": "Use /sessions to select one or /new to create one",
   "status.header_unavailable": "🔴 OpenCode Server is unavailable",
-  "status.unavailable_hint": "Use /opencode_start to start the server.",
+  "status.unavailable_hint": "Use /start to start the server.",
 
   "tts.off": "🔇 Audio replies disabled.",
   "tts.all": "🔊 Audio replies enabled for all messages.",
@@ -171,6 +171,7 @@ export const en = {
 
   "projects.empty":
     "📭 No projects found.\n\nOpen a directory in OpenCode and create at least one session, then it will appear here.",
+  "projects.personal_name": "Personal workspace",
   "projects.select": "Select a project:",
   "projects.select_with_current": "Select a project:\n\nCurrent: 🏗 {project}",
   "projects.page_indicator": "Page {current}/{total}",
@@ -286,9 +287,9 @@ export const en = {
   "opencode_start.already_running_managed":
     "⚠️ OpenCode Server is already running\n\nPID: {pid}\nUptime: {seconds} seconds",
   "opencode_start.already_running_external":
-    "✅ OpenCode Server is already running as an external process\n\nVersion: {version}\n\nThis server was not started by bot, so /opencode-stop cannot stop it.",
+    "✅ OpenCode Server is already running as an external process\n\nVersion: {version}\n\nThis server was not started by bot, so /stop cannot stop it.",
   "opencode_start.already_running": "✅ OpenCode Server is already running\n\nVersion: {version}",
-  "opencode_start.remote_configured": "⚠️ /opencode_start works only with a local OpenCode Server.",
+  "opencode_start.remote_configured": "⚠️ /start works only with a local OpenCode Server.",
   "opencode_start.starting": "🔄 Starting OpenCode Server...",
   "opencode_start.start_error":
     "🔴 Failed to start OpenCode Server\n\nError: {error}\n\nCheck that OpenCode CLI is installed and available in PATH:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -299,8 +300,8 @@ export const en = {
   "opencode_start.error":
     "🔴 An error occurred while starting server.\n\nCheck application logs for details.",
   "opencode_stop.external_running":
-    "⚠️ OpenCode Server is running as an external process\n\nThis server was not started via /opencode-start.\nStop it manually or use /status to check state.",
-  "opencode_stop.remote_configured": "⚠️ /opencode_stop works only with a local OpenCode Server.",
+    "⚠️ OpenCode Server is running as an external process\n\nThis server was not started via /start.\nStop it manually or use /status to check state.",
+  "opencode_stop.remote_configured": "⚠️ /stop works only with a local OpenCode Server.",
   "opencode_stop.not_running": "⚠️ OpenCode Server is not running",
   "opencode_stop.pid_not_found":
     "⚠️ OpenCode Server responds on port {port}, but no local process was found to stop.",

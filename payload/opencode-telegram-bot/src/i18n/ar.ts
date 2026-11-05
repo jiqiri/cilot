@@ -23,8 +23,8 @@ export const ar: I18nDictionary = {
   "cmd.description.commands": "الأوامر المخصصة",
   "cmd.description.skills": "قائمة المهارات",
   "cmd.description.mcps": "خوادم MCP",
-  "cmd.description.opencode_start": "تشغيل خادم OpenCode",
-  "cmd.description.opencode_stop": "إيقاف خادم OpenCode",
+  "cmd.description.start": "تشغيل خادم OpenCode",
+  "cmd.description.server_stop": "إيقاف خادم OpenCode",
   "cmd.description.ls": "استعراض ملفات المجلد",
   "cmd.description.help": "المساعدة",
   "cmd.description.rename": "تغيير اسم الجلسة الحالية",
@@ -146,7 +146,7 @@ export const ar: I18nDictionary = {
   "status.session_not_selected": "الجلسة الحالية: غير محددة",
   "status.session_hint": "استخدم /sessions لاختيار جلسة أو /new لبدء جلسة جديدة",
   "status.header_unavailable": "🔴 خادم OpenCode غير متاح",
-  "status.unavailable_hint": "استخدم /opencode_start لتشغيل الخادم.",
+  "status.unavailable_hint": "استخدم /start لتشغيل الخادم.",
 
   "tts.off": "🔇 تم تعطيل الردود الصوتية.",
   "tts.all": "🔊 تم تفعيل الردود الصوتية لجميع الرسائل.",
@@ -173,6 +173,7 @@ export const ar: I18nDictionary = {
 
   "projects.empty":
     "📭 لم يتم العثور على مشاريع.\n\nافتح مجلدًا في OpenCode وأنشئ جلسة واحدة على الأقل، ثم سيظهر المشروع هنا.",
+  "projects.personal_name": "مساحة عمل شخصية",
   "projects.select": "اختر مشروعًا:",
   "projects.select_with_current": "اختر مشروعًا:\n\nالمشروع الحالي: 🏗 {project}",
   "projects.page_indicator": "الصفحة {current}/{total}",
@@ -282,9 +283,9 @@ export const ar: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ خادم OpenCode يعمل بالفعل\n\nPID: {pid}\nمدة التشغيل: {seconds} ثانية",
   "opencode_start.already_running_external":
-    "✅ خادم OpenCode يعمل بالفعل كعملية خارجية\n\nالإصدار: {version}\n\nلم يتم تشغيل هذا الخادم بواسطة البوت، لذلك لا يمكن إيقافه باستخدام /opencode-stop.",
+    "✅ خادم OpenCode يعمل بالفعل كعملية خارجية\n\nالإصدار: {version}\n\nلم يتم تشغيل هذا الخادم بواسطة البوت، لذلك لا يمكن إيقافه باستخدام /stop.",
   "opencode_start.already_running": "✅ خادم OpenCode يعمل بالفعل\n\nالإصدار: {version}",
-  "opencode_start.remote_configured": "⚠️ يعمل /opencode_start فقط مع خادم OpenCode محلي.",
+  "opencode_start.remote_configured": "⚠️ يعمل /start فقط مع خادم OpenCode محلي.",
   "opencode_start.starting": "🔄 جارٍ تشغيل خادم OpenCode...",
   "opencode_start.start_error":
     "🔴 تعذر تشغيل خادم OpenCode\n\nالخطأ: {error}\n\nتأكد من تثبيت OpenCode CLI وأنه متاح في PATH:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -293,8 +294,8 @@ export const ar: I18nDictionary = {
   "opencode_start.success": "✅ تم تشغيل خادم OpenCode بنجاح\n\nPID: {pid}\nالإصدار: {version}",
   "opencode_start.error": "🔴 حدث خطأ أثناء تشغيل الخادم.\n\nراجع سجلات التطبيق للتفاصيل.",
   "opencode_stop.external_running":
-    "⚠️ خادم OpenCode يعمل كعملية خارجية\n\nلم يتم تشغيل هذا الخادم عبر /opencode-start.\nأوقفه يدويًا أو استخدم /status للتحقق من الحالة.",
-  "opencode_stop.remote_configured": "⚠️ يعمل /opencode_stop فقط مع خادم OpenCode محلي.",
+    "⚠️ خادم OpenCode يعمل كعملية خارجية\n\nلم يتم تشغيل هذا الخادم عبر /start.\nأوقفه يدويًا أو استخدم /status للتحقق من الحالة.",
+  "opencode_stop.remote_configured": "⚠️ يعمل /stop فقط مع خادم OpenCode محلي.",
   "opencode_stop.not_running": "⚠️ خادم OpenCode لا يعمل",
   "opencode_stop.pid_not_found":
     "⚠️ يستجيب خادم OpenCode على المنفذ {port}، لكن لم يتم العثور على عملية محلية لإيقافها.",

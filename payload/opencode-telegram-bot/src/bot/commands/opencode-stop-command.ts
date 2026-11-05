@@ -54,7 +54,7 @@ async function releaseLocalStateAfterServerStop(deps: OpencodeStopCommandDeps): 
 }
 
 /**
- * Command handler for /opencode-stop
+ * Command handler for /stop
  * Stops the OpenCode server process
  */
 export async function opencodeStopCommand(
@@ -103,7 +103,7 @@ export async function opencodeStopCommand(
 
     logger.info(`[Bot] OpenCode server stopped successfully, PID=${pid}, port=${localTarget.port}`);
   } catch (err) {
-    logger.error("[Bot] Error in /opencode-stop command:", err);
+    logger.error("[Bot] Error in /stop command:", err);
     await ctx.reply(t("opencode_stop.error"));
   }
 }

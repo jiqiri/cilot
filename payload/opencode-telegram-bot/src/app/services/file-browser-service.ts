@@ -3,8 +3,9 @@ import { realpath } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { t } from "../../i18n/index.js";
-import { getCurrentProject } from "../stores/settings-store.js";
+import { getCurrentProject, getActiveSettingsUser } from "../stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
+import { isConfinedAdmin, userWorkspaceRoot } from "./access-control.js";
 
 export interface DirectoryEntry {
   name: string;
@@ -204,6 +205,13 @@ export function initBrowserRoots(raw?: string): void {
 export function getBrowserRoots(): string[] {
   if (resolvedRoots === null) {
     initBrowserRoots(process.env.OPEN_BROWSER_ROOTS);
+  }
+  // `/open` and `/ls` browse through this list, so a confined admin must not receive the
+  // operator's roots here either; returning the workspace keeps the menu and the
+  // authorization check looking at the same boundary.
+  const userId = getActiveSettingsUser();
+  if (isConfinedAdmin(userId)) {
+    return [userWorkspaceRoot(userId as number)];
   }
   return resolvedRoots!;
 }

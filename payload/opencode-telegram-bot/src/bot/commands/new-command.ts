@@ -7,7 +7,9 @@ import { setCurrentSession } from "../../app/services/session-service.js";
 
 import type { SessionInfo } from "../../app/types/session.js";
 import { ingestSessionInfoForCache } from "../../app/services/session-cache-service.js";
-import { getCurrentProject } from "../../app/stores/settings-store.js";
+import { getCurrentProject, setCurrentProject, clearProject } from "../../app/stores/settings-store.js";
+import { ensurePersonalProject } from "../../app/services/project-service.js";
+import { canUseProjectPath } from "../../app/services/access-control.js";
 import { getStoredAgent, resolveProjectAgent } from "../../app/services/agent-selection-service.js";
 import { getStoredModel } from "../../app/services/model-selection-service.js";
 import { formatVariantForButton } from "../../app/services/variant-selection-service.js";
@@ -39,7 +41,26 @@ export async function newCommand(ctx: CommandContext<Context>, deps: NewCommandD
       return;
     }
 
-    const currentProject = getCurrentProject();
+    let currentProject = getCurrentProject();
+
+    // A stored project can predate a role change (or the confinement toggle), so re-check it
+    // at the point of use instead of trusting settings.
+    if (currentProject && !(await canUseProjectPath(ctx.from?.id, currentProject.worktree))) {
+      logger.warn(
+        `[Authz] Stored project "${currentProject.worktree}" is not permitted for userId=${ctx.from?.id}; clearing`,
+      );
+      clearProject();
+      currentProject = undefined;
+    }
+
+    // Standard accounts have no operator project to select, so fall back to the workspace
+    // created for them rather than refusing the first `/new`.
+    if (!currentProject) {
+      currentProject = (await ensurePersonalProject(ctx.from?.id)) ?? undefined;
+      if (currentProject) {
+        setCurrentProject(currentProject);
+      }
+    }
 
     if (!currentProject) {
       await ctx.reply(t("new.project_not_selected"));

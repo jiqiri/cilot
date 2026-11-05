@@ -16,8 +16,8 @@ export const ru: I18nDictionary = {
   "cmd.description.commands": "Пользовательские команды",
   "cmd.description.skills": "Каталог скиллов",
   "cmd.description.mcps": "MCP серверы",
-  "cmd.description.opencode_start": "Запустить OpenCode сервер",
-  "cmd.description.opencode_stop": "Остановить OpenCode сервер",
+  "cmd.description.start": "Запустить OpenCode сервер",
+  "cmd.description.server_stop": "Остановить OpenCode сервер",
   "cmd.description.ls": "Список содержимого каталога",
   "cmd.description.help": "Справка",
 
@@ -145,7 +145,7 @@ export const ru: I18nDictionary = {
   "status.session_not_selected": "Текущая сессия: не выбрана",
   "status.session_hint": "Используйте /sessions для выбора или /new для создания",
   "status.header_unavailable": "🔴 OpenCode Server недоступен",
-  "status.unavailable_hint": "Используйте /opencode_start для запуска сервера.",
+  "status.unavailable_hint": "Используйте /start для запуска сервера.",
 
   "tts.off": "🔇 Аудиоответы выключены.",
   "tts.all": "🔊 Аудиоответы включены для всех сообщений.",
@@ -171,6 +171,7 @@ export const ru: I18nDictionary = {
 
   "projects.empty":
     "📭 Проектов нет.\n\nОткройте директорию в OpenCode и создайте хотя бы одну сессию, после этого она появится здесь.",
+  "projects.personal_name": "Личное рабочее пространство",
   "projects.select": "Выберите проект:",
   "projects.select_with_current": "Выберите проект:\n\nТекущий: 🏗 {project}",
   "projects.page_indicator": "Страница {current}/{total}",
@@ -289,10 +290,10 @@ export const ru: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ OpenCode Server уже запущен\n\nPID: {pid}\nUptime: {seconds} секунд",
   "opencode_start.already_running_external":
-    "✅ OpenCode Server уже запущен внешним процессом\n\nВерсия: {version}\n\nЭтот сервер не был запущен через бота, поэтому команда /opencode-stop не сможет его остановить.",
+    "✅ OpenCode Server уже запущен внешним процессом\n\nВерсия: {version}\n\nЭтот сервер не был запущен через бота, поэтому команда /stop не сможет его остановить.",
   "opencode_start.already_running": "✅ OpenCode Server уже запущен\n\nВерсия: {version}",
   "opencode_start.remote_configured":
-    "⚠️ /opencode_start работает только с локальным OpenCode Server.",
+    "⚠️ /start работает только с локальным OpenCode Server.",
   "opencode_start.starting": "🔄 Запускаю OpenCode Server...",
   "opencode_start.start_error":
     "🔴 Не удалось запустить OpenCode Server\n\nОшибка: {error}\n\nПроверьте, что OpenCode CLI установлен и доступен в PATH:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -302,9 +303,9 @@ export const ru: I18nDictionary = {
   "opencode_start.error":
     "🔴 Произошла ошибка при запуске сервера.\n\nПроверьте логи приложения для подробностей.",
   "opencode_stop.external_running":
-    "⚠️ OpenCode Server запущен внешним процессом\n\nЭтот сервер не был запущен через /opencode-start.\nОстановите его вручную или используйте /status для проверки состояния.",
+    "⚠️ OpenCode Server запущен внешним процессом\n\nЭтот сервер не был запущен через /start.\nОстановите его вручную или используйте /status для проверки состояния.",
   "opencode_stop.remote_configured":
-    "⚠️ /opencode_stop работает только с локальным OpenCode Server.",
+    "⚠️ /stop работает только с локальным OpenCode Server.",
   "opencode_stop.not_running": "⚠️ OpenCode Server не запущен",
   "opencode_stop.pid_not_found":
     "⚠️ OpenCode Server отвечает на порту {port}, но локальный процесс для остановки найти не удалось.",

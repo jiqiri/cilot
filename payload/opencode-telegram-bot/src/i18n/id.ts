@@ -23,8 +23,8 @@ export const id: I18nDictionary = {
   "cmd.description.commands": "Perintah khusus",
   "cmd.description.skills": "Katalog skill",
   "cmd.description.mcps": "Server MCP",
-  "cmd.description.opencode_start": "Mulai server OpenCode",
-  "cmd.description.opencode_stop": "Hentikan server OpenCode",
+  "cmd.description.start": "Mulai server OpenCode",
+  "cmd.description.server_stop": "Hentikan server OpenCode",
   "cmd.description.ls": "Daftar isi direktori",
   "cmd.description.help": "Bantuan",
 
@@ -153,7 +153,7 @@ export const id: I18nDictionary = {
   "status.session_not_selected": "Sesi saat ini: belum dipilih",
   "status.session_hint": "Gunakan /sessions untuk memilih atau /new untuk membuat",
   "status.header_unavailable": "🔴 Server OpenCode tidak tersedia",
-  "status.unavailable_hint": "Gunakan /opencode_start untuk memulai server.",
+  "status.unavailable_hint": "Gunakan /start untuk memulai server.",
 
   "tts.off": "🔇 Balasan audio nonaktif.",
   "tts.all": "🔊 Balasan audio aktif untuk semua pesan.",
@@ -180,6 +180,7 @@ export const id: I18nDictionary = {
 
   "projects.empty":
     "📭 Tidak ada proyek.\n\nBuka direktori di OpenCode dan buat minimal satu sesi, lalu proyek akan muncul di sini.",
+  "projects.personal_name": "Ruang kerja pribadi",
   "projects.select": "Pilih proyek:",
   "projects.select_with_current": "Pilih proyek:\n\nSaat ini: 🏗 {project}",
   "projects.page_indicator": "Halaman {current}/{total}",
@@ -287,10 +288,10 @@ export const id: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ Server OpenCode sudah berjalan\n\nPID: {pid}\nWaktu aktif: {seconds} detik",
   "opencode_start.already_running_external":
-    "✅ Server OpenCode sudah berjalan sebagai proses eksternal\n\nVersi: {version}\n\nServer ini tidak dimulai oleh bot, jadi /opencode-stop tidak bisa menghentikannya.",
+    "✅ Server OpenCode sudah berjalan sebagai proses eksternal\n\nVersi: {version}\n\nServer ini tidak dimulai oleh bot, jadi /stop tidak bisa menghentikannya.",
   "opencode_start.already_running": "✅ Server OpenCode sudah berjalan\n\nVersi: {version}",
   "opencode_start.remote_configured":
-    "⚠️ /opencode_start hanya berfungsi dengan Server OpenCode lokal.",
+    "⚠️ /start hanya berfungsi dengan Server OpenCode lokal.",
   "opencode_start.starting": "🔄 Memulai Server OpenCode...",
   "opencode_start.start_error":
     "🔴 Gagal memulai Server OpenCode\n\nKesalahan: {error}\n\nPastikan OpenCode CLI terinstal dan tersedia di PATH:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -299,9 +300,9 @@ export const id: I18nDictionary = {
   "opencode_start.success": "✅ Server OpenCode berhasil dimulai\n\nPID: {pid}\nVersi: {version}",
   "opencode_start.error": "🔴 Gagal memulai server.\n\nPeriksa log aplikasi untuk detailnya.",
   "opencode_stop.external_running":
-    "⚠️ Server OpenCode berjalan sebagai proses eksternal\n\nServer ini tidak dimulai melalui /opencode-start.\nHentikan secara manual atau periksa /status.",
+    "⚠️ Server OpenCode berjalan sebagai proses eksternal\n\nServer ini tidak dimulai melalui /start.\nHentikan secara manual atau periksa /status.",
   "opencode_stop.remote_configured":
-    "⚠️ /opencode_stop hanya berfungsi dengan Server OpenCode lokal.",
+    "⚠️ /stop hanya berfungsi dengan Server OpenCode lokal.",
   "opencode_stop.not_running": "⚠️ Server OpenCode tidak berjalan",
   "opencode_stop.pid_not_found":
     "⚠️ Server OpenCode merespons di port {port}, tetapi tidak ada proses lokal yang bisa dihentikan.",

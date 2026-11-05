@@ -16,8 +16,8 @@ export const vi: I18nDictionary = {
   "cmd.description.commands": "Lệnh tùy chỉnh",
   "cmd.description.skills": "Danh mục skill",
   "cmd.description.mcps": "Máy chủ MCP",
-  "cmd.description.opencode_start": "Khởi động máy chủ OpenCode",
-  "cmd.description.opencode_stop": "Dừng máy chủ OpenCode",
+  "cmd.description.start": "Khởi động máy chủ OpenCode",
+  "cmd.description.server_stop": "Dừng máy chủ OpenCode",
   "cmd.description.ls": "Liệt kê nội dung thư mục",
   "cmd.description.help": "Trợ giúp",
 
@@ -147,7 +147,7 @@ export const vi: I18nDictionary = {
   "status.session_not_selected": "Phiên hiện tại: chưa chọn",
   "status.session_hint": "Dùng /sessions để chọn, hoặc /new để tạo",
   "status.header_unavailable": "🔴 Máy chủ OpenCode không khả dụng",
-  "status.unavailable_hint": "Dùng /opencode_start để khởi động máy chủ.",
+  "status.unavailable_hint": "Dùng /start để khởi động máy chủ.",
 
   "tts.off": "🔇 Đã tắt trả lời bằng âm thanh.",
   "tts.all": "🔊 Đã bật trả lời bằng âm thanh cho mọi tin nhắn.",
@@ -174,6 +174,7 @@ export const vi: I18nDictionary = {
 
   "projects.empty":
     "📭 Không tìm thấy dự án nào.\n\nHãy mở một thư mục trong OpenCode và tạo ít nhất một phiên, nó sẽ xuất hiện ở đây.",
+  "projects.personal_name": "Không gian làm việc cá nhân",
   "projects.select": "Chọn dự án:",
   "projects.select_with_current": "Chọn dự án:\n\nHiện tại: 🏗 {project}",
   "projects.page_indicator": "Trang {current}/{total}",
@@ -289,10 +290,10 @@ export const vi: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ Máy chủ OpenCode đã chạy\n\nPID: {pid}\nThời gian chạy: {seconds} giây",
   "opencode_start.already_running_external":
-    "✅ Máy chủ OpenCode đang chạy như một tiến trình bên ngoài\n\nPhiên bản: {version}\n\nMáy chủ này không do bot khởi động nên /opencode_stop không thể dừng được.",
+    "✅ Máy chủ OpenCode đang chạy như một tiến trình bên ngoài\n\nPhiên bản: {version}\n\nMáy chủ này không do bot khởi động nên /stop không thể dừng được.",
   "opencode_start.already_running": "✅ Máy chủ OpenCode đã chạy\n\nPhiên bản: {version}",
   "opencode_start.remote_configured":
-    "⚠️ /opencode_start chỉ hoạt động với máy chủ OpenCode cục bộ.",
+    "⚠️ /start chỉ hoạt động với máy chủ OpenCode cục bộ.",
   "opencode_start.starting": "🔄 Đang khởi động máy chủ OpenCode...",
   "opencode_start.start_error":
     "🔴 Không khởi động được máy chủ OpenCode\n\nLỗi: {error}\n\nKiểm tra xem OpenCode CLI đã được cài và có trong PATH chưa:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -303,9 +304,9 @@ export const vi: I18nDictionary = {
   "opencode_start.error":
     "🔴 Đã xảy ra lỗi khi khởi động máy chủ.\n\nXem log ứng dụng để biết chi tiết.",
   "opencode_stop.external_running":
-    "⚠️ Máy chủ OpenCode đang chạy như một tiến trình bên ngoài\n\nMáy chủ này không được khởi động qua /opencode_start.\nHãy dừng thủ công hoặc dùng /status để kiểm tra.",
+    "⚠️ Máy chủ OpenCode đang chạy như một tiến trình bên ngoài\n\nMáy chủ này không được khởi động qua /start.\nHãy dừng thủ công hoặc dùng /status để kiểm tra.",
   "opencode_stop.remote_configured":
-    "⚠️ /opencode_stop chỉ hoạt động với máy chủ OpenCode cục bộ.",
+    "⚠️ /stop chỉ hoạt động với máy chủ OpenCode cục bộ.",
   "opencode_stop.not_running": "⚠️ Máy chủ OpenCode không chạy",
   "opencode_stop.pid_not_found":
     "⚠️ Máy chủ OpenCode phản hồi trên cổng {port}, nhưng không tìm thấy tiến trình cục bộ nào để dừng.",

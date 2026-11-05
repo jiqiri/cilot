@@ -21,6 +21,7 @@ interface BotCommandI18nDefinition {
  * Update this array when adding new commands
  */
 const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
+  { command: "start", descriptionKey: "cmd.description.start" },
   { command: "status", descriptionKey: "cmd.description.status" },
   { command: "new", descriptionKey: "cmd.description.new" },
   { command: "abort", descriptionKey: "cmd.description.stop" },
@@ -39,8 +40,7 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "skills", descriptionKey: "cmd.description.skills" },
   { command: "mcps", descriptionKey: "cmd.description.mcps" },
   { command: "vault", descriptionKey: "cmd.description.vault" },
-  { command: "opencode_start", descriptionKey: "cmd.description.opencode_start" },
-  { command: "opencode_stop", descriptionKey: "cmd.description.opencode_stop" },
+  { command: "stop", descriptionKey: "cmd.description.server_stop" },
   { command: "open", descriptionKey: "cmd.description.open" },
   { command: "ls", descriptionKey: "cmd.description.ls" },
   { command: "help", descriptionKey: "cmd.description.help" },
@@ -49,15 +49,16 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
 /**
  * Commands only an admin may use.
  *
- * These are the operations that change the machine rather than the conversation: starting and
- * stopping the OpenCode server, browsing the filesystem, managing worktrees, and managing MCP
- * connections. Hiding them from the menu is presentation, so the same list is also enforced
- * in the command router below; the menu change is a courtesy that keeps the restricted menu
- * honest about what the account can do.
+ * These are the operations that change the machine rather than the conversation: stopping
+ * the OpenCode server, browsing the filesystem, managing worktrees, and managing MCP
+ * connections. `/start` is deliberately not on this list: every account needs it for the
+ * welcome/reset, and only the admin branch inside the handler starts the server. Hiding a
+ * command from the menu is presentation, so the same list is also enforced in the command
+ * router below; the menu change is a courtesy that keeps the restricted menu honest about
+ * what the account can do.
  */
 export const ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set([
-  "opencode_start",
-  "opencode_stop",
+  "stop",
   "open",
   "ls",
   "worktree",
@@ -107,4 +108,6 @@ export function getLocalizedBotCommands(options?: {
 
 export const BOT_COMMANDS: BotCommandDefinition[] = getLocalizedBotCommands();
 
-export const BUILT_IN_COMMAND_NAMES = ["start", ...COMMAND_DEFINITIONS.map(({ command }) => command)];
+export const BUILT_IN_COMMAND_NAMES = Array.from(
+  new Set(["start", ...COMMAND_DEFINITIONS.map(({ command }) => command)]),
+);

@@ -483,11 +483,17 @@ being reachable. An id in both lists is admin.
 # ~/.config/opencode-telegram-installer/install.env
 TELEGRAM_ALLOWED_USER_ID=111111111,222222222   # standard accounts
 TELEGRAM_ADMIN_USER_IDS=999999999              # admin
+OPENCODE_TELEGRAM_CONFINE_ADMINS=false         # true: admin stays inside its own folder
 ```
 
 The decision happens in `access-control.ts`, before a session is created or selected, and
 never involves the model. Command menus are filtered per policy, and admin-only commands are
 refused at dispatch rather than merely hidden.
+
+`OPENCODE_TELEGRAM_CONFINE_ADMINS=true` keeps the admin policy's agent and command power
+but drops cross-account reach: sessions, projects, images and the `/open` browser are limited
+to `OPENCODE_TELEGRAM_USER_ROOT/<id>`, the same boundary a standard account gets. It is off
+by default because a single-operator install normally expects to see the whole machine.
 
 ## User isolation
 
@@ -498,12 +504,17 @@ refused at dispatch rather than merely hidden.
 | project authorization | narrowed in the application, because OpenCode's `/project` ignores `directory` and answers globally |
 | realpath containment | `..` and symlinks cannot leave a root; the string-prefix version was the bug |
 | per-account workspace | `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` |
+| personal project | created on demand and shown in `/projects`, so a standard account can use `/new` before the server knows the directory |
 | OpenCode permissions | `bash`, `edit` outside the workspace, `webfetch` and `external_directory` are **denied in the server**, not requested in a prompt |
 | image ownership | every generated file is recorded per account and re-checked on every read and send |
 | `telegram_postiz_upload_image` | confined to `POSTIZ_UPLOAD_ALLOWED_ROOTS`, and a shared-directory file must have been written by the same MCP process; it does its own read, which OpenCode does not cover |
 
 A restricted account has no shell, so the workspace boundary is a real boundary rather than a
-convention. Admins are trusted in this model and are not confined to their own workspace.
+convention. Admins are trusted in this model and are not confined to their own workspace
+unless `OPENCODE_TELEGRAM_CONFINE_ADMINS=true` is set. Even then, confinement covers the
+bot's own paths and project/session selection; an agent with `bash` still runs as the Linux
+user and can read whatever that user can read. Use a separate Linux account or a container
+when the shell itself must be contained.
 
 ## The social-media agent
 

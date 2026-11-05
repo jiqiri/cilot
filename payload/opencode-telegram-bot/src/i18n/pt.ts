@@ -16,8 +16,8 @@ export const pt: I18nDictionary = {
   "cmd.description.commands": "Comandos personalizados",
   "cmd.description.skills": "Catálogo de skills",
   "cmd.description.mcps": "MCP servers",
-  "cmd.description.opencode_start": "Iniciar servidor OpenCode",
-  "cmd.description.opencode_stop": "Parar servidor OpenCode",
+  "cmd.description.start": "Iniciar servidor OpenCode",
+  "cmd.description.server_stop": "Parar servidor OpenCode",
   "cmd.description.ls": "Listar conteúdo do diretório",
   "cmd.description.help": "Ajuda",
 
@@ -152,7 +152,7 @@ export const pt: I18nDictionary = {
   "status.session_not_selected": "Sessão atual: não selecionada",
   "status.session_hint": "Use /sessions para escolher uma ou /new para criar uma",
   "status.header_unavailable": "🔴 O OpenCode Server está indisponível",
-  "status.unavailable_hint": "Use /opencode_start para iniciar o servidor.",
+  "status.unavailable_hint": "Use /start para iniciar o servidor.",
 
   "tts.off": "🔇 Respostas em áudio desativadas.",
   "tts.all": "🔊 Respostas em áudio ativadas para todas as mensagens.",
@@ -180,6 +180,7 @@ export const pt: I18nDictionary = {
 
   "projects.empty":
     "📭 Nenhum projeto encontrado.\n\nAbra um diretório no OpenCode e crie pelo menos uma sessão; então ele aparecerá aqui.",
+  "projects.personal_name": "Espaço de trabalho pessoal",
   "projects.select": "Selecione um projeto:",
   "projects.select_with_current": "Selecione um projeto:\n\nAtual: 🏗 {project}",
   "projects.page_indicator": "Página {current}/{total}",
@@ -299,10 +300,10 @@ export const pt: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ O OpenCode Server já está em execução\n\nPID: {pid}\nTempo ativo: {seconds} segundos",
   "opencode_start.already_running_external":
-    "✅ O OpenCode Server já está em execução como um processo externo\n\nVersão: {version}\n\nEste servidor não foi iniciado pelo bot, então /opencode-stop não pode encerrá-lo.",
+    "✅ O OpenCode Server já está em execução como um processo externo\n\nVersão: {version}\n\nEste servidor não foi iniciado pelo bot, então /stop não pode encerrá-lo.",
   "opencode_start.already_running": "✅ O OpenCode Server já está em execução\n\nVersão: {version}",
   "opencode_start.remote_configured":
-    "⚠️ O /opencode_start funciona apenas com um OpenCode Server local.",
+    "⚠️ O /start funciona apenas com um OpenCode Server local.",
   "opencode_start.starting": "🔄 Iniciando o OpenCode Server...",
   "opencode_start.start_error":
     "🔴 Não foi possível iniciar o OpenCode Server\n\nErro: {error}\n\nVerifique se o OpenCode CLI está instalado e disponível no PATH:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -313,9 +314,9 @@ export const pt: I18nDictionary = {
   "opencode_start.error":
     "🔴 Ocorreu um erro ao iniciar o servidor.\n\nVerifique os logs do aplicativo para mais detalhes.",
   "opencode_stop.external_running":
-    "⚠️ O OpenCode Server está em execução como um processo externo\n\nEste servidor não foi iniciado com /opencode-start.\nEncerre-o manualmente ou use /status para verificar o estado.",
+    "⚠️ O OpenCode Server está em execução como um processo externo\n\nEste servidor não foi iniciado com /start.\nEncerre-o manualmente ou use /status para verificar o estado.",
   "opencode_stop.remote_configured":
-    "⚠️ O /opencode_stop funciona apenas com um OpenCode Server local.",
+    "⚠️ O /stop funciona apenas com um OpenCode Server local.",
   "opencode_stop.not_running": "⚠️ O OpenCode Server não está em execução",
   "opencode_stop.pid_not_found":
     "⚠️ O OpenCode Server responde na porta {port}, mas nenhum processo local foi encontrado para encerrar.",

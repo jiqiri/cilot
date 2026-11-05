@@ -249,6 +249,7 @@ export function buildTelegramConfig(): {
   allowedUserIds: number[];
   adminUserId: number | null;
   adminUserIds: number[];
+  confineAdmins: boolean;
   proxyUrl: string;
   apiRoot: string;
   proxySecret: string;
@@ -285,6 +286,11 @@ export function buildTelegramConfig(): {
     allowedUserIds,
     adminUserId: adminUserIds[0] ?? null,
     adminUserIds,
+    // When on, an admin keeps every capability (agents, commands, MCP management) but is
+    // treated like a standard account for filesystem and cross-account reach. Off by
+    // default because the usual single-operator deployment expects the admin to see the
+    // whole machine.
+    confineAdmins: getOptionalBooleanEnvVar("OPENCODE_TELEGRAM_CONFINE_ADMINS", false),
     proxyUrl,
     apiRoot,
     proxySecret,

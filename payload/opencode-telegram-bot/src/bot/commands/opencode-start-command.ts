@@ -1,4 +1,4 @@
-import { CommandContext, Context } from "grammy";
+import { Context } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import { config } from "../../config.js";
 import { opencodeClient } from "../../opencode/client.js";
@@ -72,17 +72,41 @@ async function waitForServerReady(maxWaitMs: number = 10000): Promise<boolean> {
   return false;
 }
 
-/**
- * Command handler for /opencode-start
- * Starts the OpenCode server process
- */
 export type OpencodeStartCommandDeps = Pick<AppContainer, "opencodeReadyLifecycle">;
 
+/**
+ * Start the local server when it is not already healthy.
+ *
+ * `/start` carries both the welcome/reset behaviour every account needs and the
+ * server-start behaviour only an admin needs, so the probe lives here next to the command
+ * that owns the lifecycle. Returns true when a start was attempted, which lets the caller
+ * decide whether to continue with the reset flow.
+ */
+export async function startLocalServerIfNeeded(
+  ctx: Context,
+  deps: OpencodeStartCommandDeps,
+): Promise<boolean> {
+  if (isContainerRuntime()) return false;
+  if (!resolveLocalOpencodeTarget(config.opencode.apiUrl)) return false;
+  const health = await getHealthIfAvailable();
+  if (health?.data?.healthy) return false;
+  await opencodeStartCommand(ctx, deps);
+  return true;
+}
+
+/**
+ * Start the OpenCode server process. Invoked by `/start` when the local server is down.
+ */
 export async function opencodeStartCommand(
-  ctx: CommandContext<Context>,
+  ctx: Context,
   deps: OpencodeStartCommandDeps,
 ) {
   try {
+    if (!ctx.chat) {
+      logger.warn("[Bot] /start: missing chat context");
+      return;
+    }
+
     if (isContainerRuntime()) {
       await ctx.reply(t("runtime.container.command_unavailable"));
       return;
@@ -160,7 +184,7 @@ export async function opencodeStartCommand(
     logger.info(`[Bot] OpenCode server started successfully, PID=${pid}, port=${localTarget.port}`);
     await deps.opencodeReadyLifecycle.notifyReady("opencode_start_success");
   } catch (err) {
-    logger.error("[Bot] Error in /opencode-start command:", err);
+    logger.error("[Bot] Error in /start command:", err);
     await ctx.reply(t("opencode_start.error"));
   }
 }

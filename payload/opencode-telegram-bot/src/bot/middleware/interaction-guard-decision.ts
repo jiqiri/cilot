@@ -17,7 +17,7 @@ export type InteractionGuardDecisionDeps = Pick<
   "attachManager" | "foregroundSessionState" | "interactionManager"
 >;
 
-const BUSY_ALLOWED_COMMANDS = ["/abort", "/detach", "/status", "/help", "/opencode_stop"] as const;
+const BUSY_ALLOWED_COMMANDS = ["/abort", "/detach", "/status", "/help", "/stop"] as const;
 const BUSY_ALLOWED_COMMAND_SET = new Set<string>(BUSY_ALLOWED_COMMANDS);
 
 function isBusyAllowedCommand(command: string | undefined, localCommandRegistry?: LocalCommandRegistry): boolean {

@@ -23,8 +23,8 @@ export const ko: I18nDictionary = {
   "cmd.description.commands": "사용자 지정 명령어",
   "cmd.description.skills": "스킬 카탈로그",
   "cmd.description.mcps": "MCP 서버",
-  "cmd.description.opencode_start": "OpenCode 서버 시작",
-  "cmd.description.opencode_stop": "OpenCode 서버 중지",
+  "cmd.description.start": "OpenCode 서버 시작",
+  "cmd.description.server_stop": "OpenCode 서버 중지",
   "cmd.description.ls": "디렉터리 내용 보기",
   "cmd.description.help": "도움말",
 
@@ -153,7 +153,7 @@ export const ko: I18nDictionary = {
   "status.session_not_selected": "현재 세션: 선택 안 됨",
   "status.session_hint": "/sessions에서 선택하거나 /new로 새로 만들어 주세요",
   "status.header_unavailable": "🔴 OpenCode 서버에 연결할 수 없습니다",
-  "status.unavailable_hint": "/opencode_start로 서버를 시작해 주세요.",
+  "status.unavailable_hint": "/start로 서버를 시작해 주세요.",
 
   "tts.off": "🔇 음성 답변이 비활성화되었습니다.",
   "tts.all": "🔊 모든 메시지에 음성 답변이 활성화되었습니다.",
@@ -180,6 +180,7 @@ export const ko: I18nDictionary = {
 
   "projects.empty":
     "📭 프로젝트가 없습니다.\n\nOpenCode에서 디렉터리를 열고 세션을 하나 이상 만들면 여기에 표시됩니다.",
+  "projects.personal_name": "개인 작업 공간",
   "projects.select": "프로젝트를 선택하세요:",
   "projects.select_with_current": "프로젝트를 선택하세요:\n\n현재: 🏗 {project}",
   "projects.page_indicator": "{current}/{total} 페이지",
@@ -295,9 +296,9 @@ export const ko: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ OpenCode 서버가 이미 실행 중입니다\n\nPID: {pid}\n가동 시간: {seconds}초",
   "opencode_start.already_running_external":
-    "✅ OpenCode 서버가 외부 프로세스로 이미 실행 중입니다\n\n버전: {version}\n\n이 서버는 봇이 시작한 것이 아니므로 /opencode-stop으로 중지할 수 없습니다.",
+    "✅ OpenCode 서버가 외부 프로세스로 이미 실행 중입니다\n\n버전: {version}\n\n이 서버는 봇이 시작한 것이 아니므로 /stop으로 중지할 수 없습니다.",
   "opencode_start.already_running": "✅ OpenCode 서버가 이미 실행 중입니다\n\n버전: {version}",
-  "opencode_start.remote_configured": "⚠️ /opencode_start는 로컬 OpenCode 서버에서만 동작합니다.",
+  "opencode_start.remote_configured": "⚠️ /start는 로컬 OpenCode 서버에서만 동작합니다.",
   "opencode_start.starting": "🔄 OpenCode 서버를 시작하는 중...",
   "opencode_start.start_error":
     "🔴 OpenCode 서버 시작에 실패했습니다\n\n오류: {error}\n\nOpenCode CLI가 설치되어 있고 PATH에서 사용 가능한지 확인해 주세요:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -308,8 +309,8 @@ export const ko: I18nDictionary = {
   "opencode_start.error":
     "🔴 서버 시작 중 오류가 발생했습니다.\n\n자세한 내용은 애플리케이션 로그를 확인해 주세요.",
   "opencode_stop.external_running":
-    "⚠️ OpenCode 서버가 외부 프로세스로 실행 중입니다\n\n이 서버는 /opencode-start로 시작된 것이 아닙니다.\n직접 중지하거나 /status로 상태를 확인해 주세요.",
-  "opencode_stop.remote_configured": "⚠️ /opencode_stop은 로컬 OpenCode 서버에서만 동작합니다.",
+    "⚠️ OpenCode 서버가 외부 프로세스로 실행 중입니다\n\n이 서버는 /start로 시작된 것이 아닙니다.\n직접 중지하거나 /status로 상태를 확인해 주세요.",
+  "opencode_stop.remote_configured": "⚠️ /stop은 로컬 OpenCode 서버에서만 동작합니다.",
   "opencode_stop.not_running": "⚠️ OpenCode 서버가 실행 중이지 않습니다",
   "opencode_stop.pid_not_found":
     "⚠️ OpenCode 서버가 포트 {port}에서 응답하고 있지만 중지할 로컬 프로세스를 찾을 수 없습니다.",

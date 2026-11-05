@@ -16,8 +16,8 @@ export const tr: I18nDictionary = {
   "cmd.description.commands": "Özel komutlar",
   "cmd.description.skills": "Yetenek kataloğu",
   "cmd.description.mcps": "MCP sunucuları",
-  "cmd.description.opencode_start": "OpenCode sunucusunu başlat",
-  "cmd.description.opencode_stop": "OpenCode sunucusunu durdur",
+  "cmd.description.start": "OpenCode sunucusunu başlat",
+  "cmd.description.server_stop": "OpenCode sunucusunu durdur",
   "cmd.description.ls": "Dizin içeriğini listele",
   "cmd.description.help": "Yardım",
 
@@ -147,7 +147,7 @@ export const tr: I18nDictionary = {
   "status.session_not_selected": "Geçerli oturum: seçilmedi",
   "status.session_hint": "Seçmek için /sessions veya oluşturmak için /new kullanın",
   "status.header_unavailable": "🔴 OpenCode Sunucusu kullanılamıyor",
-  "status.unavailable_hint": "Sunucuyu başlatmak için /opencode_start kullanın.",
+  "status.unavailable_hint": "Sunucuyu başlatmak için /start kullanın.",
 
   "tts.off": "🔇 Sesli yanıtlar kapatıldı.",
   "tts.all": "🔊 Sesli yanıtlar tüm mesajlar için açıldı.",
@@ -174,6 +174,7 @@ export const tr: I18nDictionary = {
 
   "projects.empty":
     "📭 Proje bulunamadı.\n\nOpenCode'da bir dizin açın ve en az bir oturum oluşturun, ardından burada görünecektir.",
+  "projects.personal_name": "Kişisel çalışma alanı",
   "projects.select": "Bir proje seçin:",
   "projects.select_with_current": "Bir proje seçin:\n\nGeçerli: 🏗 {project}",
   "projects.page_indicator": "Sayfa {current}/{total}",
@@ -284,10 +285,10 @@ export const tr: I18nDictionary = {
   "opencode_start.already_running_managed":
     "⚠️ OpenCode Sunucusu zaten çalışıyor\n\nPID: {pid}\nÇalışma süresi: {seconds} saniye",
   "opencode_start.already_running_external":
-    "✅ OpenCode Sunucusu zaten harici bir süreç olarak çalışıyor\n\nSürüm: {version}\n\nBu sunucu bot tarafından başlatılmadı, bu yüzden /opencode-stop onu durduramaz.",
+    "✅ OpenCode Sunucusu zaten harici bir süreç olarak çalışıyor\n\nSürüm: {version}\n\nBu sunucu bot tarafından başlatılmadı, bu yüzden /stop onu durduramaz.",
   "opencode_start.already_running": "✅ OpenCode Sunucusu zaten çalışıyor\n\nSürüm: {version}",
   "opencode_start.remote_configured":
-    "⚠️ /opencode_start yalnızca yerel bir OpenCode Sunucusu ile çalışır.",
+    "⚠️ /start yalnızca yerel bir OpenCode Sunucusu ile çalışır.",
   "opencode_start.starting": "🔄 OpenCode Sunucusu başlatılıyor...",
   "opencode_start.start_error":
     "🔴 OpenCode Sunucusu başlatılamadı\n\nHata: {error}\n\nOpenCode CLI'nin kurulu ve PATH içinde erişilebilir olduğunu kontrol edin:\nopencode --version\nnpm install -g @opencode-ai/cli",
@@ -298,9 +299,9 @@ export const tr: I18nDictionary = {
   "opencode_start.error":
     "🔴 Sunucu başlatılırken bir hata oluştu.\n\nAyrıntılar için uygulama günlüklerini kontrol edin.",
   "opencode_stop.external_running":
-    "⚠️ OpenCode Sunucusu harici bir süreç olarak çalışıyor\n\nBu sunucu /opencode-start ile başlatılmadı.\nElle durdurun veya durumu kontrol etmek için /status kullanın.",
+    "⚠️ OpenCode Sunucusu harici bir süreç olarak çalışıyor\n\nBu sunucu /start ile başlatılmadı.\nElle durdurun veya durumu kontrol etmek için /status kullanın.",
   "opencode_stop.remote_configured":
-    "⚠️ /opencode_stop yalnızca yerel bir OpenCode Sunucusu ile çalışır.",
+    "⚠️ /stop yalnızca yerel bir OpenCode Sunucusu ile çalışır.",
   "opencode_stop.not_running": "⚠️ OpenCode Sunucusu çalışmıyor",
   "opencode_stop.pid_not_found":
     "⚠️ OpenCode Sunucusu {port} bağlantı noktasında yanıt veriyor, ancak durdurulacak yerel bir süreç bulunamadı.",

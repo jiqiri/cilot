@@ -2,6 +2,12 @@ import path from "node:path";
 import os from "node:os";
 import { config } from "../../config.js";
 import { logger } from "../../utils/logger.js";
+import {
+  clearProject,
+  clearSession,
+  getCurrentProject,
+  getCurrentSession,
+} from "../stores/settings-store.js";
 
 // Re-exported so the policy module and the ownership data are reachable from one place.
 // The policy is decided here; the ids still live in the settings store.
@@ -99,7 +105,19 @@ export function isPrimaryAdmin(userId: number | null | undefined): boolean {
 }
 
 export function can(userId: number | null | undefined, capability: Capability): boolean {
-  return POLICY_CAPABILITIES[policyForUser(userId)].has(capability);
+  const policy = policyForUser(userId);
+  // A confined admin is an operator inside their own folder: full agent/command/MCP power,
+  // but no reach into another account's sessions, projects, or images. The toggle is the
+  // only difference, so the same policy matrix stays the source of truth.
+  if (policy === "admin" && config.telegram.confineAdmins && capability.startsWith("cross_user_")) {
+    return false;
+  }
+  return POLICY_CAPABILITIES[policy].has(capability);
+}
+
+/** Whether this admin is limited to their own workspace by configuration. */
+export function isConfinedAdmin(userId: number | null | undefined): boolean {
+  return config.telegram.confineAdmins && isAdminUser(userId);
 }
 
 /**
@@ -152,7 +170,8 @@ export class AccessDeniedError extends Error {
  * Each account gets a real directory rather than a slice of a shared one, so a path that is
  * valid for one account is invalid for another by construction, and the check that enforces
  * it is a realpath comparison rather than a list lookup that can be forgotten. Admins are
- * trusted in this threat model and are not confined to their own workspace.
+ * trusted in this threat model and are not confined to their own workspace unless
+ * OPENCODE_TELEGRAM_CONFINE_ADMINS is enabled.
  */
 export function userWorkspaceRoot(userId: number): string {
   const base = process.env.OPENCODE_TELEGRAM_USER_ROOT?.trim()
@@ -171,12 +190,12 @@ export function userGeneratedRoot(userId: number): string {
 
 /**
  * Roots a user may read through the bot's own file paths, and which the image tooling
- * accepts. A standard user is limited to their own workspace; an admin also gets the
- * browser roots, which are the operator's own directories.
+ * accepts. A standard user is limited to their own workspace; an unconfined admin also gets
+ * the browser roots, which are the operator's own directories.
  */
 export async function allowedReadRoots(userId: number | null | undefined): Promise<string[]> {
   if (policyForUser(userId) === "deny") return [];
-  if (isAdminUser(userId)) {
+  if (isAdminUser(userId) && !config.telegram.confineAdmins) {
     const { getBrowserRootPaths } = await import("../services/file-browser-service.js");
     return [...getBrowserRootPaths(), userWorkspaceRoot(userId as number)];
   }
@@ -197,8 +216,38 @@ export async function canUseProjectPath(
   targetPath: string,
 ): Promise<boolean> {
   if (policyForUser(userId) === "deny") return false;
-  if (isAdminUser(userId)) return true;
+  if (isAdminUser(userId) && !config.telegram.confineAdmins) return true;
   return isRealPathWithin(await allowedReadRoots(userId), targetPath);
+}
+
+/**
+ * Drop a stored project or session that this account may no longer use.
+ *
+ * Settings survive a role change and the confinement toggle, so a project selected while an
+ * account was an unconfined admin would otherwise keep `/ls`, `/open`, `/new` and prompts
+ * pointed outside the new boundary. The check runs at the start of every update, before any
+ * handler reads the stored values, which is the same point-of-use rule used for sessions.
+ */
+export async function dropUnauthorizedCurrentContext(
+  userId: number | null | undefined,
+): Promise<void> {
+  const project = getCurrentProject();
+  if (project && !(await canUseProjectPath(userId, project.worktree))) {
+    logger.warn(
+      `[Authz] Cleared stored project "${project.worktree}" for userId=${userId}: not permitted`,
+    );
+    clearProject();
+    clearSession();
+    return;
+  }
+
+  const session = getCurrentSession();
+  if (session && !(await canUseProjectPath(userId, session.directory))) {
+    logger.warn(
+      `[Authz] Cleared stored session "${session.id}" for userId=${userId}: directory not permitted`,
+    );
+    clearSession();
+  }
 }
 
 /**

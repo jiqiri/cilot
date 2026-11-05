@@ -4,7 +4,6 @@ import { isAllowedUser } from "../middleware/auth.js";
 import { settingsCommand } from "../commands/settings-command.js";
 import { modelCommand } from "../commands/model-command.js";
 import { personaCommand } from "../commands/persona-command.js";
-import { opencodeStartCommand } from "../commands/opencode-start-command.js";
 import { opencodeStopCommand } from "../commands/opencode-stop-command.js";
 import { projectsCommand } from "../commands/projects-command.js";
 import { worktreeCommand } from "../commands/worktree-command.js";
@@ -137,8 +136,7 @@ export function registerCommandRouter(bot: Bot<Context>, deps: CommandRouterDeps
   bot.command("settings", (ctx) => settingsCommand(ctx, container));
   bot.command("model", (ctx) => modelCommand(ctx, container));
   bot.command("persona", (ctx) => personaCommand(ctx));
-  bot.command("opencode_start", (ctx) => opencodeStartCommand(ctx, container));
-  bot.command("opencode_stop", (ctx) => opencodeStopCommand(ctx, container));
+  bot.command("stop", (ctx) => opencodeStopCommand(ctx, container));
   bot.command("projects", (ctx) => projectsCommand(ctx, container));
   bot.command("worktree", (ctx) => worktreeCommand(ctx, container));
   bot.command("open", (ctx) => openCommand(ctx, container));

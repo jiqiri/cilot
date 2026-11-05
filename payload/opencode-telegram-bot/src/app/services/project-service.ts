@@ -1,12 +1,13 @@
-import { readFile, stat } from "node:fs/promises";
+import { mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { opencodeClient } from "../../opencode/client.js";
 import { config } from "../../config.js";
 import { getCachedSessionProjects } from "./session-cache-service.js";
 import { getDismissedProjects } from "../stores/settings-store.js";
-import { canUseProjectPath, isAdminUser } from "./access-control.js";
+import { canUseProjectPath, isAdminUser, isConfinedAdmin, userProjectsRoot } from "./access-control.js";
 import { getActiveSettingsUser } from "../stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
+import { t } from "../../i18n/index.js";
 import type { ProjectInfo } from "../types/project.js";
 
 interface InternalProject extends ProjectInfo {
@@ -144,6 +145,31 @@ export function getHiddenProjectWorktrees(): string[] {
 }
 
 /**
+ * The project a standard account starts in.
+ *
+ * A standard user has no access to the operator's projects, so without this the `/projects`
+ * list is empty and `/new` refuses with "project not selected" — the account is authorized
+ * but cannot do anything. The directory is created on demand under the account's own
+ * workspace, which is also the boundary `canUseProjectPath` enforces, so selecting it cannot
+ * widen access. A confined admin gets one too, for the same reason; an unconfined admin
+ * keeps choosing from the machine's real projects.
+ */
+export async function ensurePersonalProject(
+  userId: number | null | undefined,
+): Promise<ProjectInfo | null> {
+  if (!userId) return null;
+  if (isAdminUser(userId) && !isConfinedAdmin(userId)) return null;
+
+  const worktree = userProjectsRoot(userId);
+  await mkdir(worktree, { recursive: true });
+  return {
+    id: `personal:${userId}`,
+    worktree,
+    name: t("projects.personal_name"),
+  };
+}
+
+/**
  * Projects this account may switch to.
  *
  * The authorization runs here rather than being left to the server, because OpenCode's
@@ -158,8 +184,21 @@ export async function getProjects(): Promise<ProjectInfo[]> {
   const userId = getActiveSettingsUser();
   const projects = await getResolvedProjects();
   const visible: ProjectInfo[] = [];
+  const seen = new Set<string>();
+
+  // The personal project is synthesized rather than fetched: it exists for every standard
+  // account even before its first session, and listing it is what makes `/new` usable.
+  const personal = await ensurePersonalProject(userId);
+  if (personal) {
+    seen.add(worktreeKey(personal.worktree));
+    visible.push(personal);
+  }
+
   for (const { id, worktree, name } of projects) {
+    const key = worktreeKey(worktree);
+    if (seen.has(key)) continue;
     if (await isProjectVisibleToUser(userId, worktree)) {
+      seen.add(key);
       visible.push({ id, worktree, name });
     }
   }
@@ -180,7 +219,8 @@ export async function isProjectVisibleToUser(
   if (isExcludedOrDismissed(worktree)) {
     return false;
   }
-  if (isAdminUser(userId)) return true;
+  // `canUseProjectPath` already grants unconfined admins everything and applies the
+  // workspace boundary to everyone else, including a confined admin.
   return canUseProjectPath(userId, worktree);
 }
 
@@ -195,6 +235,12 @@ function isExcludedOrDismissed(worktree: string): boolean {
 }
 
 export async function getProjectById(id: string): Promise<ProjectInfo> {
+  const userId = getActiveSettingsUser();
+  const personal = await ensurePersonalProject(userId);
+  if (personal?.id === id) {
+    return personal;
+  }
+
   // Resolved against the full set, then authorized, because a restricted user must not be
   // able to tell "does not exist" apart from "exists but is not yours" by the error alone.
   const projects = await getResolvedProjects();
@@ -202,16 +248,25 @@ export async function getProjectById(id: string): Promise<ProjectInfo> {
   if (!project) {
     throw new Error(`Project with id ${id} not found`);
   }
-  if (!(await isProjectVisibleToUser(getActiveSettingsUser(), project.worktree))) {
-    logger.warn(`[Authz] Refused project id=${id} for userId=${getActiveSettingsUser()}`);
+  if (!(await isProjectVisibleToUser(userId, project.worktree))) {
+    logger.warn(`[Authz] Refused project id=${id} for userId=${userId}`);
     throw new Error(`Project with id ${id} not found`);
   }
   return { id: project.id, worktree: project.worktree, name: project.name };
 }
 
 export async function getProjectByWorktree(worktree: string): Promise<ProjectInfo> {
-  const projects = await getResolvedProjects({ includeLinkedWorktrees: true });
+  const userId = getActiveSettingsUser();
   const key = worktreeKey(worktree);
+
+  // Before the first session exists the server does not know this directory yet, so the
+  // synthesized entry is the only way `/open` can select the personal workspace.
+  const personal = await ensurePersonalProject(userId);
+  if (personal && worktreeKey(personal.worktree) === key) {
+    return personal;
+  }
+
+  const projects = await getResolvedProjects({ includeLinkedWorktrees: true });
   const project = projects.find((p) => worktreeKey(p.worktree) === key);
   if (!project) {
     throw new Error(`Project with worktree ${worktree} not found`);
@@ -219,10 +274,8 @@ export async function getProjectByWorktree(worktree: string): Promise<ProjectInf
   // The same check the list applies. Previously this lookup returned before the exclusion
   // filter and skipped the dismissal check entirely, so a project hidden from /projects was
   // still reachable by asking for its worktree.
-  if (!(await isProjectVisibleToUser(getActiveSettingsUser(), project.worktree))) {
-    logger.warn(
-      `[Authz] Refused project worktree=${worktree} for userId=${getActiveSettingsUser()}`,
-    );
+  if (!(await isProjectVisibleToUser(userId, project.worktree))) {
+    logger.warn(`[Authz] Refused project worktree=${worktree} for userId=${userId}`);
     throw new Error(`Project with worktree ${worktree} not found`);
   }
   return { id: project.id, worktree: project.worktree, name: project.name };

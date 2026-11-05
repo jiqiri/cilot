@@ -19,7 +19,7 @@ export const DEFAULT_ALLOWED_INTERACTION_COMMANDS = [
   "/status",
   "/abort",
   "/detach",
-  "/opencode_stop",
+  "/stop",
 ] as const;
 
 function normalizeCommand(command: string): string | null {

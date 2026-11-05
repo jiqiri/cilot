@@ -2,7 +2,7 @@ import { Context, NextFunction } from "grammy";
 import { config } from "../../config.js";
 import { runAsSettingsUser, setActiveSettingsUser } from "../../app/stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
-import { isAuthorizedUser, policyForUser } from "../../app/services/access-control.js";
+import { isAuthorizedUser, policyForUser, dropUnauthorizedCurrentContext } from "../../app/services/access-control.js";
 
 /**
  * Whether an id may use the bot at all.
@@ -35,7 +35,12 @@ export async function authMiddleware(ctx: Context, next: NextFunction): Promise<
     // restores it afterwards, so overlapping updates cannot see each other's account.
     setActiveSettingsUser(userId ?? null);
     logger.debug(`[Auth] Access granted for userId=${userId}`);
-    await runAsSettingsUser(userId ?? null, () => next());
+    await runAsSettingsUser(userId ?? null, async () => {
+      // Role changes and the confinement toggle outlive the settings file, so re-check the
+      // stored project/session before any handler can act on it.
+      await dropUnauthorizedCurrentContext(userId);
+      await next();
+    });
   } else {
     // Silently ignore unauthorized users
     logger.warn(`Unauthorized access attempt from user ID: ${userId}`);
