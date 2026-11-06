@@ -5,6 +5,7 @@ import { config } from "../../config.js";
 import { getCachedSessionProjects } from "./session-cache-service.js";
 import { getDismissedProjects } from "../stores/settings-store.js";
 import { canUseProjectPath, isAdminUser, isConfinedAdmin, userProjectsRoot } from "./access-control.js";
+import { sharedFolderPath, sharedFoldersForUser } from "./shared-folders-service.js";
 import { getActiveSettingsUser } from "../stores/settings-store.js";
 import { logger } from "../../utils/logger.js";
 import { t } from "../../i18n/index.js";
@@ -170,6 +171,36 @@ export async function ensurePersonalProject(
 }
 
 /**
+ * Projects the bot knows about before the server does: the account's personal workspace and
+ * the folders the primary admin shared with it. Both are authorized by the same path check
+ * as any other project, so mixing them into the list does not widen access.
+ */
+async function getSynthesizedProjects(
+  userId: number | null | undefined,
+): Promise<ProjectInfo[]> {
+  const projects: ProjectInfo[] = [];
+
+  const personal = await ensurePersonalProject(userId);
+  if (personal) {
+    projects.push(personal);
+  }
+
+  if (userId !== null && userId !== undefined) {
+    for (const folder of sharedFoldersForUser(userId)) {
+      const worktree = sharedFolderPath(folder.name);
+      await mkdir(worktree, { recursive: true });
+      projects.push({
+        id: `shared:${folder.name}`,
+        worktree,
+        name: `shared/${folder.name}`,
+      });
+    }
+  }
+
+  return projects;
+}
+
+/**
  * Projects this account may switch to.
  *
  * The authorization runs here rather than being left to the server, because OpenCode's
@@ -188,10 +219,11 @@ export async function getProjects(): Promise<ProjectInfo[]> {
 
   // The personal project is synthesized rather than fetched: it exists for every standard
   // account even before its first session, and listing it is what makes `/new` usable.
-  const personal = await ensurePersonalProject(userId);
-  if (personal) {
-    seen.add(worktreeKey(personal.worktree));
-    visible.push(personal);
+  for (const synthesized of await getSynthesizedProjects(userId)) {
+    const key = worktreeKey(synthesized.worktree);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    visible.push(synthesized);
   }
 
   for (const { id, worktree, name } of projects) {
@@ -236,9 +268,10 @@ function isExcludedOrDismissed(worktree: string): boolean {
 
 export async function getProjectById(id: string): Promise<ProjectInfo> {
   const userId = getActiveSettingsUser();
-  const personal = await ensurePersonalProject(userId);
-  if (personal?.id === id) {
-    return personal;
+  const synthesized = await getSynthesizedProjects(userId);
+  const match = synthesized.find((project) => project.id === id);
+  if (match) {
+    return match;
   }
 
   // Resolved against the full set, then authorized, because a restricted user must not be
@@ -260,10 +293,12 @@ export async function getProjectByWorktree(worktree: string): Promise<ProjectInf
   const key = worktreeKey(worktree);
 
   // Before the first session exists the server does not know this directory yet, so the
-  // synthesized entry is the only way `/open` can select the personal workspace.
-  const personal = await ensurePersonalProject(userId);
-  if (personal && worktreeKey(personal.worktree) === key) {
-    return personal;
+  // synthesized entry is the only way `/open` can select the personal workspace or a shared
+  // folder.
+  const synthesized = await getSynthesizedProjects(userId);
+  const match = synthesized.find((project) => worktreeKey(project.worktree) === key);
+  if (match) {
+    return match;
   }
 
   const projects = await getResolvedProjects({ includeLinkedWorktrees: true });

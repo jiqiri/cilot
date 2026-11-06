@@ -8,6 +8,11 @@ import {
   getCurrentProject,
   getCurrentSession,
 } from "../stores/settings-store.js";
+import { isUserAccessEnabled } from "./user-access-service.js";
+import {
+  sharedFolderPath,
+  sharedFoldersForUser,
+} from "./shared-folders-service.js";
 
 // Re-exported so the policy module and the ownership data are reachable from one place.
 // The policy is decided here; the ids still live in the settings store.
@@ -75,6 +80,11 @@ export function policyForUser(userId: number | null | undefined): Policy {
   }
   if (config.telegram.adminUserIds.includes(userId)) {
     return "admin";
+  }
+  if (!isUserAccessEnabled()) {
+    // The operator kill switch. It is checked before the allowlist so it cannot be
+    // bypassed by a stale menu or a cached callback, and it never touches admins.
+    return "deny";
   }
   if (config.telegram.allowedUserIds.includes(userId)) {
     return "standard";
@@ -173,11 +183,14 @@ export class AccessDeniedError extends Error {
  * trusted in this threat model and are not confined to their own workspace unless
  * OPENCODE_TELEGRAM_CONFINE_ADMINS is enabled.
  */
-export function userWorkspaceRoot(userId: number): string {
-  const base = process.env.OPENCODE_TELEGRAM_USER_ROOT?.trim()
+export function userWorkspaceBase(): string {
+  return process.env.OPENCODE_TELEGRAM_USER_ROOT?.trim()
     ? path.resolve(process.env.OPENCODE_TELEGRAM_USER_ROOT.trim())
     : path.join(os.homedir(), ".local", "share", "opencode-telegram-server", "users");
-  return path.join(base, String(userId));
+}
+
+export function userWorkspaceRoot(userId: number): string {
+  return path.join(userWorkspaceBase(), String(userId));
 }
 
 export function userProjectsRoot(userId: number): string {
@@ -195,11 +208,14 @@ export function userGeneratedRoot(userId: number): string {
  */
 export async function allowedReadRoots(userId: number | null | undefined): Promise<string[]> {
   if (policyForUser(userId) === "deny") return [];
+  const workspaceRoot = userWorkspaceRoot(userId as number);
+  const sharedRoots = sharedFoldersForUser(userId).map((folder) => sharedFolderPath(folder.name));
+
   if (isAdminUser(userId) && !config.telegram.confineAdmins) {
     const { getBrowserRootPaths } = await import("../services/file-browser-service.js");
-    return [...getBrowserRootPaths(), userWorkspaceRoot(userId as number)];
+    return [...getBrowserRootPaths(), workspaceRoot, ...sharedRoots];
   }
-  return [userWorkspaceRoot(userId as number)];
+  return [workspaceRoot, ...sharedRoots];
 }
 
 /**

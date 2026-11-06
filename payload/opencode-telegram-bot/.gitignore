@@ -8,6 +8,15 @@ yarn-error.log*
 
 # Environment
 .env
+.env.bak.*
+.env.*.bak
+
+# Vault (/vault menu). Default location is outside the repo; these are a backstop for
+# an operator who points SECRETS_FILE/SECRETS_ENV_FILE at the checkout.
+secrets.json
+secrets.env
+secrets.json.tmp-*
+secrets.env.tmp-*
 
 # OS
 .DS_Store
@@ -32,6 +41,8 @@ opencode.json
 logs/
 run/
 settings.json
+user-access.json
+shared-folders.json
 settings.json.bak
 settings.json.tmp
 .tmp/

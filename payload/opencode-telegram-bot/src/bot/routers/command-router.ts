@@ -21,6 +21,8 @@ import { commandsCommand } from "../commands/command-catalog-command.js";
 import { skillsCommand } from "../commands/skills-catalog-command.js";
 import { mcpsCommand } from "../commands/mcp-catalog-command.js";
 import { vaultCommand } from "../commands/vault-command.js";
+import { accessCommand } from "../commands/access-command.js";
+import { shareCommand } from "../commands/share-command.js";
 import { startCommand } from "../commands/start-command.js";
 import { helpCommand } from "../commands/help-command.js";
 import { statusCommand } from "../commands/status-command.js";
@@ -153,6 +155,8 @@ export function registerCommandRouter(bot: Bot<Context>, deps: CommandRouterDeps
   bot.command("skills", (ctx) => skillsCommand(ctx, container));
   bot.command("mcps", (ctx) => mcpsCommand(ctx, container));
   bot.command("vault", (ctx) => vaultCommand(ctx, container));
+  bot.command("access", (ctx) => accessCommand(ctx));
+  bot.command("share", (ctx) => shareCommand(ctx));
   for (const definition of registry.definitions()) {
     bot.command(definition.command, async (ctx) => {
       const result = await registry.execute(definition.command);

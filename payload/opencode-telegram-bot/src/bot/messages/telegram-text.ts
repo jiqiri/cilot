@@ -10,6 +10,8 @@ import { chunkPlainText } from "../render/chunker.js";
 import { TELEGRAM_TEXT_MESSAGE_LIMIT } from "../render/limits.js";
 import { getTelegramRenderedPartSignature } from "../render/part-signature.js";
 import type { TelegramRenderedPart } from "../render/types.js";
+import { redactSecrets } from "../../app/services/secret-redaction.js";
+import { redactTelegramPart } from "./redacted-part.js";
 
 type SendMessageApi = Pick<Api<RawApi>, "sendMessage" | "sendRichMessage">;
 type EditMessageApi = Pick<Api<RawApi>, "editMessageText">;
@@ -129,8 +131,8 @@ export async function sendBotText({
   await sendMessageWithMarkdownFallback({
     api,
     chatId,
-    text,
-    rawFallbackText,
+    text: redactSecrets(text),
+    rawFallbackText: rawFallbackText === undefined ? undefined : redactSecrets(rawFallbackText),
     options,
     parseMode: resolveParseMode(format),
   });
@@ -143,36 +145,37 @@ export async function sendRenderedBotPart({
   options,
   allowPlainFallback = true,
 }: SendRenderedBotPartParams): Promise<RenderedPartSendResult> {
+  const safePart = redactTelegramPart(part);
   const rawOptions = stripRichFormattingOptions(options);
 
   logger.debug("[Bot] Sending rendered Telegram part", {
-    source: part.source,
-    blockCount: part.blocks.length,
-    fallbackTextLength: part.fallbackText.length,
+    source: safePart.source,
+    blockCount: safePart.blocks.length,
+    fallbackTextLength: safePart.fallbackText.length,
   });
 
-  if (isPlainPart(part)) {
+  if (isPlainPart(safePart)) {
     const sentMessage = await api.sendMessage(
       chatId,
-      part.fallbackText,
-      withPlainEntities(rawOptions, part),
+      safePart.fallbackText,
+      withPlainEntities(rawOptions, safePart),
     );
     return {
       messageId: sentMessage.message_id,
-      deliveredSignature: plainSignature(part.fallbackText, part.entities),
+      deliveredSignature: plainSignature(safePart.fallbackText, safePart.entities),
     };
   }
 
   try {
     const sentMessage = await api.sendRichMessage(
       chatId,
-      { blocks: part.blocks },
+      { blocks: safePart.blocks },
       rawOptions as TelegramSendRichOptions,
     );
 
     return {
       messageId: sentMessage.message_id,
-      deliveredSignature: getTelegramRenderedPartSignature(part),
+      deliveredSignature: getTelegramRenderedPartSignature(safePart),
     };
   } catch (error) {
     if (!allowPlainFallback || !isTelegramBadRequestError(error)) {
@@ -181,7 +184,7 @@ export async function sendRenderedBotPart({
 
     logger.warn("[Bot] Rich message send failed, retrying assistant part as plain text", error);
 
-    const chunks = chunkPlainText(part.fallbackText);
+    const chunks = chunkPlainText(safePart.fallbackText);
     let firstMessageId: number | null = null;
     for (const chunk of chunks) {
       const sentMessage = await api.sendMessage(chatId, chunk.fallbackText, rawOptions);
@@ -193,13 +196,13 @@ export async function sendRenderedBotPart({
     }
 
     logger.debug("[Bot] Assistant message part sent in plain fallback mode", {
-      fallbackTextLength: part.fallbackText.length,
+      fallbackTextLength: safePart.fallbackText.length,
       partCount: chunks.length,
     });
 
     return {
       messageId: firstMessageId,
-      deliveredSignature: plainSignature(part.fallbackText),
+      deliveredSignature: plainSignature(safePart.fallbackText),
       degradedToPlain: true,
     };
   }
@@ -213,32 +216,33 @@ export async function editRenderedBotPart({
   options,
   allowPlainFallback = true,
 }: EditRenderedBotPartParams): Promise<RenderedPartDeliveryResult> {
+  const safePart = redactTelegramPart(part);
   const rawOptions = stripRichFormattingOptions(options);
 
   logger.debug("[Bot] Editing rendered Telegram part", {
     messageId,
-    source: part.source,
-    blockCount: part.blocks.length,
-    fallbackTextLength: part.fallbackText.length,
+    source: safePart.source,
+    blockCount: safePart.blocks.length,
+    fallbackTextLength: safePart.fallbackText.length,
   });
 
-  if (isPlainPart(part)) {
+  if (isPlainPart(safePart)) {
     await api.editMessageText(
       chatId,
       messageId,
-      part.fallbackText,
-      withPlainEntities(rawOptions, part),
+      safePart.fallbackText,
+      withPlainEntities(rawOptions, safePart),
     );
     return {
-      deliveredSignature: plainSignature(part.fallbackText, part.entities),
+      deliveredSignature: plainSignature(safePart.fallbackText, safePart.entities),
     };
   }
 
   try {
-    await api.editMessageText(chatId, messageId, { blocks: part.blocks }, rawOptions);
+    await api.editMessageText(chatId, messageId, { blocks: safePart.blocks }, rawOptions);
 
     return {
-      deliveredSignature: getTelegramRenderedPartSignature(part),
+      deliveredSignature: getTelegramRenderedPartSignature(safePart),
     };
   } catch (error) {
     // An edit targets exactly one message, so there is nothing to split it
@@ -246,19 +250,19 @@ export async function editRenderedBotPart({
     if (
       !allowPlainFallback ||
       !isTelegramBadRequestError(error) ||
-      part.fallbackText.length > TELEGRAM_TEXT_MESSAGE_LIMIT
+      safePart.fallbackText.length > TELEGRAM_TEXT_MESSAGE_LIMIT
     ) {
       throw error;
     }
 
     logger.warn("[Bot] Rich message edit failed, retrying assistant edit as plain text", error);
-    await api.editMessageText(chatId, messageId, part.fallbackText, rawOptions);
+    await api.editMessageText(chatId, messageId, safePart.fallbackText, rawOptions);
     logger.debug("[Bot] Assistant edit part applied in plain fallback mode", {
       messageId,
-      fallbackTextLength: part.fallbackText.length,
+      fallbackTextLength: safePart.fallbackText.length,
     });
     return {
-      deliveredSignature: plainSignature(part.fallbackText),
+      deliveredSignature: plainSignature(safePart.fallbackText),
       degradedToPlain: true,
     };
   }
@@ -284,22 +288,24 @@ export async function sendDraftBotPart({
   draftId,
   part,
 }: SendDraftBotPartParams): Promise<RenderedPartDeliveryResult> {
+  const safePart = redactTelegramPart(part);
+
   logger.debug("[Bot] Sending draft part", {
     draftId,
-    source: part.source,
-    blockCount: part.blocks.length,
+    source: safePart.source,
+    blockCount: safePart.blocks.length,
   });
 
-  if (isPlainPart(part)) {
-    await api.sendMessageDraft(chatId, draftId, part.fallbackText);
+  if (isPlainPart(safePart)) {
+    await api.sendMessageDraft(chatId, draftId, safePart.fallbackText);
     return {
-      deliveredSignature: plainSignature(part.fallbackText),
+      deliveredSignature: plainSignature(safePart.fallbackText),
     };
   }
 
-  await api.sendRichMessageDraft(chatId, draftId, { blocks: part.blocks });
+  await api.sendRichMessageDraft(chatId, draftId, { blocks: safePart.blocks });
   return {
-    deliveredSignature: getTelegramRenderedPartSignature(part),
+    deliveredSignature: getTelegramRenderedPartSignature(safePart),
   };
 }
 
@@ -309,29 +315,30 @@ export async function completeDraftPart({
   part,
   options,
 }: CompleteDraftPartParams): Promise<RenderedPartSendResult> {
+  const safePart = redactTelegramPart(part);
   const rawOptions = stripRichFormattingOptions(options);
 
   logger.debug("[Bot] Completing draft with real message", {
-    source: part.source,
-    blockCount: part.blocks.length,
+    source: safePart.source,
+    blockCount: safePart.blocks.length,
   });
 
-  if (isPlainPart(part)) {
-    const sentMessage = await api.sendMessage(chatId, part.fallbackText, rawOptions);
+  if (isPlainPart(safePart)) {
+    const sentMessage = await api.sendMessage(chatId, safePart.fallbackText, rawOptions);
     return {
       messageId: sentMessage.message_id,
-      deliveredSignature: plainSignature(part.fallbackText),
+      deliveredSignature: plainSignature(safePart.fallbackText),
     };
   }
 
   const sentMessage = await api.sendRichMessage(
     chatId,
-    { blocks: part.blocks },
+    { blocks: safePart.blocks },
     rawOptions as TelegramSendRichOptions,
   );
   return {
     messageId: sentMessage.message_id,
-    deliveredSignature: getTelegramRenderedPartSignature(part),
+    deliveredSignature: getTelegramRenderedPartSignature(safePart),
   };
 }
 
@@ -348,8 +355,8 @@ export async function editBotText({
     api,
     chatId,
     messageId,
-    text,
-    rawFallbackText,
+    text: redactSecrets(text),
+    rawFallbackText: rawFallbackText === undefined ? undefined : redactSecrets(rawFallbackText),
     options,
     parseMode: resolveParseMode(format),
   });

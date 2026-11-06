@@ -11,6 +11,8 @@ import { LocalCommandRegistry } from "../services/local-command-registry.js";
 import { BUILT_IN_COMMAND_NAMES } from "../../bot/commands/definitions.js";
 import { reconcileStoredModelSelection } from "../services/model-selection-service.js";
 import { reconcileActivePersona } from "../services/persona-service.js";
+import { restoreUserAccess } from "../services/user-access-service.js";
+import { restoreSharedFolders } from "../services/shared-folders-service.js";
 import { getBotVersion } from "../../runtime/bot-version.js";
 import { getRuntimeMode } from "../../runtime/mode.js";
 import { getRuntimePaths } from "../../runtime/paths.js";
@@ -203,6 +205,8 @@ export async function startBotApp(): Promise<void> {
   process.on("unhandledRejection", unhandledRejectionHandler);
   process.on("uncaughtException", uncaughtExceptionHandler);
 
+  await restoreUserAccess();
+  await restoreSharedFolders();
   await loadSettings();
   await reconcileStoredModelSelection();
   await reconcileActivePersona();

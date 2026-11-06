@@ -40,6 +40,8 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "skills", descriptionKey: "cmd.description.skills" },
   { command: "mcps", descriptionKey: "cmd.description.mcps" },
   { command: "vault", descriptionKey: "cmd.description.vault" },
+  { command: "access", descriptionKey: "cmd.description.access" },
+  { command: "share", descriptionKey: "cmd.description.share" },
   { command: "stop", descriptionKey: "cmd.description.server_stop" },
   { command: "open", descriptionKey: "cmd.description.open" },
   { command: "ls", descriptionKey: "cmd.description.ls" },
@@ -69,11 +71,16 @@ export const ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set([
 /**
  * Commands reserved for the first admin id.
  *
- * `/vault` holds credentials for the whole machine, so a second admin — who may start
- * servers and read the filesystem — still does not get it. Removing it from the menu is
- * presentation; `isCommandAllowedForPolicy` refuses it at dispatch.
+ * `/vault` holds credentials for the whole machine, and `/access` is the switch that can
+ * block every standard account, so a second admin — who may start servers and read the
+ * filesystem — still does not get either. Removing them from the menu is presentation;
+ * `isCommandAllowedForPolicy` refuses them at dispatch.
  */
-export const PRIMARY_ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set(["vault"]);
+export const PRIMARY_ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set([
+  "vault",
+  "access",
+  "share",
+]);
 
 /** Whether a command is permitted for a policy and, for the vault, a specific id. */
 export function isCommandAllowedForPolicy(
@@ -81,8 +88,13 @@ export function isCommandAllowedForPolicy(
   isAdmin: boolean,
   isPrimaryAdmin: boolean = false,
 ): boolean {
+  // Primary-admin commands are closed even to a non-admin: deriving the answer from
+  // `ADMIN_ONLY_COMMANDS` alone would let a standard account through for any command that is
+  // not also on that list.
+  if (PRIMARY_ADMIN_ONLY_COMMANDS.has(command)) {
+    return isAdmin && isPrimaryAdmin;
+  }
   if (!isAdmin) return !ADMIN_ONLY_COMMANDS.has(command);
-  if (PRIMARY_ADMIN_ONLY_COMMANDS.has(command)) return isPrimaryAdmin;
   return true;
 }
 

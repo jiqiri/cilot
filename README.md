@@ -14,6 +14,11 @@ The installer does not require root. It installs into the current user's home di
 services. Root, or passwordless `sudo`, is only needed to install `curl` and `tar` when the machine is
 missing them.
 
+## Documentation
+
+- [USAGE.md](./USAGE.md) — the same guide in Vietnamese: roles, on-disk layout, `/access`, `/share`,
+  where isolation is enforced, and the known limits.
+
 ## Requirements
 
 Linux with `systemctl` and a user session. That is the whole list.
@@ -504,10 +509,12 @@ by default because a single-operator install normally expects to see the whole m
 | project authorization | narrowed in the application, because OpenCode's `/project` ignores `directory` and answers globally |
 | realpath containment | `..` and symlinks cannot leave a root; the string-prefix version was the bug |
 | per-account workspace | `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` |
+| shared folder | `shared/<name>`, only for the ids named by the primary admin in `/share` |
 | personal project | created on demand and shown in `/projects`, so a standard account can use `/new` before the server knows the directory |
 | OpenCode permissions | `bash`, `edit` outside the workspace, `webfetch` and `external_directory` are **denied in the server**, not requested in a prompt |
 | image ownership | every generated file is recorded per account and re-checked on every read and send |
 | `telegram_postiz_upload_image` | confined to `POSTIZ_UPLOAD_ALLOWED_ROOTS`, and a shared-directory file must have been written by the same MCP process; it does its own read, which OpenCode does not cover |
+| standard agents | `bash`, `task`, `webfetch`, `websearch` and `external_directory` are denied in the server; the picker and the stored-agent path both refuse anything outside the approved set |
 
 A restricted account has no shell, so the workspace boundary is a real boundary rather than a
 convention. Admins are trusted in this model and are not confined to their own workspace
@@ -515,6 +522,66 @@ unless `OPENCODE_TELEGRAM_CONFINE_ADMINS=true` is set. Even then, confinement co
 bot's own paths and project/session selection; an agent with `bash` still runs as the Linux
 user and can read whatever that user can read. Use a separate Linux account or a container
 when the shell itself must be contained.
+
+### Account access switch: `/access`
+
+`/access` is reserved for the first admin id. It controls **standard accounts only**, and it
+never restarts the server, so it cannot interrupt a running turn:
+
+| Command | Effect |
+| --- | --- |
+| `/access status` | shows that admin access is always full, whether standard accounts are enabled, and the workspace layout |
+| `/access on` | standard accounts may use the bot, each inside its own workspace |
+| `/access off` | every standard account is denied at the auth middleware, immediately |
+
+The admin is deliberately outside this switch. The first admin is the recovery path: a
+command that can lock the operator out of their own VPS needs console access to undo, so the
+admin keeps full access in every state. Standard accounts never gain the admin's reach when
+the switch is on: `/access on` restores their normal workspace-only policy, not the
+operator's.
+
+The switch is persisted next to `settings.json` in `user-access.json` (mode 600) and is read
+at startup before polling begins, so a restart keeps the last state. The default is on.
+
+Limits worth stating plainly:
+
+- the bot and the OpenCode server share one Linux account, so a *shell* is not contained by
+  this model. Standard accounts are kept away from a shell (see the agent table above); the
+  durable fix for a shell-capable standard account is a separate Linux account or container;
+- the LLM key is still in the server's process environment. A standard agent has no `bash`
+  and no `external_directory`, so it cannot read `env` or the key file. The durable fix is a
+  local proxy that holds the real key and gives the agent a scoped token;
+
+### Shared folders: `/share`
+
+Sharing is opt-in and stays under the primary admin. A grant names a folder and the ids that
+may open it; nothing else changes, and a folder that was not named is never visible:
+
+```text
+/share list
+/share add team 111111111,222222222
+/share remove team 222222222
+/share delete team
+```
+
+The directory lives at `shared/<name>` next to the per-account root, so it is not inside
+anyone's private workspace. A granted account sees it in `/projects` as `shared/<name>` and
+can start a session there; the same `external_directory` rule that protects a private
+workspace treats the shared folder as the session root. `delete` removes the grant entry and
+leaves the files on disk, so a typo cannot destroy data.
+
+| Path | Who can reach it |
+| --- | --- |
+| `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` | that account only |
+| `shared/<name>` | the ids in the grant list |
+| anything else | admin only |
+
+```bash
+# The layout on disk, for the default install
+~/.local/share/opencode-telegram-server/users/<telegram id>/projects
+~/.local/share/opencode-telegram-server/shared/<name>
+```
+
 
 ## The social-media agent
 
@@ -700,7 +767,14 @@ The first id is the **primary account**. It is used for startup session restore,
 
 `TELEGRAM_ALLOWED_USER_ID` takes one id or a comma separated list, and `TELEGRAM_ALLOWED_USER_IDS` is equivalent. They are merged rather than one overriding the other, so an id listed in either file is permitted, and the first id overall is the primary account.
 
-> Adding an id grants that person the bot's full capabilities: shell access and file read/write as the Linux user running it, plus the OpenCode server and the Postiz and Cloudflare credentials in its environment. Only add people you would give that access to directly.
+> A standard account does not get the bot's full capabilities. It is forced onto
+> `social-media`/`postiz-social`, which deny `bash`, `task`, `webfetch`, `websearch` and
+> `external_directory`, and it only sees its own workspace plus any folder the primary admin
+> granted with `/share`. Admins listed in `TELEGRAM_ADMIN_USER_IDS` do keep full access, so add
+> people as admins only if you would give them the machine directly. The residual risk is
+> stated in [USAGE.md](./USAGE.md) and in "Threat model and limitations" below: the bot and the
+> OpenCode server share one Linux user, so a standard agent that gains a shell would break this
+> boundary.
 
 ## Verify
 
