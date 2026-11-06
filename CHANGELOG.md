@@ -1,3 +1,38 @@
+## 0.29.0 — an access switch, shared folders, and a real boundary for standard accounts
+
+Standard accounts are now confined to their own workspace, and the admin is never confined by
+a chat command.
+
+- `/access` is a kill switch for **standard accounts only** (`on` by default). It does not
+  restart the server, so it cannot cut a running turn; `/abort` is still the way to stop one.
+  The state lives in `user-access.json` (mode `600`) and is restored before polling starts.
+  The first admin id stays full in every state, which keeps a recovery path that does not
+  need console access.
+- `/share` is the only way two accounts can see the same directory. The primary admin grants
+  `shared/<name>` to a list of ids; nothing else becomes visible. `delete` drops the grant and
+  keeps the files, so a typo cannot destroy data.
+- Both commands are primary-admin only, enforced in the router and again in each handler.
+- `policyForUser` denies standard accounts while the switch is off, and otherwise limits them
+  to `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` plus any granted shared folder.
+  Paths are compared with `realpath`, not string prefixes.
+- Outbound text is redacted before it reaches Telegram or the logs, so a key that leaks into
+  a reply or a tool result does not leave the machine.
+- `docs/USAGE.md` (Vietnamese, mirrored at the repository root and in the payload) documents
+  roles, the on-disk layout, the permission table, both commands, the LLM key handling and
+  the known limits.
+
+Two claims were removed from the README because they are no longer true: an added id does
+not get a shell, and `/access` is not an admin confinement switch. `OPENCODE_TELEGRAM_CONFINE_ADMINS`
+remains a separate, explicit opt-in for operators who want the admin confined at the bot layer.
+
+### Known limits in this release
+
+- The bot and the OpenCode server still share one Linux account, so isolation is at the agent
+  and path layer, not the kernel. A standard agent with `bash` would break it; both standard
+  agents deny `bash`, `task`, `webfetch`, `websearch` and `external_directory`.
+- The LLM key is still in the server's process environment. A standard account has no shell
+  and no `external_directory`, so it cannot read it, but this is not a hard boundary.
+
 ## 0.28.0 — OpenCode 2.x, a local MCP server, and a vault for secrets
 
 The Telegram bot now runs on the 2.x API. It used to need `1.18.32` because it called the
