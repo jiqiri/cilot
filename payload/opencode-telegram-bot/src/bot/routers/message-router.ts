@@ -29,6 +29,7 @@ import { handlePhotoMessage } from "../handlers/photo-handler.js";
 import { queuePromptForMerging } from "../handlers/message-merger.js";
 import { handleCatalogTextArguments } from "../handlers/text-message-handler.js";
 import { handleVaultTextInput } from "../callbacks/vault-callback-handler.js";
+import { handleUserTextInput } from "../commands/user-command.js";
 import { handleVoiceMessage } from "../handlers/voice-handler.js";
 import { unknownCommandMiddleware } from "../middleware/unknown-command.js";
 import { getIncomingPrompt } from "../handlers/rich-message-handler.js";
@@ -209,6 +210,11 @@ export function registerMessageRouter(bot: Bot<Context>, deps: MessageRouterDeps
 
     const handledModelSearchText = await handleModelSearchTextInput(ctx, container);
     if (handledModelSearchText) {
+      return;
+    }
+
+    const handledUser = await handleUserTextInput(ctx);
+    if (handledUser) {
       return;
     }
 

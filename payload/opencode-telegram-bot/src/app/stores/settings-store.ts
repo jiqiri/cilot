@@ -223,6 +223,40 @@ export function getKnownUserIds(): number[] {
     .filter((id) => Number.isFinite(id));
 }
 
+export interface RemovedUserSettings {
+  settingsRemoved: boolean;
+  /** Sessions the account owned, so the caller can delete them on the server too. */
+  ownedSessionIds: string[];
+  /** Generated image files the account produced, so the caller can unlink them. */
+  generatedImages: string[];
+}
+
+/**
+ * Drop one account's slice and return what pointed outside settings.json.
+ *
+ * Deleting a user is the only caller: the slice holds the ownership lists for sessions and
+ * images, which do not live in this file, so they are handed back rather than silently
+ * forgotten. The write is awaited so a restart after the deletion cannot resurrect the slice.
+ */
+export async function removeUserSettings(userId: number): Promise<RemovedUserSettings> {
+  const key = String(userId);
+  const slice = settingsRoot.users?.[key];
+
+  if (!slice) {
+    return { settingsRemoved: false, ownedSessionIds: [], generatedImages: [] };
+  }
+
+  const removed: RemovedUserSettings = {
+    settingsRemoved: true,
+    ownedSessionIds: [...(slice.ownedSessionIds ?? [])],
+    generatedImages: [...(slice.generatedImages ?? [])],
+  };
+
+  delete settingsRoot.users?.[key];
+  await persist();
+  return removed;
+}
+
 /**
  * Runs a function against another account's slice, then restores the previous one.
  * The scheduled task runtime ticks on a timer with no incoming update, so it uses this

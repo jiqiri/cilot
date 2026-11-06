@@ -23,13 +23,15 @@ import { mcpsCommand } from "../commands/mcp-catalog-command.js";
 import { vaultCommand } from "../commands/vault-command.js";
 import { accessCommand } from "../commands/access-command.js";
 import { shareCommand } from "../commands/share-command.js";
+import { userCommand } from "../commands/user-command.js";
 import { startCommand } from "../commands/start-command.js";
 import { helpCommand } from "../commands/help-command.js";
 import { statusCommand } from "../commands/status-command.js";
 import { getLocalizedBotCommands, isCommandAllowedForPolicy } from "../commands/definitions.js";
-import { isAdminUser, isPrimaryAdmin } from "../../app/services/access-control.js";
+import { isAdminUser, isElevatedUser, isPrimaryAdmin } from "../../app/services/access-control.js";
 import { logger } from "../../utils/logger.js";
 import { flushPendingPrompt } from "../handlers/message-merger.js";
+import { hasCommandMenu, markCommandMenuPublished } from "./command-menu-state.js";
 import {
   LocalCommandRegistry,
   type LocalCommandResult,
@@ -42,9 +44,10 @@ interface CommandRouterDeps {
   localCommandRegistry?: LocalCommandRegistry;
 }
 
-// Tracked per user id: each permitted account needs its own chat-scoped command list
-// published once, and a second account must not be skipped because the first was set up.
-const commandsInitializedFor = new Set<number>();
+// Each permitted account needs its own chat-scoped command list published once, and a second
+// account must not be skipped because the first was set up. The bookkeeping lives in its own
+// module so `/access` can invalidate it when the admin's reachable commands change.
+
 /**
  * Central gate for admin-only commands.
  *
@@ -70,7 +73,13 @@ export async function enforceCommandPolicy(ctx: Context, next: NextFunction): Pr
   if (text && text.startsWith("/")) {
     const name = parseCommandName(text);
     const userId = ctx.from?.id;
-    if (name && !isCommandAllowedForPolicy(name, isAdminUser(userId), isPrimaryAdmin(userId))) {
+    const allowed = isCommandAllowedForPolicy(
+      name,
+      isAdminUser(userId),
+      isPrimaryAdmin(userId),
+      isElevatedUser(userId),
+    );
+    if (name && !allowed) {
       logger.warn(`[Authz] Refused command /${name} for userId=${userId}: not permitted`);
       await ctx.reply(t("command.admin_only"));
       return;
@@ -84,7 +93,7 @@ export async function ensureCommandsInitialized(
   next: NextFunction,
   localCommandRegistry = LocalCommandRegistry.empty(),
 ): Promise<void> {
-  if (!ctx.from || !isAllowedUser(ctx.from.id) || commandsInitializedFor.has(ctx.from.id)) {
+  if (!ctx.from || !isAllowedUser(ctx.from.id) || hasCommandMenu(ctx.from.id)) {
     await next();
     return;
   }
@@ -101,7 +110,11 @@ export async function ensureCommandsInitialized(
     const admin = isAdminUser(ctx.from.id);
     await ctx.api.setMyCommands(
       [
-        ...getLocalizedBotCommands({ adminOnly: admin, primaryAdmin: isPrimaryAdmin(ctx.from.id) }),
+        ...getLocalizedBotCommands({
+          adminOnly: admin,
+          primaryAdmin: isPrimaryAdmin(ctx.from.id),
+          elevated: isElevatedUser(ctx.from.id),
+        }),
         ...localCommandRegistry.definitions(),
       ],
       {
@@ -112,7 +125,7 @@ export async function ensureCommandsInitialized(
       },
     );
 
-    commandsInitializedFor.add(ctx.from.id);
+    markCommandMenuPublished(ctx.from.id);
     logger.debug(`[Bot] Commands initialized for authorized user (chat_id=${ctx.chat.id})`);
   } catch (err) {
     logger.error("[Bot] Failed to set commands:", err);
@@ -157,6 +170,7 @@ export function registerCommandRouter(bot: Bot<Context>, deps: CommandRouterDeps
   bot.command("vault", (ctx) => vaultCommand(ctx, container));
   bot.command("access", (ctx) => accessCommand(ctx));
   bot.command("share", (ctx) => shareCommand(ctx));
+  bot.command("user", (ctx) => userCommand(ctx));
   for (const definition of registry.definitions()) {
     bot.command(definition.command, async (ctx) => {
       const result = await registry.execute(definition.command);

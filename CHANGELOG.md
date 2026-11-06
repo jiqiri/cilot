@@ -1,3 +1,32 @@
+## 0.30.0 — the safe state is the default, and users get a menu
+
+`/access` changed meaning. It is no longer a kill switch for standard accounts; it is the
+admin's elevation switch, and the bot now boots with it **off**.
+
+- With the switch off, every account — the admin included — is confined to
+  `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects`, keeps only the approved agents, and
+  loses `/vault`, `/user`, `/share`, `/ls`, `/open`, `/worktree`, `/mcps` and server control.
+  Chat, files inside the workspace and the granted tools still work, which is the ordinary
+  job and does not need root.
+- `/access on` restores the admin's full reach. It does not widen a standard account.
+- `/access` is always available to the primary admin, even while off, so raising access is a
+  chat command rather than an SSH edit. `user-access.json` now stores `elevated`; a file from
+  the old design (`enabled`) is ignored instead of being read as elevation.
+- Turning access off drops a stored project or session that points outside the workspace,
+  including the startup restore of the pinned session, so old content does not reappear.
+- New `/user` (primary admin, needs `/access on`) with **Add**, **Block** and **Delete**.
+  Blocking refuses the id at the auth middleware and keeps its data; deleting removes the
+  workspace, settings, sessions, images and shared-folder grants after a confirmation.
+  Records live in `users.json` (mode 600) and override the `.env` allowlist in both
+  directions, so changing them does not need a restart and cannot be bypassed by a stale
+  `.env` entry.
+- Admin ids stay in `.env`: they cannot be blocked or deleted from chat, which keeps a
+  recovery path independent of the bot's state files.
+- `workspace-paths.ts` now owns the per-account layout so the policy module and the user
+  directory can share it without importing each other.
+- Docs: `USAGE.md` (Vietnamese) rewritten for the new model, including the `/user` menu and
+  the safe-default behaviour.
+
 ## 0.29.0 — an access switch, shared folders, and a real boundary for standard accounts
 
 Standard accounts are now confined to their own workspace, and the admin is never confined by

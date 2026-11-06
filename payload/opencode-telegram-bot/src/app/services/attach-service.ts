@@ -5,7 +5,9 @@ import type { AppContainer } from "../bootstrap/app-container.js";
 import type { PermissionRequest } from "../types/permission.js";
 import type { SessionInfo } from "../types/session.js";
 import { getCurrentSession } from "./session-service.js";
-import { getCurrentProject } from "../stores/settings-store.js";
+import { getActiveSettingsUser, getCurrentProject } from "../stores/settings-store.js";
+import { canUseProjectPath } from "./access-control.js";
+import { config } from "../../config.js";
 import { resetStreamThrottle } from "../../bot/streaming/stream-throttle.js";
 import { logger } from "../../utils/logger.js";
 import { isExpectedOpencodeUnavailableError } from "../../utils/opencode-error.js";
@@ -226,6 +228,20 @@ export async function restoreAttachedCurrentSession(
   if (currentSession.directory !== currentProject.worktree) {
     logger.warn(
       `[Attach] Skipping auto-restore because project/session mismatch: sessionDirectory=${currentSession.directory}, projectDirectory=${currentProject.worktree}`,
+    );
+    return false;
+  }
+
+  // The stored project survives a restart and a role change, so it is re-checked here, before
+  // the pinned message can be rebuilt from a session the account may no longer read. With
+  // `/access off` this is what keeps the admin out of the old machine-wide project until the
+  // switch is raised again.
+  // Outside an update there is no scoped account, and the slice being restored is the
+  // primary one, so that is the id the policy has to be asked about.
+  const ownerId = getActiveSettingsUser() ?? config.telegram.allowedUserId;
+  if (!(await canUseProjectPath(ownerId, currentProject.worktree))) {
+    logger.warn(
+      `[Attach] Skipping auto-restore: project not permitted for userId=${ownerId}, directory=${currentProject.worktree}`,
     );
     return false;
   }

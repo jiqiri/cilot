@@ -1,27 +1,29 @@
 import type { CommandContext, Context } from "grammy";
 import { isPrimaryAdmin, userWorkspaceBase } from "../../app/services/access-control.js";
 import {
-  isUserAccessEnabled,
-  setUserAccessEnabled,
+  isAccessElevated,
+  setAccessElevated,
 } from "../../app/services/user-access-service.js";
 import { config } from "../../config.js";
 import { t } from "../../i18n/index.js";
 import { logger } from "../../utils/logger.js";
+import { invalidateCommandMenu } from "../routers/command-menu-state.js";
 
 /**
- * /access — the primary admin's switch for standard-account access.
+ * /access — the primary admin's elevation switch.
  *
- * The admin's own access is deliberately not switchable here. The first admin is the
- * recovery path: if the person who owns the VPS can be locked out by a command, a bad
- * switch (or a bug in one) needs console access to undo. So the admin is always full, and
- * this command only controls whether standard accounts may use the bot at all.
+ * The bot boots in the safe state: every account, the admin included, is confined to its own
+ * workspace and has no shell, no filesystem browsing, no vault and no server control. That is
+ * enough for the ordinary job — chat, keep files in the account's folder, call the tools it
+ * was granted — and it is what `systemctl restart` returns to.
  *
- * Standard accounts are confined by policy, not by this flag: their workspace root, their
- * sessions, their projects, no shell, no cross-account files. Turning access off is an
- * additional kill switch on top of that, for when the machine should be admin-only.
+ * `/access on` restores the admin's full reach: shell-capable agents, the whole machine's
+ * projects and sessions, the vault and server control. It does not widen a standard account;
+ * that is decided by the user directory.
  *
- * Refused for every other account by the command router; the check here is the second gate
- * for a path that does not go through the menu.
+ * The command itself is deliberately outside the switch, so the primary admin can always turn
+ * it back on from chat. Making the safe state also block this command would mean a bad state
+ * needed a console to undo.
  */
 export async function accessCommand(ctx: CommandContext<Context>): Promise<void> {
   if (!isPrimaryAdmin(ctx.from?.id)) {
@@ -49,25 +51,26 @@ export async function accessCommand(ctx: CommandContext<Context>): Promise<void>
     }
 
     const next = action === "on";
-    await setUserAccessEnabled(next);
-    logger.info(`[Access] Standard-user access ${next ? "enabled" : "disabled"} by the primary admin`);
+    await setAccessElevated(next);
+    // The admin's menu differs between the two states, so publish it again on the next update.
+    invalidateCommandMenu(ctx.from?.id);
+    logger.info(`[Access] Admin elevation ${next ? "enabled" : "disabled"} by the primary admin`);
 
-    await ctx.reply(next ? t("access.enabled") : t("access.disabled"));
+    await ctx.reply(next ? t("access.elevated") : t("access.confined"));
   } catch (error) {
-    logger.error("[Access] Could not change standard-user access:", error);
+    logger.error("[Access] Could not change the access switch:", error);
     await ctx.reply(t("access.failed", { error: (error as Error).message || t("common.unknown_error") }));
   }
 }
 
 function formatStatus(): string {
-  const enabled = isUserAccessEnabled();
-  const accounts = config.telegram.allowedUserIds.filter(
-    (id) => !config.telegram.adminUserIds.includes(id),
-  ).length;
+  const elevated = isAccessElevated();
+  const adminIds = new Set(config.telegram.adminUserIds);
+  const standard = config.telegram.allowedUserIds.filter((id) => !adminIds.has(id)).length;
 
   return t("access.status", {
-    state: enabled ? t("access.state.on") : t("access.state.off"),
-    accounts: String(accounts),
+    state: elevated ? t("access.state.on") : t("access.state.off"),
+    accounts: String(standard),
     root: userWorkspaceBase(),
   });
 }

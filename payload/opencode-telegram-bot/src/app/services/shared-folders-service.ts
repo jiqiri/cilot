@@ -136,6 +136,28 @@ export async function revokeSharedFolderGrants(name: string, userIds: number[]):
   await persist();
 }
 
+/**
+ * Remove one id from every grant, returning how many folders changed.
+ *
+ * Deleting a user must not leave a grant that points at an id nothing owns any more; the
+ * folders themselves stay, because other accounts may still be in them.
+ */
+export async function revokeUserFromAllShares(userId: number): Promise<number> {
+  let changed = 0;
+
+  for (const folder of folders) {
+    if (!folder.userIds.includes(userId)) continue;
+    folder.userIds = folder.userIds.filter((id) => id !== userId);
+    changed += 1;
+  }
+
+  if (changed === 0) return 0;
+
+  folders = folders.filter((folder) => folder.userIds.length > 0);
+  await persist();
+  return changed;
+}
+
 /** Removes the grant entry. The directory is left alone so a typo cannot delete data. */
 export async function deleteSharedFolder(name: string): Promise<boolean> {
   const before = folders.length;

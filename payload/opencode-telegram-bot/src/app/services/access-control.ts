@@ -1,5 +1,4 @@
 import path from "node:path";
-import os from "node:os";
 import { config } from "../../config.js";
 import { logger } from "../../utils/logger.js";
 import {
@@ -8,11 +7,22 @@ import {
   getCurrentProject,
   getCurrentSession,
 } from "../stores/settings-store.js";
-import { isUserAccessEnabled } from "./user-access-service.js";
+import { isAccessElevated } from "./user-access-service.js";
+import { resolveStandardAccess } from "./user-directory-service.js";
 import {
   sharedFolderPath,
   sharedFoldersForUser,
 } from "./shared-folders-service.js";
+import {
+  userGeneratedRoot,
+  userProjectsRoot,
+  userWorkspaceBase,
+  userWorkspaceRoot,
+} from "./workspace-paths.js";
+
+// The policy module is the usual entry point for the workspace layout, so the paths stay
+// importable from here even though they are defined in one small module of their own.
+export { userGeneratedRoot, userProjectsRoot, userWorkspaceBase, userWorkspaceRoot };
 
 // Re-exported so the policy module and the ownership data are reachable from one place.
 // The policy is decided here; the ids still live in the settings store.
@@ -81,12 +91,9 @@ export function policyForUser(userId: number | null | undefined): Policy {
   if (config.telegram.adminUserIds.includes(userId)) {
     return "admin";
   }
-  if (!isUserAccessEnabled()) {
-    // The operator kill switch. It is checked before the allowlist so it cannot be
-    // bypassed by a stale menu or a cached callback, and it never touches admins.
-    return "deny";
-  }
-  if (config.telegram.allowedUserIds.includes(userId)) {
+  // A blocked record wins over the allowlist, which is what lets `/user` block an id that
+  // was configured in `.env` without editing that file or restarting the bot.
+  if (resolveStandardAccess(userId, config.telegram.allowedUserIds.includes(userId))) {
     return "standard";
   }
   return "deny";
@@ -98,6 +105,18 @@ export function isAuthorizedUser(userId: number | null | undefined): boolean {
 
 export function isAdminUser(userId: number | null | undefined): boolean {
   return policyForUser(userId) === "admin";
+}
+
+/**
+ * Whether the admin's full reach is switched on.
+ *
+ * The bot boots in the safe state: an admin is still allowed in, but sees only their own
+ * workspace, the approved agent set and the ordinary chat commands. `/access on` raises it
+ * to shell, filesystem, vault, server control and every project on the machine. The switch
+ * does not exist for standard accounts: they are confined either way.
+ */
+export function isElevatedUser(userId: number | null | undefined): boolean {
+  return isAdminUser(userId) && isAccessElevated();
 }
 
 /**
@@ -116,18 +135,27 @@ export function isPrimaryAdmin(userId: number | null | undefined): boolean {
 
 export function can(userId: number | null | undefined, capability: Capability): boolean {
   const policy = policyForUser(userId);
-  // A confined admin is an operator inside their own folder: full agent/command/MCP power,
-  // but no reach into another account's sessions, projects, or images. The toggle is the
-  // only difference, so the same policy matrix stays the source of truth.
-  if (policy === "admin" && config.telegram.confineAdmins && capability.startsWith("cross_user_")) {
-    return false;
+
+  if (policy === "admin") {
+    // Safe default: until `/access on` is issued, an admin is an ordinary confined account
+    // plus the one command that raises access again. Nothing here depends on the model, so
+    // no prompt can talk its way past it.
+    if (!isAccessElevated()) {
+      return POLICY_CAPABILITIES.standard.has(capability);
+    }
+    // A confined admin is an operator inside their own folder: full agent/command/MCP power,
+    // but no reach into another account's sessions, projects, or images.
+    if (config.telegram.confineAdmins && capability.startsWith("cross_user_")) {
+      return false;
+    }
   }
+
   return POLICY_CAPABILITIES[policy].has(capability);
 }
 
-/** Whether this admin is limited to their own workspace by configuration. */
+/** Whether this admin is limited to their own workspace, by config or by the switch. */
 export function isConfinedAdmin(userId: number | null | undefined): boolean {
-  return config.telegram.confineAdmins && isAdminUser(userId);
+  return isAdminUser(userId) && (config.telegram.confineAdmins || !isAccessElevated());
 }
 
 /**
@@ -179,27 +207,10 @@ export class AccessDeniedError extends Error {
  *
  * Each account gets a real directory rather than a slice of a shared one, so a path that is
  * valid for one account is invalid for another by construction, and the check that enforces
- * it is a realpath comparison rather than a list lookup that can be forgotten. Admins are
- * trusted in this threat model and are not confined to their own workspace unless
- * OPENCODE_TELEGRAM_CONFINE_ADMINS is enabled.
+ * it is a realpath comparison rather than a list lookup that can be forgotten. Admins reach
+ * outside their own workspace only while `/access on` is in effect and
+ * OPENCODE_TELEGRAM_CONFINE_ADMINS is off.
  */
-export function userWorkspaceBase(): string {
-  return process.env.OPENCODE_TELEGRAM_USER_ROOT?.trim()
-    ? path.resolve(process.env.OPENCODE_TELEGRAM_USER_ROOT.trim())
-    : path.join(os.homedir(), ".local", "share", "opencode-telegram-server", "users");
-}
-
-export function userWorkspaceRoot(userId: number): string {
-  return path.join(userWorkspaceBase(), String(userId));
-}
-
-export function userProjectsRoot(userId: number): string {
-  return path.join(userWorkspaceRoot(userId), "projects");
-}
-
-export function userGeneratedRoot(userId: number): string {
-  return path.join(userWorkspaceRoot(userId), "generated");
-}
 
 /**
  * Roots a user may read through the bot's own file paths, and which the image tooling
@@ -211,7 +222,7 @@ export async function allowedReadRoots(userId: number | null | undefined): Promi
   const workspaceRoot = userWorkspaceRoot(userId as number);
   const sharedRoots = sharedFoldersForUser(userId).map((folder) => sharedFolderPath(folder.name));
 
-  if (isAdminUser(userId) && !config.telegram.confineAdmins) {
+  if (isElevatedUser(userId) && !config.telegram.confineAdmins) {
     const { getBrowserRootPaths } = await import("../services/file-browser-service.js");
     return [...getBrowserRootPaths(), workspaceRoot, ...sharedRoots];
   }
@@ -232,7 +243,7 @@ export async function canUseProjectPath(
   targetPath: string,
 ): Promise<boolean> {
   if (policyForUser(userId) === "deny") return false;
-  if (isAdminUser(userId) && !config.telegram.confineAdmins) return true;
+  if (isElevatedUser(userId) && !config.telegram.confineAdmins) return true;
   return isRealPathWithin(await allowedReadRoots(userId), targetPath);
 }
 

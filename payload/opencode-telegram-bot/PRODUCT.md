@@ -1,6 +1,6 @@
 # OpenCode Telegram Bot
 
-The installer packages the current source of `@grinev/opencode-telegram-bot` v0.29.0.
+The installer packages the current source of `@grinev/opencode-telegram-bot` v0.30.0.
 
 ## Image delivery
 

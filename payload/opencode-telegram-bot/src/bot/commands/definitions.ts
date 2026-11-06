@@ -42,6 +42,7 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "vault", descriptionKey: "cmd.description.vault" },
   { command: "access", descriptionKey: "cmd.description.access" },
   { command: "share", descriptionKey: "cmd.description.share" },
+  { command: "user", descriptionKey: "cmd.description.user" },
   { command: "stop", descriptionKey: "cmd.description.server_stop" },
   { command: "open", descriptionKey: "cmd.description.open" },
   { command: "ls", descriptionKey: "cmd.description.ls" },
@@ -80,6 +81,22 @@ export const PRIMARY_ADMIN_ONLY_COMMANDS: ReadonlySet<string> = new Set([
   "vault",
   "access",
   "share",
+  "user",
+]);
+
+/**
+ * Commands that need the bot's full reach, i.e. `/access on`.
+ *
+ * The bot boots confined on purpose: an admin is still allowed in, but only as an ordinary
+ * account inside their own workspace. These commands stop the server, browse the filesystem,
+ * read credentials or change who may use the bot, so they are exactly what should not be
+ * reachable while that switch is off. `/access` is deliberately absent: it is the way back.
+ */
+export const ELEVATED_ONLY_COMMANDS: ReadonlySet<string> = new Set([
+  ...ADMIN_ONLY_COMMANDS,
+  "vault",
+  "share",
+  "user",
 ]);
 
 /** Whether a command is permitted for a policy and, for the vault, a specific id. */
@@ -87,7 +104,13 @@ export function isCommandAllowedForPolicy(
   command: string,
   isAdmin: boolean,
   isPrimaryAdmin: boolean = false,
+  elevated: boolean = true,
 ): boolean {
+  // The safe default applies to admins too: without `/access on`, nothing that reaches the
+  // machine is dispatched. `/access` itself is not on the list, so it stays reachable.
+  if (!elevated && ELEVATED_ONLY_COMMANDS.has(command)) {
+    return false;
+  }
   // Primary-admin commands are closed even to a non-admin: deriving the answer from
   // `ADMIN_ONLY_COMMANDS` alone would let a standard account through for any command that is
   // not also on that list.
@@ -101,8 +124,15 @@ export function isCommandAllowedForPolicy(
 export function getLocalizedBotCommands(options?: {
   adminOnly?: boolean;
   primaryAdmin?: boolean;
+  elevated?: boolean;
 }): BotCommandDefinition[] {
+  const elevated = options?.elevated !== false;
   const visible = COMMAND_DEFINITIONS.filter(({ command }) => {
+    if (!elevated && ELEVATED_ONLY_COMMANDS.has(command)) {
+      // While the switch is off the menu shows what the account can actually run, which for
+      // an admin means the ordinary commands plus `/access`.
+      return false;
+    }
     if (!options?.adminOnly && ADMIN_ONLY_COMMANDS.has(command)) {
       return false;
     }

@@ -43,6 +43,7 @@ run/
 settings.json
 user-access.json
 shared-folders.json
+users.json
 settings.json.bak
 settings.json.tmp
 .tmp/

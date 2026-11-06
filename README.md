@@ -478,8 +478,9 @@ tools inside a `tools.<server>.*` sandbox, and a direct call fails.
 | Telegram id | Policy | Workspaces | Agents | Admin commands |
 | --- | --- | --- | --- | --- |
 | not configured | **denied** | — | — | — |
-| in `TELEGRAM_ALLOWED_USER_ID(S)` | standard | own only | `social-media`, `postiz-social` | no |
-| in `TELEGRAM_ADMIN_USER_IDS` | admin | all | any the server offers | yes |
+| blocked in `/user` | **denied** | kept on disk | — | — |
+| in `TELEGRAM_ALLOWED_USER_ID(S)` or added in `/user` | standard | own only | `social-media`, `postiz-social` | no |
+| in `TELEGRAM_ADMIN_USER_IDS` | admin | own only until `/access on` | own-only set until `/access on` | only after `/access on` |
 
 Unknown ids get nothing. Adding a user is a deliberate edit, not a side effect of the bot
 being reachable. An id in both lists is admin.
@@ -495,16 +496,19 @@ The decision happens in `access-control.ts`, before a session is created or sele
 never involves the model. Command menus are filtered per policy, and admin-only commands are
 refused at dispatch rather than merely hidden.
 
-`OPENCODE_TELEGRAM_CONFINE_ADMINS=true` keeps the admin policy's agent and command power
-but drops cross-account reach: sessions, projects, images and the `/open` browser are limited
-to `OPENCODE_TELEGRAM_USER_ROOT/<id>`, the same boundary a standard account gets. It is off
-by default because a single-operator install normally expects to see the whole machine.
+The safe default is `/access off`, which confines everyone — the admin included — to
+`OPENCODE_TELEGRAM_USER_ROOT/<id>`, the same boundary a standard account gets. `/access on`
+lifts that for the admin only. `OPENCODE_TELEGRAM_CONFINE_ADMINS=true` keeps the admin inside
+that folder even when the switch is on, for operators who never want the bot to see the rest
+of the machine.
 
 ## User isolation
 
 | Layer | What it guarantees |
 | --- | --- |
-| `access-control.ts` | who an id is, and which capability each action needs |
+| `access-control.ts` | who an id is, which capability each action needs, and whether the admin is elevated |
+| `users.json` records | a blocked id is refused before any handler runs, and wins over `.env` |
+| `user-access.json` | with the switch off, admin capabilities collapse to the standard set |
 | `sessions.json` ownership | an account can only open sessions it owns; checked at the point of use, not when listing |
 | project authorization | narrowed in the application, because OpenCode's `/project` ignores `directory` and answers globally |
 | realpath containment | `..` and symlinks cannot leave a root; the string-prefix version was the bug |
@@ -523,25 +527,50 @@ bot's own paths and project/session selection; an agent with `bash` still runs a
 user and can read whatever that user can read. Use a separate Linux account or a container
 when the shell itself must be contained.
 
-### Account access switch: `/access`
+### Access switch: `/access`
 
-`/access` is reserved for the first admin id. It controls **standard accounts only**, and it
+The bot boots in the safe state. `/access` is the primary admin's elevation switch, and it
 never restarts the server, so it cannot interrupt a running turn:
 
 | Command | Effect |
 | --- | --- |
-| `/access status` | shows that admin access is always full, whether standard accounts are enabled, and the workspace layout |
-| `/access on` | standard accounts may use the bot, each inside its own workspace |
-| `/access off` | every standard account is denied at the auth middleware, immediately |
+| `/access status` | shows the state, how many standard accounts are configured, and the workspace layout |
+| `/access on` | the primary admin gets full reach: shell-capable agents, the whole filesystem, `/vault`, `/user`, `/share`, server control and every project |
+| `/access off` | everyone, the admin included, returns to their own workspace with the approved tools |
 
-The admin is deliberately outside this switch. The first admin is the recovery path: a
-command that can lock the operator out of their own VPS needs console access to undo, so the
-admin keeps full access in every state. Standard accounts never gain the admin's reach when
-the switch is on: `/access on` restores their normal workspace-only policy, not the
-operator's.
+The switch itself is always available to the primary admin, even while it is off. That is
+the way back in: a state that also blocked `/access` would need console access to undo.
 
-The switch is persisted next to `settings.json` in `user-access.json` (mode 600) and is read
-at startup before polling begins, so a restart keeps the last state. The default is on.
+Two things it deliberately does **not** do:
+
+- it does not widen a standard account; they stay workspace-only in both states;
+- it does not decide who may use the bot. That is `/user`.
+
+The state is persisted next to `settings.json` in `user-access.json` (mode 600) and is read
+at startup before polling begins, so a restart returns to the last state. The default is
+**off**. A file written by the earlier kill-switch design (`enabled`) is ignored on purpose:
+reading it as elevation would silently keep an old install in the less safe state.
+
+### Users: `/user`
+
+Adding or banning an account is an account decision, so it lives in one place with buttons
+rather than in the machine-wide switch:
+
+```text
+/user
+```
+
+| Button | Effect |
+| --- | --- |
+| Add user | allows the id, or lifts an earlier block; applies on the next update |
+| Block user | refuses the id at the auth middleware and **keeps** its workspace, projects, settings and images |
+| Delete user | blocks, then removes the workspace, settings, sessions, images and shared-folder grants; asks for confirmation first |
+
+Records live in `users.json` (mode 600) next to `settings.json`. A record overrides the
+`.env` allowlist in both directions, so an id listed in `.env` can be blocked without editing
+that file, and an id absent from `.env` can be allowed without a restart. Admin ids are
+managed in `.env` only: they cannot be blocked or deleted from chat, which keeps a recovery
+path that does not depend on the bot's own state file.
 
 Limits worth stating plainly:
 
@@ -770,8 +799,9 @@ The first id is the **primary account**. It is used for startup session restore,
 > A standard account does not get the bot's full capabilities. It is forced onto
 > `social-media`/`postiz-social`, which deny `bash`, `task`, `webfetch`, `websearch` and
 > `external_directory`, and it only sees its own workspace plus any folder the primary admin
-> granted with `/share`. Admins listed in `TELEGRAM_ADMIN_USER_IDS` do keep full access, so add
-> people as admins only if you would give them the machine directly. The residual risk is
+> granted with `/share`. Admins listed in `TELEGRAM_ADMIN_USER_IDS` reach the whole machine
+> once the primary admin turns on `/access`; add people as admins only if you would give them
+> the machine directly. The residual risk is
 > stated in [USAGE.md](./USAGE.md) and in "Threat model and limitations" below: the bot and the
 > OpenCode server share one Linux user, so a standard agent that gains a shell would break this
 > boundary.
