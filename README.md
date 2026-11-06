@@ -607,8 +607,8 @@ leaves the files on disk, so a typo cannot destroy data.
 
 ```bash
 # The layout on disk, for the default install
-~/.local/share/opencode-telegram-server/users/<telegram id>/projects
-~/.local/share/opencode-telegram-server/shared/<name>
+~/.local/share/tg-workspaces/users/<telegram id>/projects
+~/.local/share/tg-workspaces/shared/<name>
 ```
 
 

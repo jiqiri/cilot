@@ -29,14 +29,21 @@ là **tầng agent + tầng đường dẫn**, không phải tầng tiến trìn
 Mặc định (`OPENCODE_TELEGRAM_USER_ROOT` không đặt):
 
 ```text
-~/.local/share/opencode-telegram-server/
+~/.local/share/tg-workspaces/
 ├── users/
 │   ├── 111111111/projects     # workspace riêng của user 111111111
+│   │   └── .../generated      # ảnh sinh ra cho account này
 │   └── 222222222/projects     # workspace riêng của user 222222222
-├── shared/
-│   └── team/                  # chỉ tồn tại khi admin tạo bằng /share
-└── opencode-generated-images/ # ảnh sinh ra, có ghi chủ sở hữu
+└── shared/
+    └── team/                  # chỉ tồn tại khi admin tạo bằng /share
 ```
+
+Ảnh do tool sinh ra mặc định nằm ở `~/.local/share/opencode-generated-images` (hoặc
+`OPENCODE_IMAGE_DIR`), có ghi chủ sở hữu theo account.
+
+Tên thư mục mặc định là `tg-workspaces`, không phải `opencode-telegram-server`: chuỗi sau
+cũng là tên systemd unit, nên dễ bị đọc nhầm thành service và quá dài. Đây là thư mục dữ
+liệu, tách khỏi thư mục cài đặt (nơi có `settings.json`, `.env`).
 
 Nếu đặt `OPENCODE_TELEGRAM_USER_ROOT=/srv/tg/users` thì workspace là
 `/srv/tg/users/<telegram id>/projects`, còn shared folder là `/srv/tg/shared/<tên>`.
@@ -187,7 +194,7 @@ tách Linux user/container và/hoặc dựng LLM proxy để agent chỉ thấy 
 | --- | --- |
 | `TELEGRAM_ADMIN_USER_IDS` | Danh sách id admin, id đầu tiên là admin chính |
 | `TELEGRAM_ALLOWED_USER_ID` / `TELEGRAM_ALLOWED_USER_IDS` | Allowlist gốc cho user thường |
-| `OPENCODE_TELEGRAM_USER_ROOT` | Gốc workspace chia theo id; mặc định `~/.local/share/opencode-telegram-server/users` |
+| `OPENCODE_TELEGRAM_USER_ROOT` | Gốc workspace chia theo id; mặc định `~/.local/share/tg-workspaces/users` |
 | `OPENCODE_TELEGRAM_CONFINE_ADMINS` | `true` để admin chính chỉ ở workspace của mình dù `/access on` |
 | `OPENCODE_IMAGE_DIR` | Nơi ghi ảnh sinh ra |
 

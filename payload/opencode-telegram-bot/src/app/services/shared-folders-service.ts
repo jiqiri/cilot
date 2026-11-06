@@ -1,8 +1,8 @@
 import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { getRuntimePaths } from "../../runtime/paths.js";
 import { logger } from "../../utils/logger.js";
+import { userWorkspaceBase } from "./workspace-paths.js";
 
 /**
  * Folders shared between accounts.
@@ -31,15 +31,9 @@ export function isValidSharedFolderName(name: string): boolean {
   return NAME_PATTERN.test(name);
 }
 
-function userRootBase(): string {
-  return process.env.OPENCODE_TELEGRAM_USER_ROOT?.trim()
-    ? path.resolve(process.env.OPENCODE_TELEGRAM_USER_ROOT.trim())
-    : path.join(os.homedir(), ".local", "share", "opencode-telegram-server", "users");
-}
-
 /** Sibling of the per-account root, so shared files are visibly a separate area. */
 export function sharedRoot(): string {
-  return path.join(path.dirname(userRootBase()), "shared");
+  return path.join(path.dirname(userWorkspaceBase()), "shared");
 }
 
 export function sharedFolderPath(name: string): string {

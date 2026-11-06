@@ -1,3 +1,15 @@
+## 0.30.1 — a shorter default workspace root
+
+- The default per-account root is now `~/.local/share/tg-workspaces/users` (shared folders
+  in the sibling `~/.local/share/tg-workspaces/shared`). The old default contained
+  `opencode-telegram-server`, which is also a systemd unit name, so a path built from it read
+  like a service and was long enough to be confused with the install directory.
+- `shared-folders-service.ts` no longer spells the default a second time; it derives the
+  shared root from `workspace-paths.ts`, so there is one place to change.
+- Existing installs keep whatever `OPENCODE_TELEGRAM_USER_ROOT` says. On this machine the
+  data was moved to the new root and the stored project/session remapped, so no re-selection
+  was needed.
+
 ## 0.30.0 — the safe state is the default, and users get a menu
 
 `/access` changed meaning. It is no longer a kill switch for standard accounts; it is the
