@@ -66,7 +66,7 @@ done
 units=(opencode.service opencode-telegram-server.service opencode-telegram-bot.service)
 
 if (( ! DRY_RUN && ! ASSUME_YES )); then
-  printf 'This will stop and remove the OpenCode Telegram stack.\n'
+  printf 'This will stop and remove the Cilot stack.\n'
   printf 'Managed installation root: %s\n' "$INSTALL_ROOT"
   (( PURGE )) && printf 'Purge mode: managed OpenCode configuration and data will also be removed.\n'
   read -r -p 'Continue? [y/N] ' answer

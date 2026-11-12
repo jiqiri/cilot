@@ -15,9 +15,9 @@ describe("archive URL rewriting", () => {
   it("rewrites a branch archive URL to codeload", () => {
     expect(
       authenticatedArchiveUrl(
-        "https://github.com/jiqiri/opencode-telegram-installer/archive/refs/heads/main.tar.gz",
+        "https://github.com/jiqiri/cilot/archive/refs/heads/main.tar.gz",
       ),
-    ).toBe("https://codeload.github.com/jiqiri/opencode-telegram-installer/tar.gz/refs/heads/main");
+    ).toBe("https://codeload.github.com/jiqiri/cilot/tar.gz/refs/heads/main");
   });
 
   it("rewrites a tag archive URL to codeload", () => {

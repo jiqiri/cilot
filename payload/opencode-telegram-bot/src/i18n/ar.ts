@@ -1,7 +1,7 @@
 import type { I18nDictionary } from "./en.js";
 
 /**
- * Arabic localization for OpenCode Telegram Bot.
+ * Arabic localization for Cilot.
  *
  * Keep upstream emoji and technical terms where they help recognition.
  * Prefer natural Arabic wording over literal translation.
@@ -62,7 +62,7 @@ export const ar: I18nDictionary = {
   "common.unknown_error": "خطأ غير معروف",
 
   "start.welcome":
-    "👋 أهلًا بك في OpenCode Telegram Bot!\n\nالأوامر الأساسية:\n/projects — اختيار مشروع\n/sessions — عرض الجلسات\n/new — بدء جلسة جديدة\n/commands — الأوامر المخصصة\n/skills — قائمة المهارات\n/task — إنشاء مهمة مجدولة\n/tasklist — عرض المهام المجدولة\n/status — حالة الخادم والجلسة\n/help — المساعدة\n\nاستخدم الأزرار السفلية للتبديل بين الوكيل والنموذج وخيارات التشغيل.",
+    "👋 أهلًا بك في Cilot!\n\nالأوامر الأساسية:\n/projects — اختيار مشروع\n/sessions — عرض الجلسات\n/new — بدء جلسة جديدة\n/commands — الأوامر المخصصة\n/skills — قائمة المهارات\n/task — إنشاء مهمة مجدولة\n/tasklist — عرض المهام المجدولة\n/status — حالة الخادم والجلسة\n/help — المساعدة\n\nاستخدم الأزرار السفلية للتبديل بين الوكيل والنموذج وخيارات التشغيل.",
   "help.keyboard_hint":
     "💡 استخدم الأزرار السفلية للتبديل بين الوكيل والنموذج وخيارات التشغيل وإدارة السياق.",
   "help.text":
@@ -472,7 +472,7 @@ export const ar: I18nDictionary = {
     "أدخل كلمة مرور خادم OpenCode (اختياري).\nاضغط Enter لتركها فارغة.\n> ",
   "runtime.wizard.api_url_invalid":
     "أدخل رابطًا صالحًا (http/https) أو اضغط Enter لاستخدام الافتراضي.\n",
-  "runtime.wizard.start": "إعداد OpenCode Telegram Bot.\n",
+  "runtime.wizard.start": "إعداد Cilot.\n",
   "runtime.wizard.saved": "تم حفظ الإعدادات في:\n- {envPath}\n",
   "runtime.wizard.not_configured_starting":
     "لم يتم إعداد التطبيق بعد. جارٍ تشغيل معالج الإعداد...\n",

@@ -1,6 +1,7 @@
-# OpenCode Telegram Bot
+# Cilot
 
-The installer packages the current source of `@grinev/opencode-telegram-bot` v0.30.1.
+Cilot is the Telegram agent built on this source, a fork of
+`@grinev/opencode-telegram-bot` v0.31.0, packaged by the Cilot installer.
 
 ## Image delivery
 

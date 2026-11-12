@@ -59,7 +59,7 @@ export const tr: I18nDictionary = {
   "common.unknown_error": "bilinmeyen hata",
 
   "start.welcome":
-    "👋 OpenCode Telegram Bot'a hoş geldiniz!\n\nKomutları kullanın:\n/projects — proje seç\n/sessions — oturum listesi\n/new — yeni oturum\n/commands — özel komutlar\n/skills — yetenek kataloğu\n/task — zamanlanmış görev\n/tasklist — zamanlanmış görevler\n/status — durum\n/help — yardım\n\nAjanı, modeli ve varyantı seçmek için alttaki düğmeleri kullanın.",
+    "👋 Cilot'a hoş geldiniz!\n\nKomutları kullanın:\n/projects — proje seç\n/sessions — oturum listesi\n/new — yeni oturum\n/commands — özel komutlar\n/skills — yetenek kataloğu\n/task — zamanlanmış görev\n/tasklist — zamanlanmış görevler\n/status — durum\n/help — yardım\n\nAjanı, modeli ve varyantı seçmek için alttaki düğmeleri kullanın.",
   "help.keyboard_hint":
     "💡 Ajan, model, varyant ve bağlam işlemleri için alttaki klavye düğmelerini kullanın.",
   "help.text":
@@ -485,7 +485,7 @@ export const tr: I18nDictionary = {
     "OpenCode sunucu parolasını girin (isteğe bağlı).\nBoş bırakmak için Enter'a basın.\n> ",
   "runtime.wizard.api_url_invalid":
     "Geçerli bir URL (http/https) girin veya varsayılan için Enter'a basın.\n",
-  "runtime.wizard.start": "OpenCode Telegram Bot kurulumu.\n",
+  "runtime.wizard.start": "Cilot kurulumu.\n",
   "runtime.wizard.saved": "Yapılandırma kaydedildi:\n- {envPath}\n",
   "runtime.wizard.not_configured_starting":
     "Uygulama henüz yapılandırılmadı. Sihirbaz başlatılıyor...\n",

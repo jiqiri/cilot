@@ -45,13 +45,13 @@ function sourceFileCandidates(): string[] {
 }
 
 const FALLBACK_ARCHIVE_URL =
-  "https://github.com/jiqiri/opencode-telegram-installer/archive/refs/heads/main.tar.gz";
+  "https://github.com/jiqiri/cilot/archive/refs/heads/main.tar.gz";
 
 /**
  * A private repository answers 404 on `github.com/OWNER/REPO/archive/...` before it even
  * looks at a credential, and that path does not accept a token header at all. codeload
- * does. So an archive URL is rewritten when a token is available, and the token is sent
- * only to the rewritten host.
+ * does. The Cilot repository is public, so none of this is needed for a normal update, but
+ * a fork can be private; the rewrite keeps a token optional rather than required.
  */
 export function authenticatedArchiveUrl(url: string): string {
   const match =

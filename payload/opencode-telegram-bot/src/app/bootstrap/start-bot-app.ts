@@ -137,7 +137,7 @@ export async function startBotApp(): Promise<void> {
   const version = await getBotVersion();
   const logFilePath = getLogFilePath();
 
-  logger.info(`Starting OpenCode Telegram Bot v${version}...`);
+  logger.info(`Starting Cilot v${version}...`);
   logger.info(`Node.js ${process.version} on ${process.platform} ${process.arch}`);
   logger.info(`Config loaded from ${runtimePaths.envFilePath}`);
   if (logFilePath) {

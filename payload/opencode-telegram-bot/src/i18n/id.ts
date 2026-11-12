@@ -1,7 +1,7 @@
 import type { I18nDictionary } from "./en.js";
 
 /**
- * Indonesian localization for OpenCode Telegram Bot.
+ * Indonesian localization for Cilot.
  *
  * Keep upstream emoji and technical terms where they help recognition.
  * Prefer natural Indonesian wording over literal translation.
@@ -66,7 +66,7 @@ export const id: I18nDictionary = {
   "common.unknown_error": "kesalahan tidak diketahui",
 
   "start.welcome":
-    "👋 Selamat datang di OpenCode Telegram Bot!\n\nGunakan perintah:\n/projects — pilih proyek\n/sessions — daftar sesi\n/new — sesi baru\n/commands — perintah khusus\n/skills — katalog skill\n/task — tugas terjadwal\n/tasklist — daftar tugas terjadwal\n/status — status\n/help — bantuan\n\nGunakan tombol di bawah untuk memilih agent, model, dan varian.",
+    "👋 Selamat datang di Cilot!\n\nGunakan perintah:\n/projects — pilih proyek\n/sessions — daftar sesi\n/new — sesi baru\n/commands — perintah khusus\n/skills — katalog skill\n/task — tugas terjadwal\n/tasklist — daftar tugas terjadwal\n/status — status\n/help — bantuan\n\nGunakan tombol di bawah untuk memilih agent, model, dan varian.",
   "help.keyboard_hint":
     "💡 Gunakan tombol keyboard di bawah untuk agent, model, varian, dan aksi konteks.",
   "help.text":
@@ -484,7 +484,7 @@ export const id: I18nDictionary = {
     "Masukkan kata sandi server OpenCode (opsional).\nTekan Enter untuk membiarkannya kosong.\n> ",
   "runtime.wizard.api_url_invalid":
     "Masukkan URL yang valid (http/https) atau tekan Enter untuk default.\n",
-  "runtime.wizard.start": "Menyiapkan OpenCode Telegram Bot.\n",
+  "runtime.wizard.start": "Menyiapkan Cilot.\n",
   "runtime.wizard.saved": "Konfigurasi disimpan:\n- {envPath}\n",
   "runtime.wizard.not_configured_starting": "Aplikasi belum dikonfigurasi. Membuka wizard...\n",
   "runtime.wizard.tty_required":

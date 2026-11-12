@@ -28,7 +28,7 @@ INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/opencode-telegram-installer}"
 BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/opencode-telegram-bot}"
 SERVICE_NAME="${SERVICE_NAME:-opencode-telegram-bot.service}"
 SOURCE_FILE="$INSTALL_ROOT/payload-source.txt"
-DEFAULT_REPO="${DEFAULT_REPO:-jiqiri/opencode-telegram-installer}"
+DEFAULT_REPO="${DEFAULT_REPO:-jiqiri/cilot}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
 
 log() { printf '[update] %s\n' "$*"; }

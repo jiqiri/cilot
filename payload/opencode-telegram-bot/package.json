@@ -1,7 +1,7 @@
 {
   "name": "@grinev/opencode-telegram-bot",
-  "version": "0.30.1",
-  "description": "Telegram bot client for OpenCode to run and monitor coding tasks from chat.",
+  "version": "0.31.0",
+  "description": "Cilot — a Telegram agent for OpenCode: chat, tools, images and scheduling, with per-account workspaces.",
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
@@ -35,7 +35,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/grinev/opencode-telegram-bot.git"
+    "url": "git+https://github.com/jiqiri/cilot.git"
   },
   "keywords": [
     "opencode",
@@ -48,9 +48,9 @@
   "author": "grinev",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/grinev/opencode-telegram-bot/issues"
+    "url": "https://github.com/jiqiri/cilot/issues"
   },
-  "homepage": "https://github.com/grinev/opencode-telegram-bot#readme",
+  "homepage": "https://github.com/jiqiri/cilot#readme",
   "dependencies": {
     "@google-cloud/text-to-speech": "^6.4.0",
     "@grammyjs/menu": "^1.3.1",

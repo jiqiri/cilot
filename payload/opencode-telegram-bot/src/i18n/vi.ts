@@ -61,7 +61,7 @@ export const vi: I18nDictionary = {
   "common.unknown_error": "lỗi không xác định",
 
   "start.welcome":
-    "👋 Chào mừng đến với OpenCode Telegram Bot!\n\nDùng các lệnh:\n/projects — chọn dự án\n/sessions — danh sách phiên\n/new — phiên mới\n/commands — lệnh tùy chỉnh\n/skills — danh mục skill\n/persona — đổi giọng trợ lý\n/task — tác vụ hẹn giờ\n/tasklist — danh sách tác vụ hẹn giờ\n/status — trạng thái\n/help — trợ giúp\n\nDùng các nút hàng dưới để chọn agent, model và variant.",
+    "👋 Chào mừng đến với Cilot!\n\nDùng các lệnh:\n/projects — chọn dự án\n/sessions — danh sách phiên\n/new — phiên mới\n/commands — lệnh tùy chỉnh\n/skills — danh mục skill\n/persona — đổi giọng trợ lý\n/task — tác vụ hẹn giờ\n/tasklist — danh sách tác vụ hẹn giờ\n/status — trạng thái\n/help — trợ giúp\n\nDùng các nút hàng dưới để chọn agent, model và variant.",
   "help.keyboard_hint":
     "💡 Dùng các nút hàng dưới cho agent, model, variant và các thao tác context.",
   "help.text":
@@ -488,7 +488,7 @@ export const vi: I18nDictionary = {
     "Nhập mật khẩu máy chủ OpenCode (không bắt buộc).\nNhấn Enter để để trống.\n> ",
   "runtime.wizard.api_url_invalid":
     "Nhập một URL hợp lệ (http/https) hoặc nhấn Enter để dùng mặc định.\n",
-  "runtime.wizard.start": "Thiết lập OpenCode Telegram Bot.\n",
+  "runtime.wizard.start": "Thiết lập Cilot.\n",
   "runtime.wizard.saved": "Đã lưu cấu hình:\n- {envPath}\n",
   "runtime.wizard.not_configured_starting":
     "Ứng dụng chưa được cấu hình. Đang khởi động trình hướng dẫn...\n",

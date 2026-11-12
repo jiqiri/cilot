@@ -187,7 +187,7 @@ unset -v __name
 # Point this at your own fork if you have one. update.sh and the bot's own
 # `opencode-telegram update` both read the source recorded at install time, so a fork
 # updates from the fork and never from upstream.
-PAYLOAD_REPO="${PAYLOAD_REPO:-jiqiri/opencode-telegram-installer}"
+PAYLOAD_REPO="${PAYLOAD_REPO:-jiqiri/cilot}"
 PAYLOAD_BRANCH="${PAYLOAD_BRANCH:-main}"
 PAYLOAD_ARCHIVE_URL="${PAYLOAD_ARCHIVE_URL:-https://github.com/$PAYLOAD_REPO/archive/refs/heads/$PAYLOAD_BRANCH.tar.gz}"
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/opencode-telegram-installer}"
@@ -1174,7 +1174,7 @@ WantedBy=default.target
 EOF
   cat >"$USER_SYSTEMD_DIR/opencode-telegram-bot.service" <<EOF
 [Unit]
-Description=OpenCode Telegram Bot
+Description=Cilot Telegram Agent
 Wants=network-online.target opencode-telegram-server.service
 After=network-online.target opencode-telegram-server.service
 

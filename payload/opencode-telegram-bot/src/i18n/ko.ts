@@ -1,7 +1,7 @@
 import type { I18nDictionary } from "./en.js";
 
 /**
- * Korean localization for OpenCode Telegram Bot.
+ * Korean localization for Cilot.
  *
  * Keep upstream emoji and technical terms where they help recognition.
  * Prefer natural Korean wording over literal translation.
@@ -67,7 +67,7 @@ export const ko: I18nDictionary = {
   "common.unknown_error": "알 수 없는 오류",
 
   "start.welcome":
-    "👋 OpenCode Telegram Bot에 오신 것을 환영합니다!\n\n사용 가능한 명령어:\n/projects — 프로젝트 선택\n/sessions — 세션 목록\n/new — 새 세션\n/commands — 사용자 지정 명령어\n/skills — 스킬 카탈로그\n/task — 예약 작업\n/tasklist — 예약 작업 목록\n/status — 상태\n/help — 도움말\n\n아래 버튼으로 에이전트, 모델, 변형을 선택하세요.",
+    "👋 Cilot에 오신 것을 환영합니다!\n\n사용 가능한 명령어:\n/projects — 프로젝트 선택\n/sessions — 세션 목록\n/new — 새 세션\n/commands — 사용자 지정 명령어\n/skills — 스킬 카탈로그\n/task — 예약 작업\n/tasklist — 예약 작업 목록\n/status — 상태\n/help — 도움말\n\n아래 버튼으로 에이전트, 모델, 변형을 선택하세요.",
   "help.keyboard_hint":
     "💡 아래 키보드 버튼으로 에이전트, 모델, 변형 및 컨텍스트 작업을 사용할 수 있습니다.",
   "help.text":
@@ -492,7 +492,7 @@ export const ko: I18nDictionary = {
     "OpenCode 서버 비밀번호를 입력하세요 (선택 사항).\nEnter를 누르면 비워 둡니다.\n> ",
   "runtime.wizard.api_url_invalid":
     "유효한 URL(http/https)을 입력하거나 Enter를 눌러 기본값을 사용하세요.\n",
-  "runtime.wizard.start": "OpenCode Telegram Bot 설정을 시작합니다.\n",
+  "runtime.wizard.start": "Cilot 설정을 시작합니다.\n",
   "runtime.wizard.saved": "설정이 저장되었습니다:\n- {envPath}\n",
   "runtime.wizard.not_configured_starting":
     "아직 구성되지 않았습니다. 설정 마법사를 시작합니다...\n",

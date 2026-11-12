@@ -1,3 +1,22 @@
+## 0.31.0 — Cilot
+
+The project is now **Cilot**, at `https://github.com/jiqiri/cilot`, and the repository is
+public.
+
+- Renamed the product everywhere an operator sees it: README, bot welcome message in all 13
+  locales, CLI messages, startup log, systemd unit description, installer and uninstall
+  output, and the compiled update URL.
+- Added a logo and a new README that describes what the agent does: sessions, tools, images,
+  the Postiz publishing workflow, scheduled tasks, voice, personas and the multi-account
+  model. The previous README became `ARCHITECTURE.md`, which keeps the install, deployment and
+  security details.
+- Internal identifiers deliberately keep the `opencode-telegram-*` prefix — unit names, install
+  directory, `install.env` location, CLI binary and state files — so an existing install
+  upgrades in place. The split is documented in `ARCHITECTURE.md#naming`.
+- `update.ts` now points at `jiqiri/cilot`; a private fork still works through the token path.
+- Removed the operator's real Telegram id from the README and from history: examples use
+  `111111111` / `222222222`.
+
 ## 0.30.1 — a shorter default workspace root
 
 - The default per-account root is now `~/.local/share/tg-workspaces/users` (shared folders

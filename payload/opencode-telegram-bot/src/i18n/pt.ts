@@ -60,7 +60,7 @@ export const pt: I18nDictionary = {
   "common.unknown_error": "erro desconhecido",
 
   "start.welcome":
-    "👋 Bem-vindo ao OpenCode Telegram Bot!\n\nUse os comandos:\n/projects — selecionar projeto\n/sessions — lista de sessões\n/new — nova sessão\n/commands — comandos personalizados\n/skills — catálogo de skills\n/task — tarefa agendada\n/tasklist — tarefas agendadas\n/status — status\n/help — ajuda\n\nUse os botões inferiores para escolher o agente, o modelo e a variante.",
+    "👋 Bem-vindo ao Cilot!\n\nUse os comandos:\n/projects — selecionar projeto\n/sessions — lista de sessões\n/new — nova sessão\n/commands — comandos personalizados\n/skills — catálogo de skills\n/task — tarefa agendada\n/tasklist — tarefas agendadas\n/status — status\n/help — ajuda\n\nUse os botões inferiores para escolher o agente, o modelo e a variante.",
   "help.keyboard_hint":
     "💡 Use os botões do teclado inferior para o agente, o modelo, a variante e as ações de contexto.",
   "help.text":
@@ -502,7 +502,7 @@ export const pt: I18nDictionary = {
     "Digite a senha do servidor OpenCode (opcional).\nPressione Enter para deixá-la vazia.\n> ",
   "runtime.wizard.api_url_invalid":
     "Digite uma URL válida (http/https) ou pressione Enter para usar o padrão.\n",
-  "runtime.wizard.start": "Configuração do OpenCode Telegram Bot.\n",
+  "runtime.wizard.start": "Configuração do Cilot.\n",
   "runtime.wizard.saved": "Configuração salva:\n- {envPath}\n",
   "runtime.wizard.not_configured_starting":
     "O aplicativo ainda não foi configurado. Iniciando o assistente...\n",

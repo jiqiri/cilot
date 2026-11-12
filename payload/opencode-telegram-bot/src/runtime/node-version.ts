@@ -39,7 +39,7 @@ export function getUnsupportedNodeVersionMessage(
   }
 
   return [
-    `OpenCode Telegram Bot requires Node.js ${SUPPORTED_NODE_VERSIONS}, but the current version is v${version}.`,
+    `Cilot requires Node.js ${SUPPORTED_NODE_VERSIONS}, but the current version is v${version}.`,
     "Update Node.js and try again: https://nodejs.org",
   ].join("\n");
 }
