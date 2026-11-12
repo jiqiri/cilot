@@ -4,19 +4,19 @@ set -Eeuo pipefail
 # Remove the stack without touching unrelated user data by default.
 # Use --purge only after reviewing the paths printed by --dry-run.
 
-INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/opencode-telegram-installer}"
+INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/cilot}"
 OPENCODE_MAIN_BIN_DIR="${OPENCODE_MAIN_BIN_DIR:-$HOME/.opencode/bin}"
-OPENCODE_TELEGRAM_BIN_DIR="${OPENCODE_TELEGRAM_BIN_DIR:-$HOME/.opencode-telegram/bin}"
+CILOT_BIN_DIR="${CILOT_BIN_DIR:-$INSTALL_ROOT/bin}"
 OPENCODE_MAIN_CONFIG_DIR="${OPENCODE_MAIN_CONFIG_DIR:-$HOME/.config/opencode}"
-OPENCODE_TELEGRAM_CONFIG_DIR="${OPENCODE_TELEGRAM_CONFIG_DIR:-$HOME/.config/opencode-telegram-server}"
+CILOT_CONFIG_DIR="${CILOT_CONFIG_DIR:-$HOME/.config/cilot}"
 OPENCODE_MAIN_DATA_DIR="${OPENCODE_MAIN_DATA_DIR:-$HOME/.local/share/opencode}"
-OPENCODE_TELEGRAM_DATA_DIR="${OPENCODE_TELEGRAM_DATA_DIR:-$HOME/.local/share/opencode-telegram-server}"
+CILOT_DATA_DIR="${CILOT_DATA_DIR:-$HOME/.local/share/cilot/opencode}"
 OPENCODE_MAIN_STATE_DIR="${OPENCODE_MAIN_STATE_DIR:-$HOME/.local/state/opencode}"
-OPENCODE_TELEGRAM_STATE_DIR="${OPENCODE_TELEGRAM_STATE_DIR:-$HOME/.local/state/opencode-telegram-server}"
+CILOT_STATE_DIR="${CILOT_STATE_DIR:-$HOME/.local/state/cilot/opencode}"
 OPENCODE_MAIN_CACHE_DIR="${OPENCODE_MAIN_CACHE_DIR:-$HOME/.cache/opencode}"
-OPENCODE_TELEGRAM_CACHE_DIR="${OPENCODE_TELEGRAM_CACHE_DIR:-$HOME/.cache/opencode-telegram-server}"
+CILOT_CACHE_DIR="${CILOT_CACHE_DIR:-$HOME/.cache/cilot/opencode}"
 USER_SYSTEMD_DIR="${USER_SYSTEMD_DIR:-$HOME/.config/systemd/user}"
-BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/opencode-telegram-bot}"
+BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
 
 DRY_RUN=0
 PURGE=0
@@ -63,7 +63,7 @@ for arg in "$@"; do
   esac
 done
 
-units=(opencode.service opencode-telegram-server.service opencode-telegram-bot.service)
+units=(opencode.service cilot-server.service cilot-bot.service)
 
 if (( ! DRY_RUN && ! ASSUME_YES )); then
   printf 'This will stop and remove the Cilot stack.\n'
@@ -90,7 +90,7 @@ run systemctl --user reset-failed "${units[@]}" || true
 for file in \
   "$INSTALL_ROOT/opencode-main.env" \
   "$INSTALL_ROOT/opencode-cloudflare.env" \
-  "$INSTALL_ROOT/opencode-telegram-server.env" \
+  "$INSTALL_ROOT/server.env" \
   "$INSTALL_ROOT/opencode-postiz.env" \
   "$BOT_SOURCE_DIR/.env"; do
   remove_path "$file"
@@ -103,23 +103,23 @@ remove_path "$INSTALL_ROOT"
 if (( PURGE )); then
   log 'Removing managed binaries, configuration, and data'
   remove_path "$OPENCODE_MAIN_BIN_DIR/opencode"
-  remove_path "$OPENCODE_TELEGRAM_BIN_DIR/opencode"
+  remove_path "$CILOT_BIN_DIR/opencode"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/plugins/cloudflare-image"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/skills/cf-image-guidance"
-  remove_path "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/tools/image_generate.ts"
-  remove_path "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/skills/cf-image-guidance"
+  remove_path "$CILOT_CONFIG_DIR/opencode/tools/image_generate.ts"
+  remove_path "$CILOT_CONFIG_DIR/opencode/skills/cf-image-guidance"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/package.json"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/package-lock.json"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/node_modules"
-  remove_path "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/package.json"
-  remove_path "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/package-lock.json"
-  remove_path "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/node_modules"
+  remove_path "$CILOT_CONFIG_DIR/opencode/package.json"
+  remove_path "$CILOT_CONFIG_DIR/opencode/package-lock.json"
+  remove_path "$CILOT_CONFIG_DIR/opencode/node_modules"
   remove_path "$OPENCODE_MAIN_DATA_DIR"
-  remove_path "$OPENCODE_TELEGRAM_DATA_DIR"
+  remove_path "$CILOT_DATA_DIR"
   remove_path "$OPENCODE_MAIN_STATE_DIR"
-  remove_path "$OPENCODE_TELEGRAM_STATE_DIR"
+  remove_path "$CILOT_STATE_DIR"
   remove_path "$OPENCODE_MAIN_CACHE_DIR"
-  remove_path "$OPENCODE_TELEGRAM_CACHE_DIR"
+  remove_path "$CILOT_CACHE_DIR"
 else
   log 'Preserving OpenCode binaries, configuration, and data. Use --purge to remove them.'
 fi

@@ -9,7 +9,7 @@ A Linux user-level installer for:
 
 - OpenCode V2 (`2.0.11`) on `127.0.0.1:5100`
 - An isolated OpenCode `2.2.5` server for the Cilot agent on `127.0.0.1:4096`
-- The current `opencode-telegram-bot` source, built with npm
+- The Cilot agent source (`payload/cilot`), built with npm
 - The Telegram tools (`image_generate`, `postiz_check_post`, `postiz_upload_image`) served
   by the bot's own local MCP server, plus a Cloudflare Workers AI `image_generate` plugin
   for the main OpenCode server
@@ -19,9 +19,7 @@ The installer does not require root. It installs into the current user's home di
 services. Root, or passwordless `sudo`, is only needed to install `curl` and `tar` when the machine is
 missing them.
 
-Cilot is the product name. Internal identifiers keep the `opencode-telegram-*` prefix — unit
-names, the install directory, the CLI binary — so an upgrade does not have to move a live
-install or rename its service. See [Naming](#naming) for the exact split.
+Cilot 1.0.0 renamed the deployment, not just the product name. See [Naming](#naming).
 
 ## Documentation
 
@@ -31,23 +29,40 @@ install or rename its service. See [Naming](#naming) for the exact split.
 
 ## Naming
 
-Cilot is a rename of the product, not a rename of the deployment. These identifiers stay as
-they were, because changing them would move a live install, break an upgrade, or invalidate
-an operator's scripts:
+Version 1.0.0 renames every identifier an operator can see or type. There is no
+compatibility layer and no in-place upgrade from 0.x.
 
-| Kept | Why |
+| 0.x | 1.0.0 |
 | --- | --- |
-| `opencode-telegram-bot.service`, `opencode-telegram-server.service` | systemd units already enabled on existing machines |
-| `~/.local/share/opencode-telegram-installer` | install root referenced by `update.sh` and `uninstall.sh` |
-| `~/.config/opencode-telegram-installer/install.env` | where operators keep credentials; never in the repository |
-| `opencode-telegram` CLI | the binary the service and the help text call |
-| `@grinev/opencode-telegram-bot` package name | upstream attribution; the code is a fork, not a rewrite |
-| `/access`, `/user`, `/share` state files | `user-access.json`, `users.json`, `shared-folders.json` |
+| `opencode-telegram-bot.service` | `cilot-bot.service` |
+| `opencode-telegram-server.service` | `cilot-server.service` |
+| `~/.local/share/opencode-telegram-installer` | `~/.local/share/cilot` |
+| `~/.local/share/opencode-telegram-installer/opencode-telegram-bot` | `~/.local/share/cilot/bot` |
+| `~/.config/opencode-telegram-installer/install.env` | `~/.config/cilot/install.env` |
+| `~/.config/opencode-telegram-server` | `~/.config/cilot` |
+| `~/.local/share/opencode-telegram-server` | `~/.local/share/cilot/opencode` |
+| `~/.local/state/opencode-telegram-server` | `~/.local/state/cilot/opencode` |
+| `~/.cache/opencode-telegram-server` | `~/.cache/cilot/opencode` |
+| `~/.opencode-telegram/bin` | `~/.local/share/cilot/bin` |
+| `opencode-telegram` CLI | `cilot` |
+| `OPENCODE_TELEGRAM_*` environment variables | `CILOT_*` |
+| `opencode-telegram-server.env` | `server.env` |
+| `payload/opencode-telegram-bot` | `payload/cilot` |
 
-Everything an operator reads — the README, the bot's welcome message, the CLI messages, the
-systemd unit description, the update URL — says Cilot. The rule is: user-facing name changes,
-machine-facing identifier does not. `opencode-telegram-bot` is also the name of the upstream
-project this fork is based on, so it stays in the licence and in the package metadata.
+A 0.x installation is deprecated, not migrated. Its `update.sh` looks for the old archive and
+payload layout, so it cannot move itself forward; the old units keep running until they are
+removed. To adopt 1.0.0, uninstall the old stack with the old `uninstall.sh`, then install
+again. The parts worth carrying over are data, not code:
+
+- `~/.local/share/tg-workspaces/users/<telegram id>` — workspaces and shared folders
+- `settings.json`, `users.json`, `user-access.json`, `shared-folders.json` — the bot's state
+  files, which live in the bot source directory (inside `~/.local/share/cilot/bot` on an
+  installed machine)
+- `.env` on a source-mode install
+
+Only the package metadata keeps the upstream name: attribution texts and the licence refer to
+`@grinev/opencode-telegram-bot`, because Cilot is a fork, not a rewrite. The bot's own
+package is `cilot` and its binary is `cilot`.
 
 ## Requirements
 
@@ -97,7 +112,7 @@ The installer installs what it can:
 - **A C/C++ toolchain, `make` and `python3`** are installed the same way if absent. The bot
   depends on `better-sqlite3`, whose install script is exactly `node-gyp rebuild` with no
   prebuilt-binary fallback, so `npm ci` cannot complete without them.
-- **Node.js is downloaded from nodejs.org into `~/.local/share/opencode-telegram-installer/bin`**
+- **Node.js is downloaded from nodejs.org into `~/.local/share/cilot/bin`**
   when the machine has no Node, or has one older than the `^22.14.0 || ^23.6.0 || >=24` engine
   the bot declares.
 
@@ -143,12 +158,12 @@ sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
 ## Usage
 
 1. Download this repository, or download only `install.sh`; when the local `payload/` directory is absent, the script downloads the matching repository payload automatically.
-2. Put your credentials in `install.env`, created outside the repository at `~/.config/opencode-telegram-installer/install.env`. A fresh install writes this file for you, but you can create it first:
+2. Put your credentials in `install.env`, created outside the repository at `~/.config/cilot/install.env`. A fresh install writes this file for you, but you can create it first:
 
 ```bash
-mkdir -p ~/.config/opencode-telegram-installer
-cp install.env.example ~/.config/opencode-telegram-installer/install.env
-$EDITOR ~/.config/opencode-telegram-installer/install.env
+mkdir -p ~/.config/cilot
+cp install.env.example ~/.config/cilot/install.env
+$EDITOR ~/.config/cilot/install.env
 ```
 
 ```bash
@@ -186,7 +201,7 @@ The script validates placeholders before writing credentials. Secrets are writte
 
 ## Settings and credentials
 
-Credentials are read from a file, not from `install.sh`, and the file lives **outside the repository**, at `~/.config/opencode-telegram-installer/install.env`.
+Credentials are read from a file, not from `install.sh`, and the file lives **outside the repository**, at `~/.config/cilot/install.env`.
 
 Outside matters because the repository is disposable. Re-cloning into a new directory is the normal way to pick up a fix, and anything stored inside the checkout is destroyed by that. A file inside the repo also means `git pull` can conflict with your own tokens.
 
@@ -194,7 +209,7 @@ Looked for in this order, first match wins:
 
 1. the environment, so `TELEGRAM_BOT_TOKEN=... ./install.sh` overrides the file
 2. `--env-file PATH`, or the `INSTALL_ENV_FILE` environment variable
-3. `~/.config/opencode-telegram-installer/install.env`
+3. `~/.config/cilot/install.env`
 4. `./install.env`, if you keep it in the checkout
 5. the placeholders at the top of `install.sh`, which then fail and name the value that is missing
 
@@ -212,8 +227,8 @@ No credentials re-entered, no merge conflict, and the settings survive a re-clon
 If you have an older `install.env` sitting in the checkout, move it out:
 
 ```bash
-mkdir -p ~/.config/opencode-telegram-installer
-mv install.env ~/.config/opencode-telegram-installer/install.env
+mkdir -p ~/.config/cilot
+mv install.env ~/.config/cilot/install.env
 ```
 
 The installer does this for you on the next run, and says so, but only when the new location does not already exist. A file named explicitly with `--env-file` is left where it is.
@@ -241,11 +256,11 @@ Two kinds of secret are stored differently:
 | Kind | Stored as | Takes effect |
 | --- | --- | --- |
 | Provider key | written through the server's integration API | immediately |
-| Env secret | `~/.config/opencode-telegram-server/secrets.json` (mode `600`), rendered to `secrets.env` (mode `600`) | after the button that restarts `opencode-telegram-server.service` is pressed |
+| Env secret | `~/.config/cilot/secrets.json` (mode `600`), rendered to `secrets.env` (mode `600`) | after the button that restarts `cilot-server.service` is pressed |
 
 The restart is a button rather than automatic so a half-entered set of secrets never reaches
 a running server. The installer writes `SECRETS_FILE` and `SECRETS_ENV_FILE` to
-`opencode-telegram-server.env`, which both units load, and `OPENCODE_SERVER_UNIT` to the bot's
+`server.env`, which both units load, and `OPENCODE_SERVER_UNIT` to the bot's
 `.env`; the server unit loads `secrets.env` with an optional `EnvironmentFile` so the first
 install works before any secret exists.
 
@@ -255,52 +270,54 @@ By default:
 
 ```text
 ~/.opencode/bin/opencode
-~/.opencode-telegram/bin/opencode
-~/.local/share/opencode-telegram-installer/opencode-telegram-bot
+~/.local/share/cilot/bin/opencode
+~/.local/share/cilot/bot                     # bot source and build
+~/.local/share/cilot/server.env              # credentials shared by both units
+~/.config/cilot/install.env                  # installer input, mode 600
 ~/.config/opencode/plugins/cloudflare-image/index.js
-~/.config/opencode-telegram-server/opencode/opencode.jsonc   # registers mcp.servers.telegram
-~/.config/opencode-telegram-server/opencode/AGENTS.md
-~/.config/opencode-telegram-server/opencode/agents/postiz-social.md
-~/.config/opencode-telegram-server/opencode/skills/postiz-guidance/SKILL.md
-~/.config/opencode-telegram-server/secrets.json              # /vault store, mode 600
-~/.config/opencode-telegram-server/secrets.env               # rendered for the server unit, mode 600
+~/.config/cilot/opencode/opencode.jsonc   # registers mcp.servers.telegram
+~/.config/cilot/opencode/AGENTS.md
+~/.config/cilot/opencode/agents/postiz-social.md
+~/.config/cilot/opencode/skills/postiz-guidance/SKILL.md
+~/.config/cilot/secrets.json              # /vault store, mode 600
+~/.config/cilot/secrets.env               # rendered for the server unit, mode 600
 ~/.config/systemd/user/opencode.service
-~/.config/systemd/user/opencode-telegram-server.service
-~/.config/systemd/user/opencode-telegram-bot.service
+~/.config/systemd/user/cilot-server.service
+~/.config/systemd/user/cilot-bot.service
 ```
 
 The generated Cloudflare credentials file is:
 
 ```text
-~/.local/share/opencode-telegram-installer/opencode-cloudflare.env
+~/.local/share/cilot/opencode-cloudflare.env
 ```
 
 If Postiz is enabled, its token is stored separately in:
 
 ```text
-~/.local/share/opencode-telegram-installer/opencode-postiz.env
+~/.local/share/cilot/opencode-postiz.env
 ```
 
 ## Telegram agent configuration
 
 The Telegram bot talks to its own OpenCode instance whose global config root is
-`~/.config/opencode-telegram-server/opencode` (the service sets `XDG_CONFIG_HOME` to
-`~/.config/opencode-telegram-server`). Edit these files to change agent behaviour:
+`~/.config/cilot/opencode` (the service sets `XDG_CONFIG_HOME` to
+`~/.config/cilot`). Edit these files to change agent behaviour:
 
 | Purpose | File |
 | --- | --- |
-| Rules applied to every agent | `~/.config/opencode-telegram-server/opencode/AGENTS.md` |
-| Dedicated social-publishing agent | `~/.config/opencode-telegram-server/opencode/agents/postiz-social.md` |
-| Postiz workflow reference | `~/.config/opencode-telegram-server/opencode/skills/postiz-guidance/SKILL.md` |
-| Cloudflare image guidance | `~/.config/opencode-telegram-server/opencode/skills/cf-image-guidance/SKILL.md` |
+| Rules applied to every agent | `~/.config/cilot/opencode/AGENTS.md` |
+| Dedicated social-publishing agent | `~/.config/cilot/opencode/agents/postiz-social.md` |
+| Postiz workflow reference | `~/.config/cilot/opencode/skills/postiz-guidance/SKILL.md` |
+| Cloudflare image guidance | `~/.config/cilot/opencode/skills/cf-image-guidance/SKILL.md` |
 
 `postiz-social` is a `primary` agent, so it appears in the bot's agent switcher. To make it
 the default, add `"default_agent": "postiz-social"` to
-`~/.config/opencode-telegram-server/opencode/opencode.jsonc`. Restart the service to pick up
+`~/.config/cilot/opencode/opencode.jsonc`. Restart the service to pick up
 changes:
 
 ```bash
-systemctl --user restart opencode-telegram-server.service
+systemctl --user restart cilot-server.service
 ```
 
 ### Image attachments and Postiz
@@ -337,7 +354,7 @@ That endpoint uses a different auth header format than the MCP transport:
 
 Both use the same API key. `install.sh` derives `POSTIZ_API_URL` from `POSTIZ_MCP_URL` by
 stripping the trailing `/mcp` and writes all three variables to
-`~/.local/share/opencode-telegram-installer/opencode-postiz.env` (mode `600`), which is
+`~/.local/share/cilot/opencode-postiz.env` (mode `600`), which is
 loaded by both OpenCode services.
 
 Generated images are written to `$XDG_DATA_HOME/opencode-generated-images`, which differs per
@@ -353,8 +370,8 @@ Personas live in two places, and only one of them is in this repository:
 | Path | Contents | In git? |
 | --- | --- | --- |
 | `payload/personas/*.md` | Starter templates shipped to a new install | Yes, version controlled |
-| `~/.config/opencode-telegram-server/opencode/personas/*.md` | Your actual library, edited by the bot | No, outside any repo |
-| `~/.config/opencode-telegram-server/opencode/PERSONA.md` | The active persona, rewritten on every switch | No, mode `600` |
+| `~/.config/cilot/opencode/personas/*.md` | Your actual library, edited by the bot | No, outside any repo |
+| `~/.config/cilot/opencode/PERSONA.md` | The active persona, rewritten on every switch | No, mode `600` |
 
 The live library is not a git repository, so there is nothing to ignore. Editing a persona with
 `/persona` → Edit text, or creating one with Create, only ever touches the live path. Do not
@@ -427,7 +444,7 @@ You used <em>, <strong> to stress a word; a social network renders none of it.
 Get the emphasis from the sentence instead. Remove every tag and rewrite.
 ```
 
-To loosen both cases, in `~/.config/opencode-telegram-installer/install.env`:
+To loosen both cases, in `~/.config/cilot/install.env`:
 
 ```bash
 POSTIZ_CONTENT_FORMAT=html
@@ -465,12 +482,12 @@ persona and the overlay is emptied entirely, leaving the model on its default vo
 Telegram
   │
   ▼
-opencode-telegram-bot.service          grammy; decides who you are and what you may do
+cilot-bot.service          grammy; decides who you are and what you may do
   │  access-control.ts → policy: deny | standard | admin
   │  per-account state in settings.json, keyed by Telegram id
   │  realpath containment for every path it hands to OpenCode
   ▼
-opencode-telegram-server.service      opencode 2.2.5 on 127.0.0.1:4096
+cilot-server.service      opencode 2.2.5 on 127.0.0.1:4096
   │  enforces tool permissions itself: bash, edit, external_directory, MCP
   │  agents: social-media (restricted), postiz-social, build, plan, …
   │  MCP servers: telegram (image_generate, postiz_check_post, postiz_upload_image), postiz
@@ -516,10 +533,10 @@ Unknown ids get nothing. Adding a user is a deliberate edit, not a side effect o
 being reachable. An id in both lists is admin.
 
 ```bash
-# ~/.config/opencode-telegram-installer/install.env
+# ~/.config/cilot/install.env
 TELEGRAM_ALLOWED_USER_ID=111111111,222222222   # standard accounts
 TELEGRAM_ADMIN_USER_IDS=999999999              # admin
-OPENCODE_TELEGRAM_CONFINE_ADMINS=false         # true: admin stays inside its own folder
+CILOT_CONFINE_ADMINS=false         # true: admin stays inside its own folder
 ```
 
 The decision happens in `access-control.ts`, before a session is created or selected, and
@@ -527,8 +544,8 @@ never involves the model. Command menus are filtered per policy, and admin-only 
 refused at dispatch rather than merely hidden.
 
 The safe default is `/access off`, which confines everyone — the admin included — to
-`OPENCODE_TELEGRAM_USER_ROOT/<id>`, the same boundary a standard account gets. `/access on`
-lifts that for the admin only. `OPENCODE_TELEGRAM_CONFINE_ADMINS=true` keeps the admin inside
+`CILOT_USER_ROOT/<id>`, the same boundary a standard account gets. `/access on`
+lifts that for the admin only. `CILOT_CONFINE_ADMINS=true` keeps the admin inside
 that folder even when the switch is on, for operators who never want the bot to see the rest
 of the machine.
 
@@ -542,7 +559,7 @@ of the machine.
 | `sessions.json` ownership | an account can only open sessions it owns; checked at the point of use, not when listing |
 | project authorization | narrowed in the application, because OpenCode's `/project` ignores `directory` and answers globally |
 | realpath containment | `..` and symlinks cannot leave a root; the string-prefix version was the bug |
-| per-account workspace | `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` |
+| per-account workspace | `CILOT_USER_ROOT/<telegram id>/projects` |
 | shared folder | `shared/<name>`, only for the ids named by the primary admin in `/share` |
 | personal project | created on demand and shown in `/projects`, so a standard account can use `/new` before the server knows the directory |
 | OpenCode permissions | `bash`, `edit` outside the workspace, `webfetch` and `external_directory` are **denied in the server**, not requested in a prompt |
@@ -552,7 +569,7 @@ of the machine.
 
 A restricted account has no shell, so the workspace boundary is a real boundary rather than a
 convention. Admins are trusted in this model and are not confined to their own workspace
-unless `OPENCODE_TELEGRAM_CONFINE_ADMINS=true` is set. Even then, confinement covers the
+unless `CILOT_CONFINE_ADMINS=true` is set. Even then, confinement covers the
 bot's own paths and project/session selection; an agent with `bash` still runs as the Linux
 user and can read whatever that user can read. Use a separate Linux account or a container
 when the shell itself must be contained.
@@ -631,7 +648,7 @@ leaves the files on disk, so a typo cannot destroy data.
 
 | Path | Who can reach it |
 | --- | --- |
-| `OPENCODE_TELEGRAM_USER_ROOT/<telegram id>/projects` | that account only |
+| `CILOT_USER_ROOT/<telegram id>/projects` | that account only |
 | `shared/<name>` | the ids in the grant list |
 | anything else | admin only |
 
@@ -670,7 +687,7 @@ MCP authorization framework: OpenCode owns tool execution and its permission sys
 
 Agent definitions are markdown with a `permission` map in the frontmatter, in
 `payload/postiz-agent/agents/`, installed into
-`~/.config/opencode-telegram-server/opencode/agents/`. They are static and role-based; no
+`~/.config/cilot/opencode/agents/`. They are static and role-based; no
 agent is created per user. Entries declared there are **appended** to OpenCode's own defaults
 and evaluated last-match-wins, which is the same mechanism the built-in `plan` agent uses.
 
@@ -722,7 +739,7 @@ Not covered, deliberately or because it is out of reach here:
 ## Translations
 
 Every user-facing string in the Telegram bot goes through `t("key")` and lives in
-`payload/opencode-telegram-bot/src/i18n/<locale>.ts`. `en.ts` is the source of truth and defines
+`payload/cilot/src/i18n/<locale>.ts`. `en.ts` is the source of truth and defines
 the `I18nKey` union; every other file is typed as `I18nDictionary = Record<I18nKey, string>`.
 
 That type is the guard. If a locale is missing a key, `npm run build` inside the bot package
@@ -771,9 +788,9 @@ design.
 ./update.sh --no-restart # update, leave the running service alone
 ```
 
-Installed machines get the same script at `~/.local/share/opencode-telegram-installer/update.sh`, so it can be run from anywhere.
+Installed machines get the same script at `~/.local/share/cilot/update.sh`, so it can be run from anywhere.
 
-The script does the work itself instead of delegating to the bot's `update` subcommand, because that subcommand only exists from this release onwards. Delegating would make the first update impossible on any machine installed before it. The bot's own `opencode-telegram update [--check]` remains available once updated, and does the same work without restarting the service.
+The script does the work itself instead of delegating to the bot's `update` subcommand, because that subcommand only exists from this release onwards. Delegating would make the first update impossible on any machine installed before it. The bot's own `cilot update [--check]` remains available once updated, and does the same work without restarting the service.
 
 Change detection compares a fingerprint of the tracked source files, not the bot's version number. The payload also carries personas, skills, agent guidance and tools, and those change without `package.json` moving, so a version comparison would skip most published updates. `npm ci` and the build only run when the dependency set actually changed, so a routine update that touches one file is a file copy rather than a five minute install.
 
@@ -784,10 +801,10 @@ Change detection compares a fingerprint of the tracked source files, not the bot
 The bot package itself is vendored from `grinev/opencode-telegram-bot`, and that is *not* where updates come from. `install.sh` records where it actually fetched the payload from:
 
 ```text
-~/.local/share/opencode-telegram-installer/payload-source.txt
+~/.local/share/cilot/payload-source.txt
 ```
 
-Both `update.sh` and `opencode-telegram update` prefer that file, so a machine installed from your fork updates from your fork. The URL compiled into the bot is only a last resort, and it warns when it falls back to it.
+Both `update.sh` and `cilot update` prefer that file, so a machine installed from your fork updates from your fork. The URL compiled into the bot is only a last resort, and it warns when it falls back to it.
 
 To install from your own fork, set these at the top of `install.sh` before running it:
 
@@ -796,12 +813,12 @@ PAYLOAD_REPO="your-org/your-fork"
 PAYLOAD_BRANCH="main"        # or your branch
 ```
 
-After the first install, `payload-source.txt` follows that fork, and so does every later update. Check it at any time with `cat ~/.local/share/opencode-telegram-installer/payload-source.txt`.
+After the first install, `payload-source.txt` follows that fork, and so does every later update. Check it at any time with `cat ~/.local/share/cilot/payload-source.txt`.
 
 One-off override, without changing the recorded source:
 
 ```bash
-OPENCODE_TELEGRAM_UPDATE_URL=https://github.com/other/repo/archive/refs/heads/main.tar.gz ./update.sh
+CILOT_UPDATE_URL=https://github.com/other/repo/archive/refs/heads/main.tar.gz ./update.sh
 ```
 
 ## Adding another Telegram user
@@ -819,7 +836,7 @@ Each account gets its own project, session, agent, model, persona, hidden projec
 
    ```bash
    ./install.sh
-   systemctl --user restart opencode-telegram-bot.service
+   systemctl --user restart cilot-bot.service
    ```
 
 The first id is the **primary account**. It is used for startup session restore, and it adopts the sessions that already exist so nothing is lost when you add a second account. Later accounts start empty and only ever see what they create.
@@ -841,8 +858,8 @@ The first id is the **primary account**. It is used for startup session restore,
 ```bash
 opencode plugin list
 systemctl --user status opencode.service
-systemctl --user status opencode-telegram-server.service
-systemctl --user status opencode-telegram-bot.service
+systemctl --user status cilot-server.service
+systemctl --user status cilot-bot.service
 ```
 
 The Telegram-side OpenCode server should list the three `telegram_*` tools among its tools. From Telegram, start a new session and request an image, for example:

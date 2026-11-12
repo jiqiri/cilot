@@ -26,7 +26,7 @@ là **tầng agent + tầng đường dẫn**, không phải tầng tiến trìn
 
 ## 2. Workspace trên đĩa
 
-Mặc định (`OPENCODE_TELEGRAM_USER_ROOT` không đặt):
+Mặc định (`CILOT_USER_ROOT` không đặt):
 
 ```text
 ~/.local/share/tg-workspaces/
@@ -41,18 +41,18 @@ Mặc định (`OPENCODE_TELEGRAM_USER_ROOT` không đặt):
 Ảnh do tool sinh ra mặc định nằm ở `~/.local/share/opencode-generated-images` (hoặc
 `OPENCODE_IMAGE_DIR`), có ghi chủ sở hữu theo account.
 
-Tên thư mục mặc định là `tg-workspaces`, không phải `opencode-telegram-server`: chuỗi sau
+Tên thư mục mặc định là `tg-workspaces`, không phải `cilot-server`: chuỗi sau
 cũng là tên systemd unit, nên dễ bị đọc nhầm thành service và quá dài. Đây là thư mục dữ
 liệu, tách khỏi thư mục cài đặt (nơi có `settings.json`, `.env`).
 
-Nếu đặt `OPENCODE_TELEGRAM_USER_ROOT=/srv/tg/users` thì workspace là
+Nếu đặt `CILOT_USER_ROOT=/srv/tg/users` thì workspace là
 `/srv/tg/users/<telegram id>/projects`, còn shared folder là `/srv/tg/shared/<tên>`.
 
 Mỗi tài khoản có một project cá nhân tổng hợp:
 
 ```text
 id:       personal:<telegram id>
-worktree: <OPENCODE_TELEGRAM_USER_ROOT>/<telegram id>/projects
+worktree: <CILOT_USER_ROOT>/<telegram id>/projects
 ```
 
 Project này được tạo khi cần và hiện trong `/projects`, nên dùng được `/new` ngay cả khi
@@ -74,7 +74,7 @@ OpenCode chưa từng thấy thư mục đó. Khi `/access off`, admin cũng ch�
 
 `/access off` không chặn user thường. Việc chặn một tài khoản nằm ở `/user`.
 
-`OPENCODE_TELEGRAM_CONFINE_ADMINS=true` là lựa chọn riêng: ngay cả khi `/access on`, admin
+`CILOT_CONFINE_ADMINS=true` là lựa chọn riêng: ngay cả khi `/access on`, admin
 chính cũng chỉ ở trong workspace của mình.
 
 ## 4. `/access` — mở khoá toàn quyền cho admin
@@ -194,8 +194,8 @@ tách Linux user/container và/hoặc dựng LLM proxy để agent chỉ thấy 
 | --- | --- |
 | `TELEGRAM_ADMIN_USER_IDS` | Danh sách id admin, id đầu tiên là admin chính |
 | `TELEGRAM_ALLOWED_USER_ID` / `TELEGRAM_ALLOWED_USER_IDS` | Allowlist gốc cho user thường |
-| `OPENCODE_TELEGRAM_USER_ROOT` | Gốc workspace chia theo id; mặc định `~/.local/share/tg-workspaces/users` |
-| `OPENCODE_TELEGRAM_CONFINE_ADMINS` | `true` để admin chính chỉ ở workspace của mình dù `/access on` |
+| `CILOT_USER_ROOT` | Gốc workspace chia theo id; mặc định `~/.local/share/tg-workspaces/users` |
+| `CILOT_CONFINE_ADMINS` | `true` để admin chính chỉ ở workspace của mình dù `/access on` |
 | `OPENCODE_IMAGE_DIR` | Nơi ghi ảnh sinh ra |
 
 File trạng thái (đều nên ở mode `600`):
@@ -211,9 +211,9 @@ File trạng thái (đều nên ở mode `600`):
 ## 10. Kiểm tra và xử lý sự cố
 
 ```bash
-systemctl --user status opencode-telegram-bot.service
-systemctl --user status opencode-telegram-server-v2.service
-journalctl --user -u opencode-telegram-bot.service -n 50 --no-pager
+systemctl --user status cilot-bot.service
+systemctl --user status cilot-server.service
+journalctl --user -u cilot-bot.service -n 50 --no-pager
 ```
 
 - **Admin không thấy project ngoài workspace**: bình thường khi `/access off`. Gõ

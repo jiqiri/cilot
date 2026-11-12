@@ -11,7 +11,7 @@
 # put back, so the Telegram token, the OpenCode credentials and per-account state survive.
 #
 # Where updates come from:
-#   1. OPENCODE_TELEGRAM_UPDATE_URL, for a one-off override.
+#   1. CILOT_UPDATE_URL, for a one-off override.
 #   2. payload-source.txt, written by the installer. This is what keeps a fork updating
 #      from the fork; nothing here is tied to an upstream owner.
 #   3. The built-in default, with a warning.
@@ -24,9 +24,9 @@
 
 set -euo pipefail
 
-INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/opencode-telegram-installer}"
-BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/opencode-telegram-bot}"
-SERVICE_NAME="${SERVICE_NAME:-opencode-telegram-bot.service}"
+INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/cilot}"
+BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
+SERVICE_NAME="${SERVICE_NAME:-cilot-bot.service}"
 SOURCE_FILE="$INSTALL_ROOT/payload-source.txt"
 DEFAULT_REPO="${DEFAULT_REPO:-jiqiri/cilot}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
@@ -64,7 +64,7 @@ mkdir -p "$INSTALL_ROOT"
 
 # ------------------------------------------------------- resolve the source
 archive_url() {
-  local override="${OPENCODE_TELEGRAM_UPDATE_URL:-}"
+  local override="${CILOT_UPDATE_URL:-}"
   if [[ -n "$override" ]]; then
     printf '%s' "$override"
     return
@@ -134,7 +134,7 @@ command -v npm >/dev/null 2>&1 || die "npm is required but was not found on PATH
 # credential store git itself uses. Reading the last one means a machine that can push can
 # also update, without keeping a second copy of the same secret.
 github_token() {
-  local token="${OPENCODE_TELEGRAM_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+  local token="${CILOT_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
   if [[ -n "$token" ]]; then
     printf '%s' "$token"
     return
@@ -214,7 +214,7 @@ fi
 command -v tar >/dev/null 2>&1 || die "tar is required but was not found on PATH."
 tar -xzf "$WORKDIR/payload.tar.gz" -C "$WORKDIR" || die "Could not unpack the archive."
 
-PAYLOAD_DIR="$(find "$WORKDIR" -mindepth 1 -maxdepth 1 -type d -name '*opencode-telegram-installer*' -print -quit)/payload/opencode-telegram-bot"
+PAYLOAD_DIR="$(find "$WORKDIR" -mindepth 1 -maxdepth 1 -type d -name '*cilot*' -print -quit)/payload/cilot"
 [[ -d "$PAYLOAD_DIR" ]] || die "Downloaded archive does not contain the installer payload."
 [[ -f "$PAYLOAD_DIR/package.json" ]] || die "Payload is missing package.json."
 

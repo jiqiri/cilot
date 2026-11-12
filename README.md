@@ -102,7 +102,7 @@ never needs SSH to undo.
 Telegram
    │
    ▼
-opencode-telegram-bot.service        identifies the account, applies policy
+cilot-bot.service        identifies the account, applies policy
    │  workspace + settings per Telegram id
    ▼
 OpenCode server (127.0.0.1:4096)     runs the agent, owns tool permissions
@@ -132,9 +132,9 @@ cd cilot
 Put credentials outside the repository:
 
 ```bash
-mkdir -p ~/.config/opencode-telegram-installer
-cp install.env.example ~/.config/opencode-telegram-installer/install.env
-$EDITOR ~/.config/opencode-telegram-installer/install.env
+mkdir -p ~/.config/cilot
+cp install.env.example ~/.config/cilot/install.env
+$EDITOR ~/.config/cilot/install.env
 ```
 
 ```bash
@@ -210,7 +210,7 @@ and [USAGE.md](./USAGE.md) (Vietnamese).
 ├── USAGE.md                    operator guide in Vietnamese
 ├── assets/cilot-logo.png
 ├── payload/
-│   ├── opencode-telegram-bot/  the bot source, built with npm
+│   ├── cilot/                  the bot source, built with npm
 │   ├── postiz-agent/           the social-publishing agent definition
 │   └── personas/               starter persona templates
 └── tools/                      installer helpers

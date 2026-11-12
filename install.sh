@@ -11,7 +11,7 @@ usage() {
   cat <<'USAGE'
 Usage: ./install.sh [options]
 
-Installs OpenCode, the Telegram bot, the Cloudflare image tool, and the user
+Installs OpenCode, the Cilot agent, the Cloudflare image tool, and the user
 services. Settings and credentials are read from install.env, not from this
 file, so `git pull` never conflicts with them. See README.md.
 
@@ -24,12 +24,12 @@ Options:
 Settings are taken from the first of these that provides them:
   1. the environment
   2. --env-file PATH, or $INSTALL_ENV_FILE
-  3. ~/.config/opencode-telegram-installer/install.env
+  3. ~/.config/cilot/install.env
   4. ./install.env, if you keep it in the checkout
   5. the placeholders at the top of this file, which then fail and say what is missing
 
 The file lives outside the repository on purpose. A fresh install writes it to
-~/.config/opencode-telegram-installer/install.env, because re-cloning the repo
+~/.config/cilot/install.env, because re-cloning the repo
 into a new directory is how you normally pick up a fix, and that would take
 anything stored inside the checkout with it.
 USAGE
@@ -57,13 +57,13 @@ done
 # In order of precedence, first match wins:
 #   1. the environment                       TELEGRAM_BOT_TOKEN=... ./install.sh
 #   2. INSTALL_ENV_FILE, or --env-file PATH  an explicit path
-#   3. ~/.config/opencode-telegram-installer/install.env    the default location
+#   3. ~/.config/cilot/install.env    the default location
 #   4. ./install.env                         legacy, next to this script, warned about
 #   5. the placeholders below, which fail validation and name what is missing
 #
 # The file is plain KEY=value lines and is sourced, so it can hold quotes and spaces. The
 # installer creates it with mode 600 and never overwrites an existing one.
-SETTINGS_DIR="${SETTINGS_DIR:-$HOME/.config/opencode-telegram-installer}"
+SETTINGS_DIR="${SETTINGS_DIR:-$HOME/.config/cilot}"
 DEFAULT_ENV_FILE="$SETTINGS_DIR/install.env"
 LEGACY_ENV_FILE="$SCRIPT_DIR/install.env"
 
@@ -124,8 +124,8 @@ TELEGRAM_BOT_TOKEN="${TELEGRAM_BOT_TOKEN:-REPLACE_WITH_TELEGRAM_BOT_TOKEN}"
 TELEGRAM_ALLOWED_USER_IDS="${TELEGRAM_ALLOWED_USER_IDS:-}"
 TELEGRAM_ALLOWED_USER_ID="${TELEGRAM_ALLOWED_USER_ID:-REPLACE_WITH_TELEGRAM_ALLOWED_USER_ID}"
 TELEGRAM_ADMIN_USER_IDS="${TELEGRAM_ADMIN_USER_IDS:-}"
-OPENCODE_TELEGRAM_CONFINE_ADMINS="${OPENCODE_TELEGRAM_CONFINE_ADMINS:-false}"
-OPENCODE_TELEGRAM_USER_ROOT="${OPENCODE_TELEGRAM_USER_ROOT:-}"
+CILOT_CONFINE_ADMINS="${CILOT_CONFINE_ADMINS:-false}"
+CILOT_USER_ROOT="${CILOT_USER_ROOT:-}"
 CF_WORKERS_AI_ACCOUNT="${CF_WORKERS_AI_ACCOUNT:-REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID}"
 CF_WORKERS_AI_TOKEN="${CF_WORKERS_AI_TOKEN:-REPLACE_WITH_CLOUDFLARE_API_TOKEN}"
 POSTIZ_MCP_URL="${POSTIZ_MCP_URL:-REPLACE_WITH_POSTIZ_MCP_URL}"
@@ -161,8 +161,8 @@ INSTALLER_SETTINGS=(
   TELEGRAM_ALLOWED_USER_ID
   TELEGRAM_ALLOWED_USER_IDS
   TELEGRAM_ADMIN_USER_IDS
-  OPENCODE_TELEGRAM_CONFINE_ADMINS
-  OPENCODE_TELEGRAM_USER_ROOT
+  CILOT_CONFINE_ADMINS
+  CILOT_USER_ROOT
   CF_WORKERS_AI_ACCOUNT
   CF_WORKERS_AI_TOKEN
   POSTIZ_MCP_URL
@@ -185,30 +185,30 @@ done
 unset -v __name
 
 # Point this at your own fork if you have one. update.sh and the bot's own
-# `opencode-telegram update` both read the source recorded at install time, so a fork
+# `cilot update` both read the source recorded at install time, so a fork
 # updates from the fork and never from upstream.
 PAYLOAD_REPO="${PAYLOAD_REPO:-jiqiri/cilot}"
 PAYLOAD_BRANCH="${PAYLOAD_BRANCH:-main}"
 PAYLOAD_ARCHIVE_URL="${PAYLOAD_ARCHIVE_URL:-https://github.com/$PAYLOAD_REPO/archive/refs/heads/$PAYLOAD_BRANCH.tar.gz}"
-INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/opencode-telegram-installer}"
+INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/cilot}"
 OPENCODE_MAIN_BIN_DIR="${OPENCODE_MAIN_BIN_DIR:-$HOME/.opencode/bin}"
-OPENCODE_TELEGRAM_BIN_DIR="${OPENCODE_TELEGRAM_BIN_DIR:-$HOME/.opencode-telegram/bin}"
+CILOT_BIN_DIR="${CILOT_BIN_DIR:-$INSTALL_ROOT/bin}"
 OPENCODE_MAIN_CONFIG_DIR="${OPENCODE_MAIN_CONFIG_DIR:-$HOME/.config/opencode}"
-OPENCODE_TELEGRAM_CONFIG_DIR="${OPENCODE_TELEGRAM_CONFIG_DIR:-$HOME/.config/opencode-telegram-server}"
+CILOT_CONFIG_DIR="${CILOT_CONFIG_DIR:-$HOME/.config/cilot}"
 OPENCODE_MAIN_DATA_DIR="${OPENCODE_MAIN_DATA_DIR:-$HOME/.local/share/opencode}"
-OPENCODE_TELEGRAM_DATA_DIR="${OPENCODE_TELEGRAM_DATA_DIR:-$HOME/.local/share/opencode-telegram-server}"
+CILOT_DATA_DIR="${CILOT_DATA_DIR:-$HOME/.local/share/cilot/opencode}"
 OPENCODE_MAIN_STATE_DIR="${OPENCODE_MAIN_STATE_DIR:-$HOME/.local/state/opencode}"
-OPENCODE_TELEGRAM_STATE_DIR="${OPENCODE_TELEGRAM_STATE_DIR:-$HOME/.local/state/opencode-telegram-server}"
+CILOT_STATE_DIR="${CILOT_STATE_DIR:-$HOME/.local/state/cilot/opencode}"
 OPENCODE_MAIN_CACHE_DIR="${OPENCODE_MAIN_CACHE_DIR:-$HOME/.cache/opencode}"
-OPENCODE_TELEGRAM_CACHE_DIR="${OPENCODE_TELEGRAM_CACHE_DIR:-$HOME/.cache/opencode-telegram-server}"
+CILOT_CACHE_DIR="${CILOT_CACHE_DIR:-$HOME/.cache/cilot/opencode}"
 USER_SYSTEMD_DIR="${USER_SYSTEMD_DIR:-$HOME/.config/systemd/user}"
-BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/opencode-telegram-bot}"
+BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
 OPENCODE_MAIN_URL="${OPENCODE_MAIN_URL:-http://127.0.0.1:5100}"
-OPENCODE_TELEGRAM_URL="${OPENCODE_TELEGRAM_URL:-http://127.0.0.1:4096}"
+CILOT_URL="${CILOT_URL:-http://127.0.0.1:4096}"
 OPENCODE_MAIN_VERSION="2.0.11"
 # The Telegram server runs the 2.x API: the bot's V2 adapter talks to it, and the three
 # tools that used to be files in `opencode/tools/` are served by the bot's own MCP server.
-OPENCODE_TELEGRAM_VERSION="2.2.5"
+CILOT_VERSION="2.2.5"
 
 require_command() { command -v "$1" >/dev/null 2>&1 || die "Required command not found: $1"; }
 
@@ -568,8 +568,8 @@ write_settings_file() {
       echo "TELEGRAM_ALLOWED_USER_IDS=${TELEGRAM_ALLOWED_USER_IDS-}"
     fi
     echo "TELEGRAM_ADMIN_USER_IDS=${TELEGRAM_ADMIN_USER_IDS-}"
-    echo "OPENCODE_TELEGRAM_CONFINE_ADMINS=${OPENCODE_TELEGRAM_CONFINE_ADMINS-}"
-    echo "OPENCODE_TELEGRAM_USER_ROOT=${OPENCODE_TELEGRAM_USER_ROOT-}"
+    echo "CILOT_CONFINE_ADMINS=${CILOT_CONFINE_ADMINS-}"
+    echo "CILOT_USER_ROOT=${CILOT_USER_ROOT-}"
     echo "CF_WORKERS_AI_ACCOUNT=${CF_WORKERS_AI_ACCOUNT-}"
     echo "CF_WORKERS_AI_TOKEN=${CF_WORKERS_AI_TOKEN-}"
     if [[ -n "${POSTIZ_MCP_URL:-}" ]]; then
@@ -613,11 +613,11 @@ validate_placeholders() {
   if [[ -n "$admin_csv" ]]; then
     [[ "$admin_csv" =~ ^[0-9]+(,[0-9]+)*$ ]] || die "TELEGRAM_ADMIN_USER_IDS must be digits separated by commas, for example 99999999. Got: $admin_csv"
   fi
-  if [[ "${OPENCODE_TELEGRAM_CONFINE_ADMINS-}" != "true" && "${OPENCODE_TELEGRAM_CONFINE_ADMINS-}" != "false" ]]; then
-    die "OPENCODE_TELEGRAM_CONFINE_ADMINS must be true or false, got: ${OPENCODE_TELEGRAM_CONFINE_ADMINS-<empty>}"
+  if [[ "${CILOT_CONFINE_ADMINS-}" != "true" && "${CILOT_CONFINE_ADMINS-}" != "false" ]]; then
+    die "CILOT_CONFINE_ADMINS must be true or false, got: ${CILOT_CONFINE_ADMINS-<empty>}"
   fi
-  if [[ -n "${OPENCODE_TELEGRAM_USER_ROOT-}" && "${OPENCODE_TELEGRAM_USER_ROOT-}" != /* ]]; then
-    die "OPENCODE_TELEGRAM_USER_ROOT must be an absolute path, got: ${OPENCODE_TELEGRAM_USER_ROOT-}"
+  if [[ -n "${CILOT_USER_ROOT-}" && "${CILOT_USER_ROOT-}" != /* ]]; then
+    die "CILOT_USER_ROOT must be an absolute path, got: ${CILOT_USER_ROOT-}"
   fi
   if [[ -n "${POSTIZ_MCP_URL-}" || -n "${POSTIZ_MCP_TOKEN-}" ]]; then
     [[ -n "${POSTIZ_MCP_URL-}" && -n "${POSTIZ_MCP_TOKEN-}" ]] || die "Set both POSTIZ_MCP_URL and POSTIZ_MCP_TOKEN, or leave both as placeholders."
@@ -680,7 +680,7 @@ install_opencode_binary() {
 # or the credential store git itself uses — the last so a machine that can push can also
 # install, without a second copy of the same secret.
 github_token() {
-  local token="${OPENCODE_TELEGRAM_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+  local token="${CILOT_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
   if [[ -n "$token" ]]; then
     printf '%s' "$token"
     return
@@ -741,18 +741,18 @@ fetch_payload_archive() {
 }
 
 copy_payload() {
-  if [[ ! -d "$PAYLOAD_DIR/opencode-telegram-bot" ]]; then
+  if [[ ! -d "$PAYLOAD_DIR/cilot" ]]; then
     require_command tar
     local archive_dir extracted_dir
     archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/opencode-payload.XXXXXX")"
     fetch_payload_archive "$archive_dir/installer.tar.gz"
     tar -xzf "$archive_dir/installer.tar.gz" -C "$archive_dir"
-    extracted_dir="$(find "$archive_dir" -mindepth 1 -maxdepth 1 -type d -name 'opencode-telegram-installer-*' -print -quit)"
+    extracted_dir="$(find "$archive_dir" -mindepth 1 -maxdepth 1 -type d -name 'cilot-*' -print -quit)"
     [[ -n "$extracted_dir" ]] || die "Could not locate the downloaded installer payload."
     PAYLOAD_DIR="$extracted_dir/payload"
     rm -rf "$archive_dir"
   fi
-  [[ -d "$PAYLOAD_DIR/opencode-telegram-bot" ]] || die "Installer payload is missing: $PAYLOAD_DIR/opencode-telegram-bot"
+  [[ -d "$PAYLOAD_DIR/cilot" ]] || die "Installer payload is missing: $PAYLOAD_DIR/cilot"
   mkdir -p "$INSTALL_ROOT"
 
   # Where updates come from, recorded once at install time. The bot's update command
@@ -763,7 +763,7 @@ branch=${PAYLOAD_BRANCH-}
 url=$PAYLOAD_ARCHIVE_URL
 EOF
   chmod 644 "$INSTALL_ROOT/payload-source.txt"
-  log "Installing Telegram bot source"
+  log "Installing the Cilot agent source"
 
   # settings.json is bot state, not deployment output. In sources mode the bot resolves
   # its app home from its working directory, so this file holds the active persona, the
@@ -777,7 +777,7 @@ EOF
 
   rm -rf "$BOT_SOURCE_DIR"
   mkdir -p "$BOT_SOURCE_DIR"
-  cp -a "$PAYLOAD_DIR/opencode-telegram-bot/." "$BOT_SOURCE_DIR/"
+  cp -a "$PAYLOAD_DIR/cilot/." "$BOT_SOURCE_DIR/"
   rm -rf "$BOT_SOURCE_DIR/node_modules" "$BOT_SOURCE_DIR/dist" "$BOT_SOURCE_DIR/logs" "$BOT_SOURCE_DIR/.env" "$BOT_SOURCE_DIR/settings.json" "$BOT_SOURCE_DIR/settings.json.bak"
 
   if [[ -n "$preserved_settings" ]]; then
@@ -813,7 +813,7 @@ EOF
   if ! (cd "$BOT_SOURCE_DIR" && npm run build) >"$npm_log" 2>&1; then
     {
       echo
-      echo "[installer] ERROR: building the Telegram bot failed."
+      echo "[installer] ERROR: building the Cilot agent failed."
       echo "[installer] Full log: $npm_log"
       tail -n 20 "$npm_log" | sed 's/^/[installer]   /'
       echo
@@ -821,7 +821,7 @@ EOF
     exit 1
   fi
   rm -f "$npm_log"
-  log "Telegram bot built"
+  log "Cilot agent built"
 }
 
 write_runtime_files() {
@@ -829,7 +829,7 @@ write_runtime_files() {
   telegram_env="$BOT_SOURCE_DIR/.env"
   main_env="$INSTALL_ROOT/opencode-main.env"
   cloudflare_env="$INSTALL_ROOT/opencode-cloudflare.env"
-  telegram_server_env="$INSTALL_ROOT/opencode-telegram-server.env"
+  telegram_server_env="$INSTALL_ROOT/server.env"
 
   umask 077
 
@@ -854,13 +854,13 @@ TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN-}
 TELEGRAM_ALLOWED_USER_ID=${TELEGRAM_ALLOWED_USER_ID-}
 TELEGRAM_ALLOWED_USER_IDS=${TELEGRAM_ALLOWED_USER_IDS-}
 TELEGRAM_ADMIN_USER_IDS=${TELEGRAM_ADMIN_USER_IDS-}
-OPENCODE_TELEGRAM_CONFINE_ADMINS=${OPENCODE_TELEGRAM_CONFINE_ADMINS-}
-OPENCODE_TELEGRAM_USER_ROOT=${OPENCODE_TELEGRAM_USER_ROOT-}
-OPENCODE_API_URL=$OPENCODE_TELEGRAM_URL
+CILOT_CONFINE_ADMINS=${CILOT_CONFINE_ADMINS-}
+CILOT_USER_ROOT=${CILOT_USER_ROOT-}
+OPENCODE_API_URL=$CILOT_URL
 # The bot speaks the 2.x API and adapts it to the event shapes the Telegram UI expects.
 OPENCODE_API_FLAVOR=v2
 # The /vault menu restarts this unit so a new env secret reaches the agent.
-OPENCODE_SERVER_UNIT=opencode-telegram-server.service
+OPENCODE_SERVER_UNIT=cilot-server.service
 OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$main_password
 OPENCODE_MODEL_PROVIDER=${OPENCODE_MODEL_PROVIDER-}
@@ -891,7 +891,7 @@ POSTIZ_CONTENT_FORMAT=${POSTIZ_CONTENT_FORMAT-}
 # postiz_upload_image does its own filesystem read, which OpenCode's permission rules do not
 # cover, so it is confined to the generated-images directory. Without this it would accept
 # any absolute path the model named.
-POSTIZ_UPLOAD_ALLOWED_ROOTS=${OPENCODE_IMAGE_DIR:-$OPENCODE_TELEGRAM_DATA_DIR/opencode-generated-images}
+POSTIZ_UPLOAD_ALLOWED_ROOTS=${OPENCODE_IMAGE_DIR:-$CILOT_DATA_DIR/opencode-generated-images}
 POSTIZ_MCP_URL=${POSTIZ_MCP_URL-}
 POSTIZ_API_URL=$postiz_api_url
 EOF
@@ -904,15 +904,15 @@ OPENCODE_SERVER_USERNAME=opencode
 OPENCODE_SERVER_PASSWORD=$(awk -F= '$1=="OPENCODE_SERVER_PASSWORD" {print $2}' "$main_env")
 # The vault the /vault menu writes. Both the bot and the MCP server resolve the same
 # files, so a secret entered in Telegram reaches the tool that needs it.
-SECRETS_FILE=$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.json
-SECRETS_ENV_FILE=$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.env
+SECRETS_FILE=$CILOT_CONFIG_DIR/secrets.json
+SECRETS_ENV_FILE=$CILOT_CONFIG_DIR/secrets.env
 EOF
   chmod 600 "$telegram_env" "$main_env" "$cloudflare_env" "$telegram_server_env"
   unset OPENCODE_SERVER_PASSWORD
 }
 
 install_personas() {
-  local telegram_root="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
+  local telegram_root="$CILOT_CONFIG_DIR/opencode"
   local src="$PAYLOAD_DIR/personas"
   [[ -d "$src" ]] || return 0
   mkdir -p "$telegram_root/personas"
@@ -980,7 +980,7 @@ install_personas() {
 }
 
 install_postiz_agent() {
-  local telegram_root="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
+  local telegram_root="$CILOT_CONFIG_DIR/opencode"
   local src="$PAYLOAD_DIR/postiz-agent"
   [[ -d "$src" ]] || return 0
   mkdir -p "$telegram_root/agents" "$telegram_root/skills/postiz-guidance"
@@ -1002,7 +1002,7 @@ install_postiz_agent() {
 install_image_plugin() {
   local plugin_dir="$OPENCODE_MAIN_CONFIG_DIR/plugins/cloudflare-image"
   local skill_dir="$OPENCODE_MAIN_CONFIG_DIR/skills/cf-image-guidance"
-  local telegram_skill_dir="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/skills/cf-image-guidance"
+  local telegram_skill_dir="$CILOT_CONFIG_DIR/opencode/skills/cf-image-guidance"
   mkdir -p "$plugin_dir" "$skill_dir" "$telegram_skill_dir" "$OPENCODE_MAIN_CONFIG_DIR"
   cp "$PAYLOAD_DIR/opencode-image-plugin/v2-plugin.js" "$plugin_dir/index.js"
   cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.md" "$skill_dir/SKILL.md"
@@ -1010,15 +1010,15 @@ install_image_plugin() {
   # `telegram` turns `image_generate` into `telegram_image_generate`.
   cp "$PAYLOAD_DIR/opencode-image-plugin/SKILL.telegram.md" "$telegram_skill_dir/SKILL.md"
   chmod 644 "$plugin_dir/index.js" "$skill_dir/SKILL.md" "$telegram_skill_dir/SKILL.md"
-  rm -f "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/tools/image_generate.ts"
+  rm -f "$CILOT_CONFIG_DIR/opencode/tools/image_generate.ts"
   install_postiz_agent
   install_personas
-  mkdir -p "$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode"
+  mkdir -p "$OPENCODE_MAIN_CONFIG_DIR" "$CILOT_CONFIG_DIR/opencode"
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/package.json" ]]; then
     printf '%s\n' '{"private":true,"type":"module"}' >"$OPENCODE_MAIN_CONFIG_DIR/package.json"
   fi
-  if [[ ! -f "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/package.json" ]]; then
-    printf '%s\n' '{"private":true,"type":"module"}' >"$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/package.json"
+  if [[ ! -f "$CILOT_CONFIG_DIR/opencode/package.json" ]]; then
+    printf '%s\n' '{"private":true,"type":"module"}' >"$CILOT_CONFIG_DIR/opencode/package.json"
   fi
   npm install --prefix "$OPENCODE_MAIN_CONFIG_DIR" --no-audit --no-fund --save-exact @opencode/plugin@2.0.11 >/dev/null
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" && ! -f "$OPENCODE_MAIN_CONFIG_DIR/opencode.json" ]]; then
@@ -1028,8 +1028,8 @@ install_image_plugin() {
 }
 EOF
   fi
-  if [[ ! -f "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.jsonc" && ! -f "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.json" ]]; then
-    cat >"$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.jsonc" <<'EOF'
+  if [[ ! -f "$CILOT_CONFIG_DIR/opencode/opencode.jsonc" && ! -f "$CILOT_CONFIG_DIR/opencode/opencode.json" ]]; then
+    cat >"$CILOT_CONFIG_DIR/opencode/opencode.jsonc" <<'EOF'
 {
   "$schema": "https://opencode.ai/config.json"
 }
@@ -1041,7 +1041,7 @@ EOF
     local postiz_url="${POSTIZ_MCP_URL:-}"
     # Use the OpenCode CLI so existing JSONC settings and MCP entries are preserved.
     HOME="$HOME" OPENCODE_CONFIG_DIR="$OPENCODE_MAIN_CONFIG_DIR" "$OPENCODE_MAIN_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
-    HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
+    HOME="$HOME" XDG_CONFIG_HOME="$CILOT_CONFIG_DIR" OPENCODE_CONFIG_DIR="$CILOT_CONFIG_DIR/opencode" "$CILOT_BIN_DIR/opencode" mcp add postiz --url "$postiz_url" --header 'Authorization=Bearer {env:POSTIZ_MCP_TOKEN}' --global >/dev/null
     redact_mcp_token_in_configs
   fi
 }
@@ -1055,16 +1055,16 @@ EOF
 register_telegram_mcp() {
   local node_bin
   node_bin="$(command -v node)"
-  local image_dir="${OPENCODE_IMAGE_DIR:-$OPENCODE_TELEGRAM_DATA_DIR/opencode-generated-images}"
-  local telegram_config="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.jsonc"
-  [[ -f "$telegram_config" ]] || telegram_config="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.json"
+  local image_dir="${OPENCODE_IMAGE_DIR:-$CILOT_DATA_DIR/opencode-generated-images}"
+  local telegram_config="$CILOT_CONFIG_DIR/opencode/opencode.jsonc"
+  [[ -f "$telegram_config" ]] || telegram_config="$CILOT_CONFIG_DIR/opencode/opencode.json"
   [[ -f "$node_bin" && -f "$BOT_SOURCE_DIR/dist/mcp/server.js" ]] \
     || die "The bot's MCP server was not built: $BOT_SOURCE_DIR/dist/mcp/server.js"
 
-  HOME="$HOME" XDG_CONFIG_HOME="$OPENCODE_TELEGRAM_CONFIG_DIR" \
-    OPENCODE_CONFIG_DIR="$OPENCODE_TELEGRAM_CONFIG_DIR/opencode" \
-    "$OPENCODE_TELEGRAM_BIN_DIR/opencode" mcp add telegram --global \
-    --env "SECRETS_FILE=$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.json" \
+  HOME="$HOME" XDG_CONFIG_HOME="$CILOT_CONFIG_DIR" \
+    OPENCODE_CONFIG_DIR="$CILOT_CONFIG_DIR/opencode" \
+    "$CILOT_BIN_DIR/opencode" mcp add telegram --global \
+    --env "SECRETS_FILE=$CILOT_CONFIG_DIR/secrets.json" \
     --env "OPENCODE_IMAGE_DIR=$image_dir" \
     -- "$node_bin" "$BOT_SOURCE_DIR/dist/mcp/server.js" >/dev/null \
     || die "Could not add the telegram MCP server to $telegram_config"
@@ -1109,7 +1109,7 @@ redact_mcp_token_in_configs() {
   fi
 
   for config in "$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" \
-    "$OPENCODE_TELEGRAM_CONFIG_DIR/opencode/opencode.jsonc"; do
+    "$CILOT_CONFIG_DIR/opencode/opencode.jsonc"; do
     [[ -f "$config" ]] || continue
     if grep -qF "$token" "$config" 2>/dev/null; then
       # Matched by the token value itself, so nothing else in the file is touched.
@@ -1142,9 +1142,9 @@ UMask=0077
 [Install]
 WantedBy=default.target
 EOF
-  cat >"$USER_SYSTEMD_DIR/opencode-telegram-server.service" <<EOF
+  cat >"$USER_SYSTEMD_DIR/cilot-server.service" <<EOF
 [Unit]
-Description=OpenCode server for Telegram bot
+Description=Cilot OpenCode server
 Wants=network-online.target
 After=network-online.target
 
@@ -1152,18 +1152,18 @@ After=network-online.target
 Type=simple
 WorkingDirectory=$HOME
 Environment=HOME=$HOME
-Environment=OPENCODE_CONFIG_DIR=$OPENCODE_TELEGRAM_CONFIG_DIR/opencode
-Environment=XDG_CONFIG_HOME=$OPENCODE_TELEGRAM_CONFIG_DIR
-Environment=XDG_DATA_HOME=$OPENCODE_TELEGRAM_DATA_DIR
-Environment=XDG_STATE_HOME=$OPENCODE_TELEGRAM_STATE_DIR
-Environment=XDG_CACHE_HOME=$OPENCODE_TELEGRAM_CACHE_DIR
-EnvironmentFile=$INSTALL_ROOT/opencode-telegram-server.env
+Environment=OPENCODE_CONFIG_DIR=$CILOT_CONFIG_DIR/opencode
+Environment=XDG_CONFIG_HOME=$CILOT_CONFIG_DIR
+Environment=XDG_DATA_HOME=$CILOT_DATA_DIR
+Environment=XDG_STATE_HOME=$CILOT_STATE_DIR
+Environment=XDG_CACHE_HOME=$CILOT_CACHE_DIR
+EnvironmentFile=$INSTALL_ROOT/server.env
 # Custom env secrets from the bot's /vault menu. The file appears after the first secret
 # is added, and the bot restarts this unit itself when that happens.
-EnvironmentFile=-$OPENCODE_TELEGRAM_CONFIG_DIR/secrets.env
+EnvironmentFile=-$CILOT_CONFIG_DIR/secrets.env
 EnvironmentFile=$INSTALL_ROOT/opencode-cloudflare.env
 EnvironmentFile=$INSTALL_ROOT/opencode-postiz.env
-ExecStart=$OPENCODE_TELEGRAM_BIN_DIR/opencode serve --hostname=127.0.0.1 --port=4096
+ExecStart=$CILOT_BIN_DIR/opencode serve --hostname=127.0.0.1 --port=4096
 Restart=always
 RestartSec=3
 TimeoutStopSec=20
@@ -1172,22 +1172,22 @@ UMask=0077
 [Install]
 WantedBy=default.target
 EOF
-  cat >"$USER_SYSTEMD_DIR/opencode-telegram-bot.service" <<EOF
+  cat >"$USER_SYSTEMD_DIR/cilot-bot.service" <<EOF
 [Unit]
 Description=Cilot Telegram Agent
-Wants=network-online.target opencode-telegram-server.service
-After=network-online.target opencode-telegram-server.service
+Wants=network-online.target cilot-server.service
+After=network-online.target cilot-server.service
 
 [Service]
 Type=simple
 WorkingDirectory=$BOT_SOURCE_DIR
 Environment=HOME=$HOME
-Environment=OPENCODE_CONFIG_DIR=$OPENCODE_TELEGRAM_CONFIG_DIR/opencode
+Environment=OPENCODE_CONFIG_DIR=$CILOT_CONFIG_DIR/opencode
 Environment=XDG_CONFIG_HOME=$HOME/.config
-Environment=PATH=$INSTALL_ROOT/bin:$OPENCODE_TELEGRAM_BIN_DIR:/usr/local/bin:/usr/bin:/bin
+Environment=PATH=$CILOT_BIN_DIR:/usr/local/bin:/usr/bin:/bin
 Environment=NODE_ENV=production
 EnvironmentFile=$BOT_SOURCE_DIR/.env
-EnvironmentFile=$INSTALL_ROOT/opencode-telegram-server.env
+EnvironmentFile=$INSTALL_ROOT/server.env
 ExecStart=$(command -v node) $BOT_SOURCE_DIR/dist/cli.js start --mode sources
 Restart=always
 RestartSec=5
@@ -1197,17 +1197,17 @@ UMask=0077
 [Install]
 WantedBy=default.target
 EOF
-  chmod 644 "$USER_SYSTEMD_DIR/opencode.service" "$USER_SYSTEMD_DIR/opencode-telegram-server.service" "$USER_SYSTEMD_DIR/opencode-telegram-bot.service"
+  chmod 644 "$USER_SYSTEMD_DIR/opencode.service" "$USER_SYSTEMD_DIR/cilot-server.service" "$USER_SYSTEMD_DIR/cilot-bot.service"
 }
 
 start_services() {
   systemctl --user daemon-reload
-  systemctl --user enable opencode.service opencode-telegram-server.service opencode-telegram-bot.service
-  systemctl --user restart opencode.service opencode-telegram-server.service opencode-telegram-bot.service
+  systemctl --user enable opencode.service cilot-server.service cilot-bot.service
+  systemctl --user restart opencode.service cilot-server.service cilot-bot.service
   sleep 3
   systemctl --user is-active --quiet opencode.service || die "opencode.service did not start."
-  systemctl --user is-active --quiet opencode-telegram-server.service || die "opencode-telegram-server.service did not start."
-  systemctl --user is-active --quiet opencode-telegram-bot.service || die "opencode-telegram-bot.service did not start."
+  systemctl --user is-active --quiet cilot-server.service || die "cilot-server.service did not start."
+  systemctl --user is-active --quiet cilot-bot.service || die "cilot-bot.service did not start."
 }
 
 main() {
@@ -1226,15 +1226,15 @@ main() {
   write_settings_file
   check_platform
   install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
-  install_opencode_binary "$OPENCODE_TELEGRAM_VERSION" "$OPENCODE_TELEGRAM_BIN_DIR/opencode"
+  install_opencode_binary "$CILOT_VERSION" "$CILOT_BIN_DIR/opencode"
   copy_payload
   write_runtime_files
   install_image_plugin
   write_systemd_units
   start_services
-  log "Installed OpenCode, the Telegram bot, the Cloudflare image tool, and user services."
+  log "Installed OpenCode, the Cilot agent, the Cloudflare image tool, and user services."
   log "Main OpenCode: $OPENCODE_MAIN_URL"
-  log "Telegram OpenCode: $OPENCODE_TELEGRAM_URL"
+  log "Cilot OpenCode: $CILOT_URL"
   if [[ -n "$INSTALL_ENV_FILE" ]]; then
     log "Settings kept in $INSTALL_ENV_FILE; re-run ./install.sh after a git pull to apply changes."
   else

@@ -1,3 +1,24 @@
+## 1.0.0 — the name is now the deployment
+
+Every identifier an operator sees or types is `cilot`. No compatibility aliases, no in-place
+upgrade: 0.x is deprecated.
+
+- Units: `cilot-bot.service`, `cilot-server.service`.
+- Paths: `~/.local/share/cilot` (install root, with the bot source in `bot/`),
+  `~/.config/cilot` (`install.env`, `secrets.*`), `~/.config/cilot/opencode` (agent config),
+  `~/.local/share/cilot/opencode`, `~/.local/state/cilot/opencode`,
+  `~/.cache/cilot/opencode`, binaries in `~/.local/share/cilot/bin`.
+- Environment variables: `CILOT_*` replaces `OPENCODE_TELEGRAM_*`.
+- CLI: `cilot`, with `bin.cilot` in the bot package, and `` `cilot config` `` in every locale.
+- Payload directory: `payload/cilot`.
+- Bot package `name` is `cilot`; upstream attribution stays in the README, the licence and the
+  notes that refer to `@grinev/opencode-telegram-bot`.
+
+A 0.x machine cannot update itself into this layout: the old `update.sh` looks for the old
+archive and payload names. Uninstall 0.x with its own `uninstall.sh`, then install 1.0.0; carry
+over `~/.local/share/tg-workspaces` and the bot's state files. `ARCHITECTURE.md#naming` has the
+full mapping.
+
 ## 0.31.0 — Cilot
 
 The project is now **Cilot**, at `https://github.com/jiqiri/cilot`, and the repository is
