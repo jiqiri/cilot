@@ -1,3 +1,10 @@
+## Unreleased — add-ons
+
+- `ADDONS.md` defines the add-on contract for 1.1.0: one MCP server per add-on, identity from
+  the workspace cwd, a `policy.json` grant table, per-account config and credentials, the
+  `/addons` UI, and a read-only mail add-on. Spike S0 (one MCP process per workspace) passed on
+  2026-11-12; no code is implemented yet.
+
 ## 1.0.0 — the name is now the deployment
 
 Every identifier an operator sees or types is `cilot`. No compatibility aliases, no in-place

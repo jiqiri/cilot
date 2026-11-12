@@ -207,6 +207,7 @@ and [USAGE.md](./USAGE.md) (Vietnamese).
 ├── uninstall.sh                stop and remove the services
 ├── install.env.example         credential template (copy outside the repo)
 ├── ARCHITECTURE.md             internals, deployment, security boundaries
+├── ADDONS.md                   add-on contract and the mail add-on design
 ├── USAGE.md                    operator guide in Vietnamese
 ├── assets/cilot-logo.png
 ├── payload/

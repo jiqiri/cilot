@@ -26,6 +26,8 @@ Cilot 1.0.0 renamed the deployment, not just the product name. See [Naming](#nam
 - [README.md](./README.md) — what Cilot is and what the agent can do.
 - [USAGE.md](./USAGE.md) — the same guide in Vietnamese: roles, on-disk layout, `/access`, `/share`,
   where isolation is enforced, and the known limits.
+- [ADDONS.md](./ADDONS.md) — the add-on contract: MCP process model, identity, grants,
+  `/addons`, and the reference mail add-on. Design document for 1.1.0.
 
 ## Naming
 
