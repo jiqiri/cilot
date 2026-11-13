@@ -40,6 +40,7 @@ const COMMAND_DEFINITIONS: BotCommandI18nDefinition[] = [
   { command: "skills", descriptionKey: "cmd.description.skills" },
   { command: "mcps", descriptionKey: "cmd.description.mcps" },
   { command: "vault", descriptionKey: "cmd.description.vault" },
+  { command: "addons", descriptionKey: "cmd.description.addons" },
   { command: "access", descriptionKey: "cmd.description.access" },
   { command: "share", descriptionKey: "cmd.description.share" },
   { command: "user", descriptionKey: "cmd.description.user" },

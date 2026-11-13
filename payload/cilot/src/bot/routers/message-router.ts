@@ -29,6 +29,7 @@ import { handlePhotoMessage } from "../handlers/photo-handler.js";
 import { queuePromptForMerging } from "../handlers/message-merger.js";
 import { handleCatalogTextArguments } from "../handlers/text-message-handler.js";
 import { handleVaultTextInput } from "../callbacks/vault-callback-handler.js";
+import { handleAddonsTextInput } from "../callbacks/addon-callback-handler.js";
 import { handleUserTextInput } from "../commands/user-command.js";
 import { handleVoiceMessage } from "../handlers/voice-handler.js";
 import { unknownCommandMiddleware } from "../middleware/unknown-command.js";
@@ -227,6 +228,11 @@ export function registerMessageRouter(bot: Bot<Context>, deps: MessageRouterDeps
     // must never be treated as command arguments or a prompt.
     const handledVault = await handleVaultTextInput(ctx, container);
     if (handledVault) {
+      return;
+    }
+
+    const handledAddons = await handleAddonsTextInput(ctx, container);
+    if (handledAddons) {
       return;
     }
 

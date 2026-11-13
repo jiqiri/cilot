@@ -1,0 +1,25 @@
+{
+  "name": "cilot-addon-mail",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Read-only IMAP mail for Cilot: search labels or a mailbox, read a message, download attachments.",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test \"test/*.test.mjs\""
+  },
+  "engines": {
+    "node": "^22.14.0 || ^23.6.0 || >=24"
+  },
+  "dependencies": {
+    "imapflow": "2.11.0",
+    "mailparser": "3.14.3"
+  },
+  "devDependencies": {
+    "@types/mailparser": "3.4.6",
+    "@types/node": "24.5.2",
+    "typescript": "5.9.2"
+  }
+}

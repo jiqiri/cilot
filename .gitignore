@@ -10,6 +10,10 @@ install.env.*
 !install.env.example
 node_modules/
 dist/
+# Add-on build output is shipped: the installer runs `npm ci --omit=dev` and has no
+# TypeScript toolchain, so a committed dist/ is what makes a fresh install work.
+!payload/addons/*/dist/
+!payload/addons/*/dist/**
 logs/
 settings.json
 settings.json.bak

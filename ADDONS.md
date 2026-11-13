@@ -5,11 +5,41 @@ how it is configured, who may use it, and where everything lives on disk. It is 
 the code so the contract is stable, reviewable and does not have to be reverse-engineered from
 an implementation.
 
-Status: **draft, not implemented**. Target release: **Cilot 1.1.0**.
+Status: **implemented** in **Cilot 1.1.0** with the mail add-on. §21 lists the files;
+"Implementation notes" below records where the code settles a question this document left open.
 
 The examples use a mail reader, because "read my mail, but only these labels" is the case that
 forces every decision in this document: per-user data, a credential per user, a small config
 surface, and a result the model has to be trusted not to widen.
+
+### Implementation notes (1.1.0)
+
+These are the places where the shipped code settles a detail differently from the text below.
+The contract — identity from cwd, `policy.json` as the only authorization record, one MCP
+process per add-on — is unchanged.
+
+- **Shared code is a directory, not a package.** `payload/addons/mail/src/shared/` holds
+  identity, policy, profile, secrets, audit and rate limiting. Each add-on compiles its own copy;
+  there is no cross-add-on runtime dependency to version.
+- **Labels mode reads labels *and* folders.** `configuredScope(profile)` is the union of
+  `labels` and `folders`, so the default `folders: ["INBOX"]` is a usable scope instead of an
+  unreachable one. A name outside that union is `not_granted`.
+- **The bot writes `secrets.env` directly.** It writes the file atomically with mode 600; the
+  `/vault` store is a different feature and is not in this path. `secretStatus()` exposes
+  presence only, never a value.
+- **Enabling picks agents, not an effect.** The flow writes `"<id>_*": allow` for each chosen
+  agent. There is no per-agent `ask` switch in 1.1.0; `setAgentPermission` accepts it, but the
+  Telegram UI does not offer it.
+- **`--check` validates manifests.** `install.sh --check` reports each bundled add-on as ok or
+  warning without changing anything, using the same validator the installer runs.
+- **`update.sh` restarts on a file change.** A version bump is not required: any difference in
+  the bundled tree restarts `cilot-server`, because a running MCP process keeps its own copy of
+  the code.
+- **Uninstall keeps both config and state.** `uninstall.sh` removes the code and, with
+  `--purge-addons` (implied by `--purge`), the config, credentials, state and the add-on MCP
+  entries. The default keeps them so a reinstall does not silently drop a mailbox.
+- **The add-on ships its own tests.** `payload/addons/mail/test/` uses the Node test runner
+  against the built `dist/`, so no extra test dependency is installed at run time.
 
 ---
 
@@ -126,6 +156,11 @@ payload/addons/<id>/
   default-config.json      seed copied to a new profile, never overwritten afterwards
   package.json
   src/
+    server.ts              entry: protocol loop
+    tools.ts               the tools, their schemas and the audit wrapper
+    shared/                identity, policy, profile, secrets, audit, rate limit
+    mail/                  IMAP, scope, attachments, cursor
+  test/                    Node test runner cases against dist/
   dist/server.js           built output, committed and installed
   README.md
 
@@ -161,8 +196,9 @@ Rules:
   config and credentials together. It is created when the admin grants the account and deleted
   when the admin revokes it.
 - **Secrets never live in `*.json`.** They go in a mode-600 env file, one `KEY=value` per line,
-  rendered by the bot from its own vault storage. JSON is what `/addons` prints in summaries and
-  what a support request pastes into a chat; a secret must not be able to leak that way.
+  written atomically by the bot (not through the `/vault` store). JSON is what `/addons` prints
+  in summaries and what a support request pastes into a chat; a secret must not be able to leak
+  that way.
 - Files are created with the mode above, not `chmod`ed afterwards.
 - The add-on resolves roots from `CILOT_ADDON_CONFIG_ROOT` / `CILOT_ADDON_STATE_ROOT` and falls
   back to the XDG defaults when run by hand for a test.
@@ -514,9 +550,9 @@ rejects a line without `=` and rejects keys outside `^[A-Z][A-Z0-9_]*$`.
   that changes the mailbox must be `readOnly: false` and is refused unless the admin set
   `allowWrite: true` in that account's profile. `mail_ack` is not in this category: it writes the
   local cursor only, never the mailbox.
-- The enable step writes `"<id>_*": allow` into the `permission` block of the agent chosen by the
-  admin and, for the `social-media` default, into `~/.config/cilot/opencode/agents/<agent>.md`.
-  It writes `"<id>_*": ask` instead when the operator chose "confirm each call".
+- The enable step writes `"<id>_*": allow` into the `permission` block of every agent the admin
+  chose, in `~/.config/cilot/opencode/agents/<agent>.md`. The 1.1.0 UI offers agent selection
+  only; it does not offer a per-call confirmation mode.
 
 ---
 
@@ -806,12 +842,13 @@ ask which mailbox; the profile decides.
 
 ### 15.1 `install.sh`
 
-New steps, after `install_image_plugin` and before `register_telegram_mcp`:
+New step, right after `copy_payload`:
 
 1. **Copy** `payload/addons/*` to `$INSTALL_ROOT/addons/<id>/`, excluding `node_modules`.
-2. **Build** each bundled add-on (`npm ci --omit=dev && npm run build`) into
-   `$INSTALL_ROOT/addons/<id>/dist/`, or copy the committed `dist/` when present. Build failures
-   are fatal for that add-on only, with a clear log path; the bot install still succeeds.
+2. **Install** each bundled add-on with `npm ci --omit=dev`, and keep the committed `dist/`.
+   Only when `dist/server.js` is absent does it run the full build, which needs the dev
+   toolchain. A failure is fatal for that add-on only, with a clear log path; the bot install
+   still succeeds.
 3. **Validate** each manifest: id pattern, entry exists, `minCilotVersion` ≤ current.
 4. **Seed config** only when `~/.config/cilot/addons/<id>/` does not exist. A re-run never
    touches an existing profile or policy.
@@ -826,20 +863,23 @@ invalid), and never changes anything.
 
 ### 15.2 `update.sh`
 
-- Replaces `$INSTALL_ROOT/addons/<id>/` for bundled add-ons.
+- Replaces `$INSTALL_ROOT/addons/<id>/` for bundled add-ons, running `npm ci --omit=dev` and
+  keeping the committed `dist/` when the tree did not change.
 - Never reads or writes `~/.config/cilot/addons/` or `~/.local/state/cilot/addons/`.
-- After updating code, restarts `cilot-server.service` only if an enabled add-on's version changed,
-  and logs which ones.
-- An add-on removed from `payload/addons` is **not** deleted from disk automatically; `update.sh`
-  prints it under "installed, no longer bundled" and leaves the decision to the operator.
+- After replacing code, restarts `cilot-server.service` if any bundled add-on's files changed.
+  A version bump is not the signal: the tracked source can change without one, and a running MCP
+  process keeps the code it started with.
+- An add-on removed from `payload/addons` is left on disk. The operator removes it, which keeps
+  an update from deleting code the machine may still be serving.
 
 ### 15.3 `uninstall.sh`
 
-- Removes `$INSTALL_ROOT/addons/`.
+- Removes `$INSTALL_ROOT/addons/` with the install root.
 - **Keeps** `~/.config/cilot/addons/` and `~/.local/state/cilot/addons/` by default, because they
   contain credentials and cursors that a reinstall should not silently drop.
-- `--purge-addons` removes both after a confirmation that names the directories.
-- Removes the MCP entries from `opencode.jsonc` as part of removing the server config.
+- `--purge-addons` names both directories before asking for confirmation, then removes them and
+  the MCP entries whose `environment.CILOT_ADDON_ID` marks them as add-ons. `--purge` implies it.
+  A config file that does not parse as plain JSON is left alone rather than rewritten.
 
 ### 15.4 Bot-side services
 
@@ -857,7 +897,8 @@ The bot gets a small set of modules, not a plugin framework:
 | `addons-command.ts` | the command entry point and access check |
 
 There is no dynamic import of add-on code in the bot. The bot reads manifests and files; it never
-executes add-on JavaScript.
+executes add-on JavaScript. The one place it spawns add-on code is `/addons` → Test, which runs
+`node <entry> --selftest` in the target account's workspace and reads one JSON line from it.
 
 ---
 
@@ -1003,6 +1044,24 @@ advertise an empty screen.
 
 As in §5.1. This is a prerequisite, not a test of the implementation.
 
+### 18.6 Shipped in 1.1.0
+
+| File | Covers |
+| --- | --- |
+| `payload/addons/mail/test/identity.test.mjs` | cwd → account, shared folder, non-numeric segment, symlink |
+| `payload/addons/mail/test/policy.test.mjs` | both defaults, explicit rows, malformed JSON fails closed |
+| `payload/addons/mail/test/profile.test.mjs` | defaults merge, per-type validation, labels mode needs a scope |
+| `payload/addons/mail/test/secrets.test.mjs` | literal parsing, missing file, missing key |
+| `payload/addons/mail/test/scope.test.mjs` | labels union, out-of-scope refusal, mailbox mode |
+| `payload/addons/mail/test/attachments.test.mjs` | traversal, symlink escape, overwrite, size limits |
+| `payload/addons/mail/test/cursor.test.mjs` | dedupe, per-account isolation, 500-id bound |
+| `payload/addons/mail/test/protocol.test.mjs` | initialize, tools/list, isError result, image content |
+| `tests/app/services/addon-*.test.ts` (bot) | manifest discovery, policy, profile, credentials, registry |
+| `tests/bot/callbacks/addon-callback-handler.test.ts` | the admin/standard split and the text stages |
+
+The integration cases in §18.2 need a fake IMAP server and are not shipped; they are covered
+manually by the `--selftest` path and the two-account walkthrough in §18.4.
+
 ---
 
 ## 19. Open questions
@@ -1041,14 +1100,17 @@ ADDONS.md                                   this document
 payload/addons/mail/addon.json
 payload/addons/mail/default-config.json
 payload/addons/mail/package.json
-payload/addons/mail/src/{main,identity,policy,config,imap,tools,errors}.ts
-payload/addons/mail/dist/server.js
+payload/addons/mail/package-lock.json
+payload/addons/mail/src/server.ts           entry: stdio loop, --selftest
+payload/addons/mail/src/protocol.ts         JSON-RPC framing
+payload/addons/mail/src/tools.ts            tool schemas, audit wrapper
+payload/addons/mail/src/shared/             identity, policy, profile, secrets, audit, rate limit
+payload/addons/mail/src/mail/               imap, scope, attachments, cursor
+payload/addons/mail/dist/                   committed build output
+payload/addons/mail/test/                   Node test runner cases
 payload/addons/mail/README.md
-payload/addons/_shared/                     shared identity/policy/config code, copied into
-                                            each add-on at build time (no runtime dependency
-                                            between add-ons)
-install.sh                                  copy/build/seed/validate; --enable-addon
-update.sh                                   replace code, restart if a version changed
+install.sh                                  copy/build/validate/seed; --enable-addon; --check
+update.sh                                   replace code, restart on any bundled-file change
 uninstall.sh                                remove code, keep config; --purge-addons
 README.md                                   link to this document, "Add-ons" section
 ARCHITECTURE.md                             add-on process model, security boundary, docs link

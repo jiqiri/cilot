@@ -27,6 +27,11 @@ set -euo pipefail
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/cilot}"
 BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
 SERVICE_NAME="${SERVICE_NAME:-cilot-bot.service}"
+SERVER_SERVICE_NAME="${SERVER_SERVICE_NAME:-cilot-server.service}"
+ADDON_DIR="${ADDON_DIR:-$INSTALL_ROOT/addons}"
+# Set by sync_addons when at least one add-on tree was replaced. The server has to restart
+# after the copy, not before it, and a comparison afterwards would always match.
+ADDONS_CHANGED=0
 SOURCE_FILE="$INSTALL_ROOT/payload-source.txt"
 DEFAULT_REPO="${DEFAULT_REPO:-jiqiri/cilot}"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-main}"
@@ -285,6 +290,63 @@ if (( ! CHANGED )); then
   exit 0
 fi
 
+
+# ---------------------------------------------------------------- add-ons
+
+# Replace bundled add-on code without touching its configuration.
+#
+# Add-on config and state live outside the install root, so copying a new tree over
+# `$ADDON_DIR/<id>` cannot lose a profile, a grant or a credential. A running MCP process
+# keeps the old code until it is restarted, so a changed add-on restarts cilot-server; a
+# version bump alone is not a reliable signal, because the tracked source can change
+# without one.
+sync_addons() {
+  local payload_root="$1"
+  local payload_addons="$payload_root/addons"
+  [[ -d "$payload_addons" ]] || return 0
+
+  mkdir -p "$ADDON_DIR"
+  local src id target log_file
+  for src in "$payload_addons"/*; do
+    [[ -d "$src" ]] || continue
+    id="$(basename "$src")"
+    if ! [[ "$id" =~ ^[a-z][a-z0-9_]{1,23}$ ]]; then
+      log "Skipping add-on with an invalid id: $id"
+      continue
+    fi
+
+    target="$ADDON_DIR/$id"
+    if [[ -d "$target" ]] && diff -qr \
+      --exclude=node_modules --exclude='*.log' "$src" "$target" >/dev/null 2>&1; then
+      log "Add-on unchanged: $id"
+      continue
+    fi
+
+    log "Updating add-on: $id"
+    ADDONS_CHANGED=1
+    rm -rf "$target"
+    mkdir -p "$target"
+    tar -C "$src" --exclude=node_modules --exclude='*.log' -cf - . | tar -C "$target" -xf -
+
+    log_file="$ADDON_DIR/$id-update.log"
+    if [[ -f "$target/package-lock.json" ]]; then
+      if ! (cd "$target" && npm ci --omit=dev --no-audit --no-fund) >"$log_file" 2>&1; then
+        log "Add-on $id: dependency install failed; keeping the previous tree is no longer possible. Log: $log_file"
+        continue
+      fi
+    fi
+    if [[ ! -f "$target/dist/server.js" ]]; then
+      if ! (cd "$target" && npm install --no-audit --no-fund && npm run build) >>"$log_file" 2>&1; then
+        log "Add-on $id: build failed. Log: $log_file"
+        continue
+      fi
+    fi
+    rm -f "$log_file"
+  done
+
+  return 0
+}
+
 # ------------------------------------------------------------------ update
 PRESERVE=(.env settings.json settings.json.bak)
 PRESERVED_DIR="$WORKDIR/preserved"
@@ -344,6 +406,14 @@ fi
 printf '%s' "$incoming_fingerprint" >"$FINGERPRINT_FILE"
 chmod 644 "$FINGERPRINT_FILE"
 log "Updated to $(current_version)"
+
+sync_addons "$(dirname "$PAYLOAD_DIR")"
+if (( RESTART )) && (( ADDONS_CHANGED )); then
+  # Each workspace keeps its MCP process alive, so a replaced add-on is still served from
+  # the old code until the server restarts.
+  log "Restarting $SERVER_SERVICE_NAME to load add-on changes..."
+  systemctl --user restart "$SERVER_SERVICE_NAME" || true
+fi
 
 if (( RESTART )); then
   log "Restarting $SERVICE_NAME..."

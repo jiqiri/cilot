@@ -21,6 +21,7 @@ import { commandsCommand } from "../commands/command-catalog-command.js";
 import { skillsCommand } from "../commands/skills-catalog-command.js";
 import { mcpsCommand } from "../commands/mcp-catalog-command.js";
 import { vaultCommand } from "../commands/vault-command.js";
+import { addonsCommand } from "../commands/addons-command.js";
 import { accessCommand } from "../commands/access-command.js";
 import { shareCommand } from "../commands/share-command.js";
 import { userCommand } from "../commands/user-command.js";
@@ -168,6 +169,7 @@ export function registerCommandRouter(bot: Bot<Context>, deps: CommandRouterDeps
   bot.command("skills", (ctx) => skillsCommand(ctx, container));
   bot.command("mcps", (ctx) => mcpsCommand(ctx, container));
   bot.command("vault", (ctx) => vaultCommand(ctx, container));
+  bot.command("addons", (ctx) => addonsCommand(ctx, container));
   bot.command("access", (ctx) => accessCommand(ctx));
   bot.command("share", (ctx) => shareCommand(ctx));
   bot.command("user", (ctx) => userCommand(ctx));

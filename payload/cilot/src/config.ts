@@ -1,3 +1,5 @@
+import path from "node:path";
+import os from "node:os";
 import dotenv from "dotenv";
 import { resolveVaultPaths } from "./app/services/vault-paths.js";
 import { getRuntimePaths } from "./runtime/paths.js";
@@ -341,6 +343,48 @@ export const config = {
   },
   files: {
     maxFileSizeKb: parseInt(getEnvVar("CODE_FILE_MAX_SIZE_KB", false) || "100", 10),
+  },
+  addons: {
+    // Code, config and state are three roots on purpose (ADDONS.md §4). The installer
+    // writes CILOT_ADDON_ROOT into server.env so the bot never hard-codes the install path.
+    root:
+      getEnvVar("CILOT_ADDON_ROOT", false) ||
+      path.join(
+        process.env.XDG_DATA_HOME?.trim() || path.join(os.homedir(), ".local", "share"),
+        "cilot",
+        "addons",
+      ),
+    configRoot:
+      getEnvVar("CILOT_ADDON_CONFIG_ROOT", false) ||
+      path.join(
+        process.env.XDG_CONFIG_HOME?.trim() || path.join(os.homedir(), ".config"),
+        "cilot",
+        "addons",
+      ),
+    stateRoot:
+      getEnvVar("CILOT_ADDON_STATE_ROOT", false) ||
+      path.join(
+        process.env.XDG_STATE_HOME?.trim() || path.join(os.homedir(), ".local", "state"),
+        "cilot",
+        "addons",
+      ),
+    opencodeConfig:
+      getEnvVar("CILOT_OPENCODE_CONFIG", false) ||
+      path.join(
+        process.env.XDG_CONFIG_HOME?.trim() || path.join(os.homedir(), ".config"),
+        "cilot",
+        "opencode",
+        "opencode.jsonc",
+      ),
+    agentsDir:
+      getEnvVar("CILOT_AGENTS_DIR", false) ||
+      path.join(
+        process.env.XDG_CONFIG_HOME?.trim() || path.join(os.homedir(), ".config"),
+        "cilot",
+        "opencode",
+        "agents",
+      ),
+    serverUnit: getEnvVar("OPENCODE_SERVER_UNIT", false) || "cilot-server.service",
   },
   vault: {
     // Single source of truth for user-defined env secrets, mode 0600, and the env file

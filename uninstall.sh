@@ -17,9 +17,14 @@ OPENCODE_MAIN_CACHE_DIR="${OPENCODE_MAIN_CACHE_DIR:-$HOME/.cache/opencode}"
 CILOT_CACHE_DIR="${CILOT_CACHE_DIR:-$HOME/.cache/cilot/opencode}"
 USER_SYSTEMD_DIR="${USER_SYSTEMD_DIR:-$HOME/.config/systemd/user}"
 BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
+ADDON_DIR="${ADDON_DIR:-$INSTALL_ROOT/addons}"
+ADDON_CONFIG_DIR="${ADDON_CONFIG_DIR:-$CILOT_CONFIG_DIR/addons}"
+ADDON_STATE_ROOT="${ADDON_STATE_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/cilot/addons}"
+CILOT_OPENCODE_CONFIG="${CILOT_OPENCODE_CONFIG:-$CILOT_CONFIG_DIR/opencode/opencode.jsonc}"
 
 DRY_RUN=0
 PURGE=0
+PURGE_ADDONS=0
 ASSUME_YES=0
 
 usage() {
@@ -29,6 +34,8 @@ Usage: ./uninstall.sh [options]
 Options:
   --dry-run       Print actions without changing anything
   --purge         Also remove managed OpenCode/bot configuration and data
+  --purge-addons  Also remove add-on configuration and state, including the credentials
+                  of every account that was granted an add-on
   --yes           Do not ask for confirmation
   -h, --help      Show this help
 EOF
@@ -57,6 +64,7 @@ for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=1 ;;
     --purge) PURGE=1 ;;
+    --purge-addons) PURGE_ADDONS=1 ;;
     --yes|-y) ASSUME_YES=1 ;;
     -h|--help) usage; exit 0 ;;
     *) usage >&2; die "Unknown option: $arg" ;;
@@ -69,6 +77,10 @@ if (( ! DRY_RUN && ! ASSUME_YES )); then
   printf 'This will stop and remove the Cilot stack.\n'
   printf 'Managed installation root: %s\n' "$INSTALL_ROOT"
   (( PURGE )) && printf 'Purge mode: managed OpenCode configuration and data will also be removed.\n'
+  if (( PURGE_ADDONS || PURGE )); then
+    printf 'Add-on purge mode: the following directories will also be removed:\n'
+    printf '  %s\n' "$ADDON_CONFIG_DIR" "$ADDON_STATE_ROOT"
+  fi
   read -r -p 'Continue? [y/N] ' answer
   [[ "$answer" == [yY] ]] || { log 'Cancelled.'; exit 0; }
 fi
@@ -96,7 +108,52 @@ for file in \
   remove_path "$file"
 done
 remove_path "$BOT_SOURCE_DIR"
+remove_path "$ADDON_DIR"
 remove_path "$INSTALL_ROOT"
+
+# Add-on configuration holds a profile, a policy and an IMAP app password per account, and
+# the state directory holds the read cursors and the audit log. A reinstall should pick
+# them up where they were left, so both are kept unless the operator asks for a purge by
+# name; `--purge` implies it because that mode already removes the rest of the user data.
+if (( PURGE_ADDONS || PURGE )); then
+  log 'Removing add-on configuration, credentials and state'
+  remove_path "$ADDON_CONFIG_DIR"
+  remove_path "$ADDON_STATE_ROOT"
+
+  # The MCP entries outlive the code, because they live in the OpenCode config rather than
+  # in the add-on directory. An entry with no server behind it makes OpenCode log a failed
+  # start on every session, so a purge by name removes them too.
+  if (( ! DRY_RUN )) && command -v node >/dev/null 2>&1 && [[ -f "$CILOT_OPENCODE_CONFIG" ]]; then
+    node - "$CILOT_OPENCODE_CONFIG" <<'NODE'
+const fs = require("node:fs");
+
+const file = process.argv[2];
+let document;
+try {
+  document = JSON.parse(fs.readFileSync(file, "utf8"));
+} catch {
+  // Comments or invalid JSON: leave the operator's file alone rather than rewriting it.
+  process.exit(0);
+}
+
+const servers = document?.mcp?.servers;
+if (!servers || typeof servers !== "object") process.exit(0);
+
+let removed = 0;
+for (const [name, entry] of Object.entries(servers)) {
+  if (entry && typeof entry === "object" && entry.environment?.CILOT_ADDON_ID) {
+    delete servers[name];
+    removed += 1;
+  }
+}
+if (removed === 0) process.exit(0);
+fs.writeFileSync(file, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600 });
+console.log(`[uninstaller] Removed ${removed} add-on MCP entr${removed === 1 ? "y" : "ies"}`);
+NODE
+  fi
+else
+  log "Keeping add-on configuration and state: $ADDON_CONFIG_DIR"
+fi
 
 # Installed binaries are removed only with --purge, because they may be shared
 # with an existing OpenCode installation.

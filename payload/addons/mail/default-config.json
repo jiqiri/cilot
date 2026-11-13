@@ -1,0 +1,10 @@
+{
+  "mode": "labels",
+  "labels": [],
+  "folders": ["INBOX"],
+  "maxResults": 20,
+  "sinceDays": 30,
+  "body": "text",
+  "attachments": "list",
+  "attachmentMaxMB": 10
+}

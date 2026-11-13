@@ -79,6 +79,23 @@ plain Facebook post and a formatted WordPress article without a global switch.
   are stored per Telegram id, so two people on one bot never move each other's state.
 - **13 interface languages** — including Vietnamese, with more added by dropping one file.
 
+### Add tools without touching the bot
+
+- **Add-ons** are MCP servers the agent can call, configured from `/addons`. Mail is the first
+  one: search labels or a whole mailbox and read a message with its attachments, read-only.
+- **The admin configures everything.** Accounts use an add-on; they never set their own scope,
+  limits or password. A standard account sees only the add-ons it was granted, can run the
+  self-test and can ask an admin for a change.
+- **One process per account.** An add-on derives the account from its workspace, re-reads the
+  grant on every call, and keeps one profile and one credential per Telegram id. Revoking a
+  grant deletes that profile and restarts the server.
+- **Nothing lives in the repo.** Code sits under the install root, configuration and
+  credentials under `~/.config/cilot/addons/`, cursors and the audit log under
+  `~/.local/state/cilot/addons/`. `install.sh --enable-addon mail` is the scripted path, and
+  `/addons` is the normal one.
+
+Contract and threat model: [ADDONS.md](./ADDONS.md).
+
 ### Share a machine, not files
 
 - **Admin** — the first id in `TELEGRAM_ADMIN_USER_IDS`. Full reach only after `/access on`:
@@ -176,6 +193,7 @@ Full instructions — credential layout, Postiz, the two servers, upgrade and un
 | `/stop` | Stop the OpenCode server (admin, elevated) |
 | `/open`, `/ls` | Browse directories and add a project (admin, elevated) |
 | `/vault` | API keys and environment secrets (primary admin, elevated) |
+| `/addons` | Installed add-ons: configure, grant, enable, test (admin), read-only otherwise |
 | `/access` | Safe default on/off for the admin (primary admin) |
 | `/user` | Add, block or delete accounts (primary admin, elevated) |
 | `/share` | Shared folders and grants (primary admin, elevated) |
@@ -213,6 +231,7 @@ and [USAGE.md](./USAGE.md) (Vietnamese).
 ├── payload/
 │   ├── cilot/                  the bot source, built with npm
 │   ├── postiz-agent/           the social-publishing agent definition
+│   ├── addons/mail/            the read-only IMAP add-on, built output included
 │   └── personas/               starter persona templates
 └── tools/                      installer helpers
 ```

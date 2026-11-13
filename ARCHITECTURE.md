@@ -283,6 +283,9 @@ By default:
 ~/.config/cilot/opencode/skills/postiz-guidance/SKILL.md
 ~/.config/cilot/secrets.json              # /vault store, mode 600
 ~/.config/cilot/secrets.env               # rendered for the server unit, mode 600
+~/.local/share/cilot/addons/<id>/         # add-on code, replaced by update.sh
+~/.config/cilot/addons/<id>/              # add-on policy, profiles, credentials, mode 700
+~/.local/state/cilot/addons/<id>/         # cursors and audit log, mode 700
 ~/.config/systemd/user/opencode.service
 ~/.config/systemd/user/cilot-server.service
 ~/.config/systemd/user/cilot-bot.service
@@ -409,6 +412,37 @@ reappears within seconds. Filtering at read time is the only durable approach, a
 nothing.
 
 To bring a hidden project back, remove its path from whichever of the two holds it.
+
+## Add-ons
+
+An add-on is a package that adds tools the agent can call, served by its own local MCP server.
+The contract is in [ADDONS.md](./ADDONS.md); this section is the operational summary.
+
+- **Process model.** Each add-on is one entry under `mcp.servers` in
+  `~/.config/cilot/opencode/opencode.jsonc`, started by OpenCode per workspace, with
+  `"codemode": false`. Its tools arrive as `mail_search`, `mail_read`, `mail_labels`,
+  `mail_ack`.
+- **Identity.** An add-on refuses to guess who is calling. It resolves `realpath(process.cwd())`
+  under `CILOT_USER_ROOT` and takes the first numeric segment as the Telegram id. A shared
+  folder, the operator's own directory or an unscoped folder yields `unknown_account`.
+- **Authorization.** `~/.config/cilot/addons/<id>/policy.json` is the only source of truth and
+  is re-read on every call. The default is `admin-only`, so an id with no row is `off`. Revoking
+  a grant deletes that account's profile and credentials and restarts `cilot-server`, so no MCP
+  process keeps a credential for an account that just lost access.
+- **Who configures what.** Accounts may use an add-on, run its self-test and ask an admin for a
+  change. Every edit — scope, limits, credentials, grants, enabling — is done by an admin in
+  `/addons`. The add-on itself has no admin concept, so it has no privilege logic to get wrong.
+- **Enabling.** Enabling writes the MCP entry and `"<id>_*": allow` into the chosen agents'
+  frontmatter, then restarts the server. Disabling removes both. Standard agents such as
+  `social-media` start from `"*": deny`, so the permission line is what makes the namespace
+  callable at all.
+- **What an update touches.** `update.sh` replaces code only. Config, credentials and state live
+  outside the install root and are never read or written by the updater.
+
+The mail add-on is read-only: `labels`, `search`, `read` and `ack`. `ack` writes the local
+notification cursor, never the mailbox. Attachments are saved under
+`<workspace>/mail-attachments/<message id>/` with sanitized names, `wx` opens, and a
+`realpath` containment check, so a message cannot choose a path in the workspace.
 
 ## Social post formatting
 
@@ -899,4 +933,9 @@ CF_WORKERS_AI_TOKEN='...' \
 
 ## Uninstall
 
-The installer does not remove existing OpenCode data automatically. Stop and disable the three user services first, then remove the installation paths after reviewing them.
+`./uninstall.sh --dry-run` prints every path first. The default run stops and disables the
+three user services and removes the install root, then keeps OpenCode data and add-on
+configuration so a reinstall does not silently drop a mailbox. `--purge` also removes the
+managed configuration and data, and `--purge-addons` names and removes
+`~/.config/cilot/addons/` and `~/.local/state/cilot/addons/` (with `--purge` this is implied),
+along with the add-on MCP entries.

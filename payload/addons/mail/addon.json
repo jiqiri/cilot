@@ -1,0 +1,96 @@
+{
+  "id": "mail",
+  "name": "Mail",
+  "version": "1.0.0",
+  "description": "Read a mailbox, or only the labels you choose.",
+  "entry": "dist/server.js",
+  "scope": "per-user",
+  "tools": [
+    { "name": "labels", "summary": "List labels and folders", "readOnly": true },
+    { "name": "search", "summary": "Search messages", "readOnly": true },
+    { "name": "read", "summary": "Read one message and its attachments", "readOnly": true },
+    { "name": "ack", "summary": "Record that messages were delivered", "readOnly": true }
+  ],
+  "secrets": [
+    {
+      "key": "MAIL_IMAP_HOST",
+      "label": "IMAP server, for example imap.gmail.com",
+      "required": true,
+      "secret": false
+    },
+    {
+      "key": "MAIL_IMAP_PORT",
+      "label": "IMAP port (993 for TLS, 143 for STARTTLS)",
+      "required": false,
+      "secret": false
+    },
+    {
+      "key": "MAIL_IMAP_USER",
+      "label": "Mailbox login",
+      "required": true,
+      "secret": false
+    },
+    {
+      "key": "MAIL_IMAP_PASSWORD",
+      "label": "IMAP app password",
+      "required": true,
+      "secret": true
+    }
+  ],
+  "config": {
+    "mode": {
+      "type": "enum",
+      "values": ["labels", "mailbox"],
+      "default": "labels",
+      "label": "What the agent may read"
+    },
+    "labels": {
+      "type": "string[]",
+      "default": [],
+      "label": "Labels (mode: labels)"
+    },
+    "folders": {
+      "type": "string[]",
+      "default": ["INBOX"],
+      "label": "Folders"
+    },
+    "maxResults": {
+      "type": "number",
+      "default": 20,
+      "min": 1,
+      "max": 100,
+      "label": "Results per search"
+    },
+    "sinceDays": {
+      "type": "number",
+      "default": 30,
+      "min": 1,
+      "max": 365,
+      "label": "How far back to search"
+    },
+    "body": {
+      "type": "enum",
+      "values": ["none", "text"],
+      "default": "text",
+      "label": "Return body text"
+    },
+    "attachments": {
+      "type": "enum",
+      "values": ["none", "list", "download"],
+      "default": "list",
+      "label": "Attachments"
+    },
+    "attachmentMaxMB": {
+      "type": "number",
+      "default": 10,
+      "min": 1,
+      "max": 50,
+      "label": "Largest attachment to download"
+    }
+  },
+  "capabilities": {
+    "network": ["*:993", "*:143"],
+    "fs": ["mail-attachments"]
+  },
+  "minCilotVersion": "1.1.0"
+}

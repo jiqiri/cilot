@@ -19,6 +19,7 @@ Options:
   --env-file PATH    read settings from PATH instead of the default locations
   --no-settings-file do not create install.env on first run
   --check, --preflight  report the machine's readiness and change nothing
+  --enable-addon ID   register a bundled add-on during install instead of in /addons
   -h, --help          show this message
 
 Settings are taken from the first of these that provides them:
@@ -43,6 +44,9 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "--env-file needs a path."
       INSTALL_ENV_FILE="$2"; export INSTALL_ENV_FILE; shift 2 ;;
     --no-settings-file) INSTALL_ENV_WRITE=0; export INSTALL_ENV_WRITE; shift ;;
+    --enable-addon)
+      [[ $# -ge 2 ]] || die "--enable-addon needs an add-on id."
+      ENABLE_ADDONS+=("$2"); shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) break ;;
   esac
@@ -190,6 +194,9 @@ unset -v __name
 PAYLOAD_REPO="${PAYLOAD_REPO:-jiqiri/cilot}"
 PAYLOAD_BRANCH="${PAYLOAD_BRANCH:-main}"
 PAYLOAD_ARCHIVE_URL="${PAYLOAD_ARCHIVE_URL:-https://github.com/$PAYLOAD_REPO/archive/refs/heads/$PAYLOAD_BRANCH.tar.gz}"
+# Add-ons to register during install. The normal path is `/addons` in Telegram, which
+# needs no flag and no restart of the installer; this exists for a scripted setup.
+ENABLE_ADDONS=()
 INSTALL_ROOT="${INSTALL_ROOT:-$HOME/.local/share/cilot}"
 OPENCODE_MAIN_BIN_DIR="${OPENCODE_MAIN_BIN_DIR:-$HOME/.opencode/bin}"
 CILOT_BIN_DIR="${CILOT_BIN_DIR:-$INSTALL_ROOT/bin}"
@@ -461,6 +468,35 @@ preflight_check() {
     echo "  [$report_ok] sudo available for package installs"
   else
     echo "  [note] no passwordless sudo; the installer cannot install packages itself"
+  fi
+
+  # Bundled add-ons are optional: a bad one leaves the bot install alone, so a problem here
+  # is reported as a warning rather than a blocking failure.
+  local addon_root="$PAYLOAD_DIR/addons"
+  if [[ ! -d "$addon_root" ]]; then
+    echo "  [note] no bundled add-ons"
+  elif ! command -v node >/dev/null 2>&1; then
+    echo "  [note] bundled add-ons present; node is required to validate them"
+  else
+    local addon_dir addon_id reason bundled_version warn=0 seen=0
+    bundled_version="$(node -p "require('$PAYLOAD_DIR/cilot/package.json').version" 2>/dev/null || echo 0.0.0)"
+    for addon_dir in "$addon_root"/*; do
+      [[ -d "$addon_dir" ]] || continue
+      addon_id="$(basename "$addon_dir")"
+      seen=$((seen + 1))
+      if [[ ! -f "$addon_dir/addon.json" ]]; then
+        echo "  [warn] add-on $addon_id: addon.json is missing"
+        warn=$((warn + 1))
+      elif reason="$(validate_addon_manifest "$addon_dir" "$bundled_version" 2>&1)"; then
+        echo "  [$report_ok] add-on $addon_id"
+      else
+        echo "  [warn] add-on $addon_id: ${reason:-invalid manifest}"
+        warn=$((warn + 1))
+      fi
+    done
+    if (( seen > 0 && warn == 0 )); then
+      echo "  [$report_ok] $seen bundled add-on(s) valid"
+    fi
   fi
 
   echo
@@ -906,6 +942,14 @@ OPENCODE_SERVER_PASSWORD=$(awk -F= '$1=="OPENCODE_SERVER_PASSWORD" {print $2}' "
 # files, so a secret entered in Telegram reaches the tool that needs it.
 SECRETS_FILE=$CILOT_CONFIG_DIR/secrets.json
 SECRETS_ENV_FILE=$CILOT_CONFIG_DIR/secrets.env
+# Add-on roots. The bot lists manifests from the first, reads policy and profiles from the
+# second, and the add-on itself writes its cursor and audit log under the third.
+CILOT_ADDON_ROOT=$INSTALL_ROOT/addons
+CILOT_ADDON_CONFIG_ROOT=$CILOT_CONFIG_DIR/addons
+CILOT_ADDON_STATE_ROOT=${XDG_STATE_HOME:-$HOME/.local/state}/cilot/addons
+CILOT_OPENCODE_CONFIG=$CILOT_CONFIG_DIR/opencode/opencode.jsonc
+CILOT_AGENTS_DIR=$CILOT_CONFIG_DIR/opencode/agents
+OPENCODE_SERVER_UNIT=cilot-server.service
 EOF
   chmod 600 "$telegram_env" "$main_env" "$cloudflare_env" "$telegram_server_env"
   unset OPENCODE_SERVER_PASSWORD
@@ -1094,6 +1138,301 @@ NODE
 # files get committed, pasted into issues, and copied between machines, and a credential in
 # one of them is a credential in all of them. The token is read from the mode-600 env file and
 # never printed, and the file is tightened to 600 whether or not it had to change.
+
+# ---------------------------------------------------------------- add-ons
+
+# Validates one add-on manifest against the Cilot version it will run under.
+#
+# Prints nothing and exits 0 when the manifest is usable; prints the reason and exits
+# non-zero otherwise. The installer treats a failure as "leave this add-on disabled", and
+# --check reports it without changing anything, so both callers share one rule set.
+validate_addon_manifest() {
+  local root="$1" bot_version="$2"
+  node - "$root" "$bot_version" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = process.argv[2];
+const botVersion = process.argv[3];
+const fail = (message) => {
+  console.error(message);
+  process.exit(1);
+};
+
+let manifest;
+try {
+  manifest = JSON.parse(fs.readFileSync(path.join(root, "addon.json"), "utf8"));
+} catch (error) {
+  fail(`addon.json is not readable: ${error.message}`);
+}
+if (!/^[a-z][a-z0-9_]{1,23}$/.test(manifest.id)) fail(`invalid id: ${manifest.id}`);
+if (manifest.scope !== "global" && manifest.scope !== "per-user") fail("scope must be global or per-user");
+if (typeof manifest.entry !== "string" || !manifest.entry) fail("entry is missing");
+if (path.isAbsolute(manifest.entry) || manifest.entry.split(/[\\/]/).includes("..")) {
+  fail("entry escapes the add-on directory");
+}
+if (!fs.existsSync(path.join(root, manifest.entry))) fail(`entry is missing: ${manifest.entry}`);
+if (typeof manifest.version !== "string" || !/^\d+\.\d+\.\d+/.test(manifest.version)) {
+  fail("version is not semver");
+}
+const parse = (value) => {
+  const match = /^(\d+)\.(\d+)\.(\d+)/.exec(String(value));
+  return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+};
+if (manifest.minCilotVersion) {
+  const current = parse(botVersion);
+  const minimum = parse(manifest.minCilotVersion);
+  if (current && minimum) {
+    for (let index = 0; index < 3; index += 1) {
+      if (current[index] > minimum[index]) break;
+      if (current[index] < minimum[index]) {
+        fail(`requires Cilot ${manifest.minCilotVersion}, this is ${botVersion}`);
+      }
+    }
+  }
+}
+NODE
+}
+
+
+# Copy and install the bundled add-ons.
+#
+# The code lives under $INSTALL_ROOT/addons, config under $CILOT_CONFIG_DIR/addons and
+# state under the XDG state directory; only the first is deployment output. Config is
+# seeded once and never touched again, because re-running the installer must not reset a
+# profile or a grant the admin has since changed.
+install_addons() {
+  local payload_addons="$PAYLOAD_DIR/addons"
+  if [[ ! -d "$payload_addons" ]]; then
+    log "No add-ons are bundled with this installer"
+    return 0
+  fi
+
+  local addon_root="$INSTALL_ROOT/addons"
+  local config_root="$CILOT_CONFIG_DIR/addons"
+  local state_root="${XDG_STATE_HOME:-$HOME/.local/state}/cilot/addons"
+  local bot_version
+  bot_version="$(node -p "require('$BOT_SOURCE_DIR/package.json').version" 2>/dev/null || true)"
+  [[ -n "$bot_version" ]] || bot_version="0.0.0"
+
+  mkdir -p "$addon_root" "$config_root" "$state_root"
+  chmod 700 "$config_root" "$state_root"
+
+  local src id target log_file
+  for src in "$payload_addons"/*; do
+    [[ -d "$src" ]] || continue
+    id="$(basename "$src")"
+    if ! [[ "$id" =~ ^[a-z][a-z0-9_]{1,23}$ ]]; then
+      log "Skipping add-on with an invalid id: $id"
+      continue
+    fi
+
+    target="$addon_root/$id"
+    # Code is disposable; only config and state must survive a re-install.
+    rm -rf "$target"
+    mkdir -p "$target"
+    tar -C "$src" --exclude=node_modules --exclude='*.log' -cf - . | tar -C "$target" -xf -
+
+    log_file="$addon_root/$id-install.log"
+    if [[ -f "$target/package-lock.json" ]]; then
+      if ! (cd "$target" && npm ci --omit=dev --no-audit --no-fund) >"$log_file" 2>&1; then
+        log "Add-on $id: dependency install failed; the add-on stays disabled. Log: $log_file"
+        continue
+      fi
+    fi
+
+    # The built output is committed, so a normal install needs no TypeScript toolchain.
+    # Building here is the fallback for a checkout where dist/ was not shipped.
+    if [[ ! -f "$target/dist/server.js" ]]; then
+      if ! (cd "$target" && npm install --no-audit --no-fund && npm run build) >>"$log_file" 2>&1; then
+        log "Add-on $id: build failed; the add-on stays disabled. Log: $log_file"
+        continue
+      fi
+    fi
+
+    local reason
+    if ! reason="$(validate_addon_manifest "$target" "$bot_version" 2>&1)"; then
+      log "Add-on $id: manifest validation failed (${reason:-unknown}); the add-on stays disabled"
+      continue
+    fi
+
+    rm -f "$log_file"
+    seed_addon_config "$id" "$target"
+    log "Add-on installed: $id ($target)"
+  done
+}
+
+seed_addon_config() {
+  local id="$1"
+  local root="$2"
+  local dir="$CILOT_CONFIG_DIR/addons/$id"
+
+  if [[ -d "$dir" ]]; then
+    log "Add-on config exists, keeping it: $id"
+    return 0
+  fi
+
+  mkdir -p "$dir"
+  chmod 700 "$dir"
+  cat >"$dir/policy.json" <<'EOF'
+{
+  "version": 1,
+  "default": "admin-only",
+  "users": {}
+}
+EOF
+  chmod 600 "$dir/policy.json"
+
+  # A `global` add-on has one profile at the config root, so its defaults are seeded now.
+  # A `per-user` profile is created when the admin grants an account.
+  node - "$root/addon.json" "$root/default-config.json" "$dir" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const [manifestFile, defaultsFile, configRoot] = process.argv.slice(2);
+const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+if (manifest.scope !== "global") process.exit(0);
+
+const target = path.join(configRoot, "config.json");
+if (fs.existsSync(target)) process.exit(0);
+
+let defaults = {};
+try {
+  defaults = JSON.parse(fs.readFileSync(defaultsFile, "utf8"));
+} catch {
+  defaults = {};
+}
+fs.writeFileSync(target, `${JSON.stringify(defaults, null, 2)}\n`, { mode: 0o600 });
+NODE
+}
+
+# Register the add-ons named by --enable-addon.
+#
+# This mirrors what `/addons` does: one MCP entry, the `"<id>_*"` permission in the standard
+# agents, and a `use` grant for the admin whose Telegram id is configured. It is a
+# convenience for a scripted install, not the normal path.
+register_enabled_addons() {
+  [[ ${#ENABLE_ADDONS[@]} -gt 0 ]] || return 0
+
+  local id admin_id state_root config_file agents_dir user_root node_bin
+  state_root="${XDG_STATE_HOME:-$HOME/.local/state}/cilot/addons"
+  config_file="$CILOT_CONFIG_DIR/opencode/opencode.jsonc"
+  [[ -f "$config_file" ]] || config_file="$CILOT_CONFIG_DIR/opencode/opencode.json"
+  agents_dir="$CILOT_CONFIG_DIR/opencode/agents"
+  user_root="${CILOT_USER_ROOT:-$HOME/.local/share/tg-workspaces/users}"
+  node_bin="$(command -v node)"
+  admin_id="$(printf '%s' "${TELEGRAM_ADMIN_USER_IDS:-}" | cut -d, -f1 | tr -d ' ')"
+  [[ -n "$admin_id" ]] || admin_id="${TELEGRAM_ALLOWED_USER_ID:-}"
+
+  for id in "${ENABLE_ADDONS[@]}"; do
+    if ! [[ "$id" =~ ^[a-z][a-z0-9_]{1,23}$ ]]; then
+      log "Skipping --enable-addon with an invalid id: $id"
+      continue
+    fi
+    local root="$INSTALL_ROOT/addons/$id"
+    if [[ ! -f "$root/addon.json" ]]; then
+      log "--enable-addon $id: not installed"
+      continue
+    fi
+
+    if node - "$id" "$root" "$CILOT_CONFIG_DIR/addons/$id" "$state_root/$id" \
+      "$config_file" "$agents_dir" "$user_root" "$node_bin" "$admin_id" <<'NODE'
+const fs = require("node:fs");
+const path = require("node:path");
+
+const [
+  id,
+  root,
+  configRoot,
+  stateRoot,
+  configFile,
+  agentsDir,
+  userRoot,
+  nodeBin,
+  adminId,
+] = process.argv.slice(2);
+const fail = (message) => {
+  console.error(message);
+  process.exit(1);
+};
+
+const manifest = JSON.parse(fs.readFileSync(path.join(root, "addon.json"), "utf8"));
+
+let document;
+try {
+  document = JSON.parse(fs.readFileSync(configFile, "utf8"));
+} catch (error) {
+  fail(`${configFile} is not plain JSON: ${error.message}`);
+}
+document.mcp = document.mcp && typeof document.mcp === "object" ? document.mcp : {};
+document.mcp.servers = document.mcp.servers && typeof document.mcp.servers === "object" ? document.mcp.servers : {};
+document.mcp.servers[id] = {
+  type: "local",
+  command: [nodeBin, path.join(root, manifest.entry)],
+  environment: {
+    CILOT_ADDON_ID: id,
+    CILOT_ADDON_CONFIG_ROOT: configRoot,
+    CILOT_ADDON_STATE_ROOT: stateRoot,
+    CILOT_USER_ROOT: userRoot,
+  },
+  codemode: false,
+};
+fs.writeFileSync(configFile, `${JSON.stringify(document, null, 2)}\n`, { mode: 0o600 });
+
+if (manifest.scope === "per-user" && /^\d+$/.test(adminId)) {
+  const policyFile = path.join(configRoot, "policy.json");
+  let policy = { version: 1, default: "admin-only", users: {} };
+  try {
+    policy = JSON.parse(fs.readFileSync(policyFile, "utf8"));
+  } catch {
+    // The seed above is already the same shape.
+  }
+  if (!policy.users || typeof policy.users !== "object") policy.users = {};
+  policy.users[adminId] = { grant: "use", updatedAt: new Date().toISOString() };
+  fs.writeFileSync(policyFile, `${JSON.stringify(policy, null, 2)}\n`, { mode: 0o600 });
+
+  const profileDir = path.join(configRoot, "users", adminId);
+  const profileFile = path.join(profileDir, "config.json");
+  if (!fs.existsSync(profileFile)) {
+    fs.mkdirSync(profileDir, { recursive: true, mode: 0o700 });
+    let defaults = {};
+    try {
+      defaults = JSON.parse(fs.readFileSync(path.join(root, "default-config.json"), "utf8"));
+    } catch {
+      defaults = {};
+    }
+    fs.writeFileSync(profileFile, `${JSON.stringify(defaults, null, 2)}\n`, { mode: 0o600 });
+  }
+}
+
+for (const agent of ["social-media", "postiz-social"]) {
+  const file = path.join(agentsDir, `${agent}.md`);
+  if (!fs.existsSync(file)) continue;
+  const lines = fs.readFileSync(file, "utf8").split("\n");
+  const key = `"${id}_*": allow`;
+  if (lines.some((line) => line.trim() === key)) continue;
+  const start = lines.findIndex((line) => /^permission:\s*$/.test(line));
+  if (start < 0) continue;
+  let insertAt = start + 1;
+  while (insertAt < lines.length) {
+    const line = lines[insertAt];
+    if (line.startsWith("---") || (line.length > 0 && !line.startsWith(" ") && !line.startsWith("#"))) {
+      break;
+    }
+    insertAt += 1;
+  }
+  lines.splice(insertAt, 0, `  ${key}`);
+  fs.writeFileSync(file, lines.join("\n"));
+}
+NODE
+    then
+      log "Add-on enabled at install: $id"
+    else
+      log "--enable-addon $id: registration failed"
+    fi
+  done
+}
+
 redact_mcp_token_in_configs() {
   local token="" config
   # Read the value out of the env file. Never echoed: this is a credential, and a log line
@@ -1228,8 +1567,10 @@ main() {
   install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
   install_opencode_binary "$CILOT_VERSION" "$CILOT_BIN_DIR/opencode"
   copy_payload
+  install_addons
   write_runtime_files
   install_image_plugin
+  register_enabled_addons
   write_systemd_units
   start_services
   log "Installed OpenCode, the Cilot agent, the Cloudflare image tool, and user services."
