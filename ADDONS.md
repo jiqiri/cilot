@@ -52,7 +52,7 @@ surface, and a result the model has to be trusted not to widen.
 | **bundled add-on** | Shipped in `payload/addons/<id>/`, installed by `install.sh`. |
 | **external add-on** | Dropped into the data directory by the operator. Phase 2. |
 | **scope** | `global` (one configuration for the machine) or `per-user` (a profile per Telegram id). |
-| **grant** | What one Telegram account may do with one add-on: `off`, `use`, `self`. |
+| **grant** | What one Telegram account may do with one add-on: `off`, `use`. |
 | **profile** | One account's config + credentials for one add-on. |
 | **policy** | `policy.json`: the grant table. The only source of truth for authorization. |
 | **account** | The Telegram id the current MCP process is serving, derived from its cwd (§5). |
@@ -143,9 +143,9 @@ keep must live outside it.
   policy.json                                grant table, mode 600        (§7)
   config.json                                profile for `scope: global`. mode 600
   secrets.env                                credentials for `scope: global`. mode 600
-  users/<telegram id>.json                   profile for `scope: per-user`. mode 600
-  users/<telegram id>.env                    credentials. mode 600
-  users/<telegram id>.json.bak               last good profile, written on save
+  users/<telegram id>/config.json            profile for `scope: per-user`. mode 600
+  users/<telegram id>/secrets.env            credentials. mode 600
+  users/<telegram id>/config.json.bak        last good profile, written on save
 
 ~/.local/state/cilot/addons/<id>/            mode 700
   users/<telegram id>/cursor.json            last-seen markers, dedupe keys
@@ -157,6 +157,9 @@ Rules:
 
 - **Config and state never live under the code directory.** `update.sh` and `install.sh` must be
   able to replace code without reading or writing either.
+- **One directory per account.** `users/<id>/` is the unit the admin manages: that account's
+  config and credentials together. It is created when the admin grants the account and deleted
+  when the admin revokes it.
 - **Secrets never live in `*.json`.** They go in a mode-600 env file, one `KEY=value` per line,
   rendered by the bot from its own vault storage. JSON is what `/addons` prints in summaries and
   what a support request pastes into a chat; a secret must not be able to leak that way.
@@ -318,6 +321,19 @@ configuration forms **from the schema**, so adding an add-on does not require bo
       "values": ["none", "text"],
       "default": "text",
       "label": "Return body text"
+    },
+    "attachments": {
+      "type": "enum",
+      "values": ["none", "list", "download"],
+      "default": "list",
+      "label": "Attachments"
+    },
+    "attachmentMaxMB": {
+      "type": "number",
+      "default": 10,
+      "min": 1,
+      "max": 50,
+      "label": "Largest attachment to download"
     }
   },
   "capabilities": {
@@ -376,7 +392,7 @@ tool call**. Nothing else records a grant, so there is no second copy to drift.
   "version": 1,
   "default": "admin-only",
   "users": {
-    "1084045244": { "grant": "self", "updatedAt": "2026-11-12T10:00:00.000Z" },
+    "1084045244": { "grant": "use", "updatedAt": "2026-11-12T10:00:00.000Z" },
     "555000111": { "grant": "use" }
   }
 }
@@ -386,36 +402,49 @@ tool call**. Nothing else records a grant, so there is no second copy to drift.
 | --- | --- | --- | --- | --- |
 | `off` (default) | nothing | no: `not_granted` | no | no |
 | `use` | read-only summary | yes, with the profile the admin set | no | no |
-| `self` | full editor | yes, with this account's profile | yes | yes |
-| admin (own profile) | full editor + grant UI | yes | yes | yes |
+| admin (own profile, `use` + bot admin) | full editor + grant UI | yes | yes, through the admin UI | yes, through the admin UI |
 
 Notes:
 
-- **There is no admin grant value.** The admin is an ordinary account with a `self` profile in
-  `policy.json`, plus `admin_commands` in the bot, which is what lets them edit other rows.
-  The add-on itself has no concept of an admin, so it has no privilege logic to get wrong.
+- **There is no admin grant value and no self-service grant.** The admin is an ordinary account
+  with `use`, plus `admin_commands` in the bot, which is what lets them edit every row and every
+  profile. An account with `use` cannot edit its own profile or enter its own password; this is
+  the whole point of the model (§7.2). The add-on itself has no concept of an admin, so it has no
+  privilege logic to get wrong.
 - **`default: "admin-only"`** means an id with no row is `off`. A new account never inherits a
   new add-on by accident.
 - `default: "all-users"` is allowed but only meaningful for `scope: global`; the bot refuses to
-  set it on a `per-user` add-on without an explicit confirmation, because it would hand every
-  allowed account its own mailbox slot with no credential.
+  set it on a `per-user` add-on without an explicit confirmation, because every allowed account
+  would get a slot with no credential and calls would fail with `missing_secret`.
 - A freshly installed add-on is **disabled** (no MCP entry) until the admin finishes its global
   configuration and enables it.
 
-### 7.2 Why the admin does not automatically read everyone's mail
+### 7.2 The admin configures, the account only uses
 
-The admin can read any workspace and restart any service. That is authority over the machine, not
-consent to read a colleague's mail. The bot therefore does not add a cross-user path to any
-add-on. If an operator genuinely needs it, it is a deliberate feature with its own audit trail,
-not a side effect of being an admin.
+A `use` account has no editor. It sees the summary, the state of its credentials (`set` or
+`not set`) and a Test button. Everything else — mode, labels, limits, credentials — is entered by
+the admin from `/addons → Accounts`.
+
+State the consequences plainly, because they are real:
+
+- The admin types each account's mail password. The admin can therefore read that mailbox with or
+  without Cilot. The add-on does not create that power; it makes it visible in one place and
+  auditable.
+- The add-on has no cross-user tool: a call is served with the profile for the cwd the process
+  runs in. But an admin who opens another account's workspace as a project (which `/access on`
+  already allows) runs in that account's cwd and is served that account's profile. The boundary is
+  the bot's `cross_user_projects` capability, not the add-on. `CILOT_CONFINE_ADMINS=true` removes
+  it.
+- A profile is never shared between ids. Two accounts configured with the same mailbox are two
+  profiles with two credentials; the add-on does not deduplicate them.
 
 ### 7.3 Revocation
 
 `off` takes effect on the next call, because the policy is read each time. Two extra steps make
 revocation complete:
 
-1. On `off`, the bot deletes `users/<id>.json` and `users/<id>.env` by default, and asks before
-   keeping them.
+1. On `off`, the bot deletes `users/<id>/` (config and credentials together) by default, and asks
+   before keeping it.
 2. The bot restarts `cilot-server.service`, which kills every MCP process and clears any secret
    that is still in memory. A running process is not left holding a credential for an account
    that just lost access.
@@ -440,7 +469,9 @@ See §9.
 
 ## 8. Credentials
 
-- One env file per profile: `secrets.env` for `global`, `users/<id>.env` for `per-user`.
+- One env file per profile: `secrets.env` for `global`, `users/<id>/secrets.env` for `per-user`.
+- Only the admin enters credentials. A `use` account never sees a value and never gets a form; it
+  sees `set` or `not set`.
 - Mode `600`, owned by the bot's Linux user, written atomically (temp file + rename).
 - The bot renders it from the same secret store that backs `/vault`, so masking, deletion and
   "apply and restart" behave the same way. The bot never prints a value back; `/addons` shows
@@ -456,7 +487,7 @@ See §9.
 Env file format:
 
 ```dotenv
-# ~/.config/cilot/addons/mail/users/1084045244.env — mode 600
+# ~/.config/cilot/addons/mail/users/1084045244/secrets.env — mode 600
 MAIL_IMAP_HOST=imap.gmail.com
 MAIL_IMAP_PORT=993
 MAIL_IMAP_USER=person@example.com
@@ -479,9 +510,10 @@ rejects a line without `=` and rejects keys outside `^[A-Z][A-Z0-9_]*$`.
   the audit log and a failed self-test, not a crash.
 - Collisions with `telegram_*` and `postiz_*` are impossible by construction, because the server
   name is the add-on `id` and ids cannot be `telegram` or `postiz`.
-- Every tool declares `readOnly: true|false`. v1 mail tools are all read-only; a future write tool
-  must be `readOnly: false` and is denied unless the account has `self` (or the admin enabled the
-  write capability for `use`).
+- Every tool declares `readOnly: true|false`. All v1 mail IMAP tools are read-only. A future tool
+  that changes the mailbox must be `readOnly: false` and is refused unless the admin set
+  `allowWrite: true` in that account's profile. `mail_ack` is not in this category: it writes the
+  local cursor only, never the mailbox.
 - The enable step writes `"<id>_*": allow` into the `permission` block of the agent chosen by the
   admin and, for the `social-media` default, into `~/.config/cilot/opencode/agents/<agent>.md`.
   It writes `"<id>_*": ask` instead when the operator chose "confirm each call".
@@ -517,20 +549,19 @@ Mail — enabled
 per-user · 2 of 4 accounts
 
 My profile      labels: Cilot, Important
-Accounts        ✅ 630868685  (self)
-                ✅ 1084045244  (self)
+Accounts        ✅ 630868685  (use)
+                ✅ 1084045244  (use)
                 ⛔ 555000111  (off)
 Default policy  admin-only
 [ My profile ] [ Accounts ] [ Secrets ] [ Test ] [ Disable ]
 ```
 
 - **My profile** opens the schema-driven form (§10.4) for the admin's own id.
-- **Accounts** lists every configured Telegram id with its grant; tapping cycles
-  `off → use → self → off`, with `self` asking for confirmation because it delegates credential
-  entry.
+- **Accounts** lists every configured Telegram id with its grant; tapping cycles `off → use →
+  off`. Opening an account shows its config form and secret editor, both filled in by the admin.
 - **Default policy** switches `admin-only` / `all-users` (the latter only for `global`).
-- **Secrets** opens the secret editor for the admin's own profile, or for a chosen account when
-  granting `self` on their behalf.
+- **Secrets** opens the secret editor for the admin's own profile or for the selected account a
+  `use` row points at.
 - **Test** runs `node <entry> --selftest` with the selected profile and reports login, message
   count and the resolved account. It never prints message content.
 - **Disable** removes the MCP entry, restarts the server, and leaves config and policy in place.
@@ -540,16 +571,19 @@ Default policy  admin-only
 ```
 Mail
 labels: Cilot, Important · max 20
+Credentials: set
 
-[ Change labels ] [ Search limit ] [ Test ]
+[ Test ] [ How to ask for a change ]
 ```
 
-A `use` account sees the same summary with no edit buttons and a note that an admin manages it.
-A `self` account gets the full form for the fields in the schema.
+A `use` account sees only this summary. There are no edit buttons: the admin owns the profile and
+the credentials. If a field is wrong, the account asks the admin. The second button sends the
+admin a short message naming the account and the add-on; it does not open a form.
 
 ### 10.4 Config form
 
-The bot renders one screen per field or per small group, from `addon.json`:
+Only the admin sees these forms; they are reached from **My profile** or from an account in
+**Accounts**. The bot renders one screen per field or per small group, from `addon.json`:
 
 - `enum` → inline keyboard of values.
 - `boolean` → two buttons.
@@ -591,9 +625,10 @@ not_granted: this account has no access to the mail add-on.
 | `not_granted` | policy says `off`, or no policy row | tell the user an admin must grant access; do not retry |
 | `unknown_account` | cwd is not under `users/<id>` (shared folder, root, operator dir) | ask the user to switch to their personal workspace |
 | `not_configured` | profile missing, or a required field is unset | ask an admin to finish setup |
+| `not_editable` | a `use` account tries to save config (UI path only) | explain that the admin manages it |
 | `invalid_config` | profile fails schema validation | report the field; do not guess |
 | `missing_secret` | a required secret is absent | ask the user/admin to add it, never echo the key's value |
-| `read_only` | a write tool was called on a `use` grant | explain that an admin must allow configuration |
+| `too_large` | an attachment exceeds `attachmentMaxMB` | report the name and limit; do not retry |
 | `upstream_error` | IMAP/DNS/auth failure | report a short cause; do not retry in a loop |
 | `rate_limited` | the add-on's own per-account budget is exhausted | stop and report |
 
@@ -652,7 +687,7 @@ while another is broad.
 | --- | --- | --- |
 | `mail_labels` | none | folder/label names with unread counts. Used to discover valid labels. |
 | `mail_search` | `query?`, `label?`, `folder?`, `since?`, `limit?`, `excludeSeen?` | up to `limit` (capped by config `maxResults`) summaries: `uid`, `messageId`, `from`, `subject`, `date`, `snippet`, `labels` |
-| `mail_read` | `uid`, `folder?` | one message: headers, text body (truncated to 20 KB), attachment names and sizes (no content) |
+| `mail_read` | `uid`, `folder?`, `attachments?` | one message: headers, text body (truncated to 20 KB), attachment names and sizes; with `attachments: "download"`, the files are written to the workspace and returned as resource links |
 | `mail_ack` | `messageIds[]` | advances the cursor. Write tool, cursor only, never IMAP. |
 
 Argument rules:
@@ -665,6 +700,10 @@ Argument rules:
   and says so in the text.
 - `query` is passed to IMAP `SEARCH`; the add-on never builds a raw command string.
 - `mail_read` on a `uid` outside the configured scope returns `not_granted`, not "not found".
+- `attachments` is `none`, `list` or `download`, defaulting to the profile's `attachments` field.
+  It can only narrow that field, never widen it: a `use` account cannot ask for `download` when
+  the admin set `list`. An attachment above `attachmentMaxMB` is listed as `too_large` and is not
+  written.
 
 ### 13.3 Defaults
 
@@ -675,7 +714,9 @@ Argument rules:
   "folders": ["INBOX"],
   "maxResults": 20,
   "sinceDays": 30,
-  "body": "text"
+  "body": "text",
+  "attachments": "list",
+  "attachmentMaxMB": 10
 }
 ```
 
@@ -683,21 +724,49 @@ Argument rules:
 `not_configured`. This is the safe default: nothing is readable until the operator names what is
 readable.
 
-### 13.4 Read-only guarantees
+### 13.4 Read-only IMAP, writable workspace
+
+The mailbox is never modified. The workspace is, because an attachment has to land somewhere for
+the agent to send it.
+
+Mailbox rules:
 
 - No `SEND`, `APPEND`, `STORE`, `COPY`, `MOVE`, `EXPUNGE` in the IMAP client's allowed command
   set. The connection is opened with the read-only mailbox flag where the server supports it.
 - `markAsRead` is not a config field. A message read through the tool stays unread unless the
   user reads it in their own client. This surprises some operators, so `/addons` says it on the
   Mail screen.
-- No attachment bytes are written to disk in v1. `mail_read` returns names and sizes only.
-  A later version may save into the account's workspace, subject to the same path checks as
-  `image_generate`.
+
+Attachment rules:
+
+- `attachments: "download"` writes each part to
+  `<workspace>/mail-attachments/<messageId>/<safe-name>` and returns a `resource_link` plus the
+  absolute path. Image parts are also returned as MCP `image` content, which is how the existing
+  `image_generate` tool hands a picture to Telegram.
+- `safe-name` is the basename only: directory separators, `..`, control characters and leading
+  dots are removed. A name collision gets `-1`, `-2`, never an overwrite.
+- The target is resolved with `realpath` and must stay inside `process.cwd()`. A symlink planted
+  in the workspace cannot redirect the write.
+- Directories are mode `700`, files mode `600`. A part larger than `attachmentMaxMB`, or a call
+  whose parts total more than 25 MB, is reported as `too_large` and skipped. The rest of the
+  message is still returned.
+- Nothing is executed. An `.exe` or `.sh` attachment is a file the agent may read or forward, not
+  something the add-on runs.
+- Files are not cleaned up automatically. They are in the account's workspace, where the user can
+  delete them; `mail_attachments_clean` is deliberately not a tool in v1.
 
 ### 13.5 IMAP details
 
-- IMAP over TLS on 993 by default; `starttls` on 143 is allowed by config.
-- Host, port, user and password come from the profile's env file.
+- **Authentication: IMAP `AUTH=PLAIN` over TLS, using an app password.** This is the decision for
+  1.1.0. It needs no OAuth application registration, works with Gmail, Outlook/Microsoft 365
+  (app password where the tenant allows it), Fastmail and generic IMAP, and a user can revoke one
+  app password without touching their account password. The bot tells the admin to create one and
+  never asks for the primary password. XOAUTH2 is deferred (§19); the env schema has room for
+  `MAIL_IMAP_ACCESS_TOKEN` later without changing the file layout.
+- IMAP over TLS on 993 by default; `starttls` on 143 is allowed by config. A server that offers
+  neither is refused with `not_configured`.
+- Host, port, user and password come from the profile's env file. The account is the cwd's id, so
+  a profile cannot be pointed at another account's mailbox by a tool argument.
 - One connection per tool call, closed in `finally`. No pooled connection that could outlive a
   revoked grant. This is slower, and deliberately so.
 - A login failure is `upstream_error` with the server's response code, never the password.
@@ -781,7 +850,7 @@ The bot gets a small set of modules, not a plugin framework:
 | `addon-manifest-service.ts` | discover and validate manifests under `CILOT_ADDON_ROOT` |
 | `addon-policy-service.ts` | read/write `policy.json`, atomic, per add-on |
 | `addon-config-service.ts` | read/write profiles, schema validation, defaults |
-| `addon-secret-service.ts` | render `<profile>.env` through the existing vault store |
+| `addon-secret-service.ts` | render `users/<id>/secrets.env` through the existing vault store |
 | `addon-registry-service.ts` | add/remove the MCP entry in `opencode.jsonc`, restart the server |
 | `addon-audit-service.ts` | tail `audit.log` for the admin view |
 | `addon-callback-handler.ts` | the `/addons` menu, forms and confirmations |
@@ -813,6 +882,9 @@ executes add-on JavaScript.
   runs as the same Linux user.
 - A Telegram user is not a Linux user. Any process on the machine can read every profile that
   the Linux user can read. This is the same boundary as the rest of Cilot.
+- The admin enters every credential, so the admin can read every configured mailbox outside
+  Cilot. The add-on does not widen that, but it does not hide it either; §7.2 says so on the
+  admin screen.
 - Tool visibility is machine-wide (§7.4).
 - In-memory data survives until the process exits; revocation restarts the server to bound that
   window.
@@ -825,7 +897,12 @@ executes add-on JavaScript.
   tool, so a successful injection cannot send, delete or exfiltrate through the mail server.
 - `mail_search` results include only the configured scope, so an injected "search the whole
   mailbox" is refused in `labels` mode.
-- Attachment content is never returned in v1, which removes the largest injection surface.
+- Attachment content is untrusted in exactly the same way as a body. The add-on returns bytes and
+  a path; it never interprets them and never runs them. An attachment can still carry text that
+  the model reads, so the wrapper rule applies to attachments too.
+- Downloaded attachments are the one place a message can write to the workspace. Names are
+  sanitised, paths are confined to the workspace, nothing is executed, and no existing file is
+  overwritten (§13.4).
 
 ### 16.4 Failure modes
 
@@ -849,7 +926,7 @@ Keys (namespace `addons.`):
 ```text
 addons.title, addons.empty, addons.disabled, addons.enabled, addons.unhealthy
 addons.scope.global, addons.scope.per_user
-addons.grant.off, addons.grant.use, addons.grant.self
+addons.grant.off, addons.grant.use
 addons.list.line            {name} {scope} {summary}
 addons.detail.header        {name} {state} {scope}
 addons.detail.accounts      {granted} {total}
@@ -863,6 +940,9 @@ addons.enable.confirm       {scope} {accounts}
 addons.enable.agent_prompt
 addons.disable.confirm
 addons.test.running, addons.test.ok {messages}, addons.test.failed {code}
+addons.attachments.none, addons.attachments.list, addons.attachments.download
+addons.attachments.saved {count} {directory}
+addons.error.too_large {name} {limit}, addons.error.not_editable
 addons.audit.title, addons.audit.line {time} {account} {tool} {code}
 addons.error.not_granted, addons.error.unknown_account, addons.error.not_configured
 addons.error.invalid_config, addons.error.missing_secret, addons.error.upstream
@@ -881,14 +961,17 @@ advertise an empty screen.
 
 - Identity: `users/123/projects` → `123`; `users/123` → `123`; `shared/x` → `unknown_account`;
   `/home/info` → `unknown_account`; a symlink into `users/123` resolves to `123`.
-- Policy: missing row + `admin-only` → `off`; `use` cannot write; `self` can; malformed JSON →
-  all `off`.
+- Policy: missing row + `admin-only` → `off`; `use` returns data; `use` cannot save a profile
+  through the UI service; malformed JSON → all `off`.
 - Config: defaults from `default-config.json`; enum/number validation; unknown keys preserved;
   atomic save leaves the old file on a simulated failure.
 - Secrets: parser rejects a bad key, a line without `=`, and does not expand `$VAR`.
 - Errors: every code in §11 is produced by the documented condition and carries no secret.
 - Mail: label scope refuses an unlisted label; `mailbox` allows it; `limit` clamps; `mail_read`
-  refuses an out-of-scope uid; no write IMAP command is constructed.
+  refuses an out-of-scope uid; `attachments: "download"` cannot widen a `list` profile; no write
+  IMAP command is constructed.
+- Attachments: `../../etc/passwd` becomes `passwd`; a symlink target outside cwd is refused; a
+  51 MB part is `too_large`; an existing name gets `-1` instead of being overwritten.
 
 ### 18.2 Integration (fake IMAP server)
 
@@ -901,16 +984,16 @@ advertise an empty screen.
 
 - `/addons` for a standard account with `off` gives the empty state, not an error.
 - `/addons` for admin lists disabled add-ons.
-- Granting `self` then revoking `off` deletes the profile and calls the restart once.
+- Granting `use` then revoking `off` deletes `users/<id>/` and calls the restart once.
 - Enabling writes the MCP entry and the permission line; disabling removes both.
-- A user-edited `policy.json` is re-read, not cached.
+- An operator-edited `policy.json` is re-read, not cached.
 - i18n: every `addons.*` key exists in all 13 locales.
 
 ### 18.4 End-to-end (manual, two accounts)
 
 1. Install, `/addons` shows Mail disabled.
 2. Admin enables Mail for `social-media`, configures `labels: [Cilot]`, adds a credential.
-3. Account A (`self`) sets a different credential and gets its own results.
+3. Admin sets a different credential for account A; A's calls return A's results.
 4. Account B (`off`) sees the empty state; a forced `mail_search` returns `not_granted`.
 5. A session in a shared folder returns `unknown_account`.
 6. Revoke A while its session is open: the next call fails and the server restarted.
@@ -928,11 +1011,10 @@ As in §5.1. This is a prerequisite, not a test of the implementation.
 | --- | --- | --- |
 | 1 | S0 result: one MCP process per workspace? | **Passed 2026-11-12** (§5.1). No longer open. |
 | 2 | Should the admin be able to keep a revoked profile's data? | Ask at revoke time; default delete. |
-| 3 | Is `use` (admin-configured, user cannot edit) needed at all? | Keep it: it covers "shared team mailbox, read-only". |
-| 4 | Do we need per-agent grants (mail for `social-media` only)? | No in v1; permission is per add-on. |
-| 5 | OAuth (Gmail) instead of app passwords? | App password in v1; OAuth is its own project. |
-| 6 | Where do external add-ons come from? | Operator drops a directory; no URL install in 1.1.0. |
-| 7 | Should `mail_read` return attachments? | No in v1; names and sizes only. |
+| 3 | Do we need per-agent grants (mail for `social-media` only)? | No in v1; permission is per add-on. |
+| 4 | OAuth (Gmail) instead of app passwords? | App password in v1, decided in §13.5; XOAUTH2 is its own project. |
+| 5 | Where do external add-ons come from? | Operator drops a directory; no URL install in 1.1.0. |
+| 6 | How long are downloaded attachments kept? | Indefinitely, in the workspace; the user or admin deletes them. |
 
 ---
 
@@ -943,7 +1025,7 @@ As in §5.1. This is a prerequisite, not a test of the implementation.
 | **0** | S0 spike — done, see §5.1 | done |
 | **1** | Manifest, discovery, policy, config, secrets, `/addons` list + forms, mail add-on read-only (`labels`/`mailbox`), installer/update/uninstall, docs | 4–5 days |
 | **2** | Self-test, audit view, cursor + `/task` notification recipe, 13 locales, `--enable-addon` | 2 days |
-| **3** | Notification socket, external add-ons, OAuth, attachment export | 1 week |
+| **3** | Notification socket, external add-ons, XOAUTH2 | 1 week |
 
 Phase 1 is the smallest slice that answers the user's question: an add-on the agent can call, with
 a config surface in `/addons`, and an admin controlling who may use it.
@@ -995,8 +1077,8 @@ tests/bot/callbacks/addon-callback-handler.test.ts
 ```text
 ~/.local/share/cilot/addons/mail/           code
 ~/.config/cilot/addons/mail/policy.json
-~/.config/cilot/addons/mail/users/<id>.json
-~/.config/cilot/addons/mail/users/<id>.env
+~/.config/cilot/addons/mail/users/<id>/config.json
+~/.config/cilot/addons/mail/users/<id>/secrets.env
 ~/.local/state/cilot/addons/mail/users/<id>/cursor.json
 ~/.local/state/cilot/addons/mail/audit.log
 ```
@@ -1007,10 +1089,9 @@ tests/bot/callbacks/addon-callback-handler.test.ts
 
 ```text
 install        → file does not exist; effective default = admin-only; nobody granted
-enable         → admin row written: { "<admin id>": { "grant": "self" } }
-grant use      → row added/updated
-grant self     → row updated; bot prompts for credentials for that account
-revoke         → row removed (or "off"); profile deleted after confirmation
+enable         → admin row written: { "<admin id>": { "grant": "use" } }
+grant use      → row added/updated; admin then fills users/<id>/config.json and secrets.env
+revoke         → row removed (or "off"); users/<id>/ deleted after confirmation
 disable        → policy kept; MCP entry removed; restart
 uninstall      → policy kept unless --purge-addons
 ```

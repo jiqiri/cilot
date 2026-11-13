@@ -1,9 +1,11 @@
 ## Unreleased — add-ons
 
 - `ADDONS.md` defines the add-on contract for 1.1.0: one MCP server per add-on, identity from
-  the workspace cwd, a `policy.json` grant table, per-account config and credentials, the
-  `/addons` UI, and a read-only mail add-on. Spike S0 (one MCP process per workspace) passed on
-  2026-11-12; no code is implemented yet.
+  the workspace cwd, a `policy.json` grant table (`off` / `use`, admin configures, users only
+  use), one `users/<id>/` directory of config and credentials per Telegram account, the
+  `/addons` UI, and a mail add-on that reads labels or the whole mailbox and can return
+  attachments. IMAP auth is an app password over TLS for 1.1.0. Spike S0 (one MCP process per
+  workspace) passed on 2026-11-12; no code is implemented yet.
 
 ## 1.0.0 — the name is now the deployment
 
