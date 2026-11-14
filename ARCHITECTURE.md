@@ -279,6 +279,85 @@ a running server. The installer writes `SECRETS_FILE` and `SECRETS_ENV_FILE` to
 `.env`; the server unit loads `secrets.env` with an optional `EnvironmentFile` so the first
 install works before any secret exists.
 
+## Premium models and provider authentication
+
+Cilot runs exactly **one** OpenCode instance (`cilot-server`) for every Telegram account.
+Isolation is enforced in the workspace, session, and permission layers, not by giving each
+user a server of their own. A provider is therefore configured once and every account sees the
+same model catalog.
+
+The important consequence: authenticating a provider somewhere else does nothing. The bot
+reads the catalog of its own server, from its own profile:
+
+| Item | Path |
+| --- | --- |
+| Server config | `~/.config/cilot/opencode/opencode.jsonc` |
+| Server credentials | `~/.local/share/cilot/opencode/opencode/opencode.db` |
+| Provider env keys | `~/.config/cilot/opencode.env`, `~/.config/cilot/secrets.env` |
+
+Logging in to the operator TUI profile (`~/.config/opencode`) writes a different credential
+store, so the new model never appears in Telegram. Use the Cilot profile instead.
+
+### Key-based providers
+
+OpenRouter, Anthropic, OpenAI, Gemini and the rest need nothing but an API key. `/vault` →
+**Model authentication** writes it through the server's integration API, so it takes effect
+immediately and needs no restart. Pick the model afterwards in `/model` → **Providers**.
+OpenRouter is already wired through `OPENROUTER_API_KEY` in `~/.config/cilot/opencode.env`
+when that key is present in `install.env`; it works as soon as the account holds credit.
+
+### OAuth providers (OpenCode Console, OpenCode Go)
+
+These are subscriptions rather than keys, so they need an interactive login inside the Cilot
+profile:
+
+```bash
+env HOME="$HOME" \
+  XDG_CONFIG_HOME="$HOME/.config/cilot" \
+  XDG_DATA_HOME="$HOME/.local/share/cilot/opencode" \
+  XDG_STATE_HOME="$HOME/.local/state/cilot/opencode" \
+  XDG_CACHE_HOME="$HOME/.cache/cilot/opencode" \
+  OPENCODE_CONFIG_DIR="$HOME/.config/cilot/opencode" \
+  ~/.local/share/cilot/bin/opencode auth login --standalone opencode
+```
+
+Restart `cilot-server` and `cilot-bot` afterwards. Console credit unlocks the premium models
+under the `opencode` provider; Go (`https://opencode.ai/go`, about $10/month, provider
+`opencode-go`) removes the free daily message limit for open models. Neither is required for
+a basic install.
+
+### Custom OpenAI-compatible providers
+
+A gateway or a private endpoint is a `provider` block in the server config. Keep the key in
+the environment, never in the JSON file:
+
+```jsonc
+"provider": {
+  "gateway": {
+    "npm": "@ai-sdk/openai-compatible",
+    "name": "Gateway",
+    "options": {
+      "baseURL": "https://gateway.example/v1",
+      "apiKey": "{env:GATEWAY_API_KEY}"
+    },
+    "models": {
+      "some-model": { "name": "Some Model" }
+    }
+  }
+}
+```
+
+Add `GATEWAY_API_KEY` either through `/vault` → **Environment variables** or by appending it
+to `~/.config/cilot/opencode.env` (mode `600`), then restart `cilot-server`. An env secret
+needs the restart; a key entered through the provider screen does not.
+
+### Shared catalog caveat
+
+Every allowed account lists every configured model, premium ones included. A standard user who
+picks a paid model spends the operator's credit. There is no per-user model allowlist yet, so
+the only current control is which providers are configured at all. The catalog is cached for
+10 minutes; restart `cilot-bot` to make a new provider visible in `/model` at once.
+
 ## Installed paths
 
 By default:

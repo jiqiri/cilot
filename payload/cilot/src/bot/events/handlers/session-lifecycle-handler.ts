@@ -88,6 +88,7 @@ export function registerSessionLifecycleHandlers(deps: SessionLifecycleDeps): vo
               elapsedMs: Date.now() - completedRun.startedAt,
             }),
             {
+              parse_mode: "HTML",
               ...(keyboard ? { reply_markup: keyboard } : {}),
             },
           );

@@ -86,7 +86,7 @@ export function createScheduledTaskDeliverySender(
           api,
           chatId,
           text: delivery.footerText,
-          format: "raw",
+          format: "html",
           ...getSilentDeliveryOptions(),
         });
       }

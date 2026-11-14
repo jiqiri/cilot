@@ -1,6 +1,6 @@
 {
   "name": "cilot",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Cilot — a Telegram agent for OpenCode: chat, tools, images and scheduling, with per-account workspaces.",
   "type": "module",
   "main": "./dist/index.js",

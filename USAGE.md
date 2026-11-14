@@ -222,7 +222,116 @@ Script giữ nguyên comment và mọi dòng khác trong cả hai file, ghi mode
 `--no-verify` bỏ bước gọi Telegram, `--no-restart` chỉ ghi file, `--dry-run` chỉ in đường dẫn sẽ
 sửa. Token cũ vẫn hoạt động cho tới khi script ghi token mới.
 
-## 10. Kiểm tra và xử lý sự cố
+## 10. Model premium cho Cilot
+
+Cilot dùng **một** OpenCode instance cho mọi tài khoản Telegram (`cilot-server`). Cách ly nằm
+ở workspace, session và policy, không phải mỗi user một server. Vì vậy chỉ cần cấu hình
+provider **một lần** trong profile của Cilot; mọi tài khoản thấy cùng catalog model.
+
+Đừng login provider trong TUI thường (`~/.config/opencode`) rồi mong Telegram thấy model mới:
+đó là profile khác, có DB credential khác.
+
+| Thứ | Đường dẫn |
+| --- | --- |
+| Config server | `~/.config/cilot/opencode/opencode.jsonc` |
+| Credential/auth | `~/.local/share/cilot/opencode/opencode/opencode.db` |
+| Env key | `~/.config/cilot/opencode.env`, `~/.config/cilot/secrets.env` |
+| Agent | `~/.config/cilot/opencode/agents/*.md` |
+
+### 10.1 Provider có API key: dùng `/vault`, không cần SSH
+
+Cách nhanh nhất cho OpenRouter, Anthropic, OpenAI, Gemini...:
+
+1. `/vault` → **🔑 Xác thực Model** (chỉ admin chính; nếu không thấy menu, bật `/access on`).
+2. Chọn provider → **🔑 Nhập key**.
+3. Key được ghi vào credential store của server Cilot, **có hiệu lực ngay**, không cần restart.
+4. Vào `/model` → **Providers** để chọn model.
+
+OpenRouter đã được cấu hình sẵn bằng `OPENROUTER_API_KEY` trong
+`~/.config/cilot/opencode.env`; nếu tài khoản OpenRouter có credit thì dùng được ngay.
+
+### 10.2 OpenCode Go / OpenCode Console (OAuth)
+
+Hai gói này dùng OAuth, không phải API key, nên phải login bằng CLI **trong profile Cilot**:
+
+```bash
+~/.local/bin/cilot-auth login opencode
+~/.local/bin/cilot-auth list
+systemctl --user restart cilot-server cilot-bot
+```
+
+Nếu chưa có `cilot-auth`, chạy trực tiếp:
+
+```bash
+env HOME="$HOME" \
+  XDG_CONFIG_HOME="$HOME/.config/cilot" \
+  XDG_DATA_HOME="$HOME/.local/share/cilot/opencode" \
+  XDG_STATE_HOME="$HOME/.local/state/cilot/opencode" \
+  XDG_CACHE_HOME="$HOME/.cache/cilot/opencode" \
+  OPENCODE_CONFIG_DIR="$HOME/.config/cilot/opencode" \
+  ~/.local/share/cilot/bin/opencode auth login --standalone opencode
+```
+
+- **OpenCode Go** (~$10/tháng) mở provider `opencode-go` cho model open-source và bỏ giới hạn
+  tin nhắn free/ngày. Đăng ký tại `https://opencode.ai/go`.
+- **OpenCode Console** dùng credit cho Claude/GPT/Gemini premium; model nằm trong provider
+  `opencode`.
+- Sau khi login, kiểm tra bằng `~/.local/bin/cilot-auth list` và mở TUI của Cilot (mục 10.4).
+
+### 10.3 Provider tự định nghĩa (TokenHarbor, endpoint OpenAI-compatible)
+
+Thêm block vào `~/.config/cilot/opencode/opencode.jsonc`:
+
+```jsonc
+"provider": {
+  "tokenharbor": {
+    "npm": "@ai-sdk/openai-compatible",
+    "name": "TokenHarbor",
+    "options": {
+      "baseURL": "https://tokenharbor.ai/v1",
+      "apiKey": "{env:TOKENHARBOR_API_KEY}"
+    },
+    "models": {
+      "deepseek-v4.1-flash:free": { "name": "DeepSeek V4.1 Flash (Free)" }
+    }
+  }
+}
+```
+
+Rồi thêm key. Có thể dùng `/vault` → **Biến môi trường** để thêm `TOKENHARBOR_API_KEY`
+(không cần SSH), hoặc ghi trực tiếp file mode `600`:
+
+```bash
+read -rsp 'TOKENHARBOR_API_KEY: ' key; printf '\n'
+printf 'TOKENHARBOR_API_KEY=%s\n' "$key" >> ~/.config/cilot/opencode.env
+unset key
+chmod 600 ~/.config/cilot/opencode.env
+systemctl --user restart cilot-server
+```
+
+### 10.4 Mở TUI đúng instance của Cilot
+
+TUI thường của bạn nhìn vào instance `5100` và config `~/.config/opencode`. Để xem/sửa
+session của Cilot, mở TUI với đúng profile và server:
+
+```bash
+~/.local/bin/cilot-tui
+```
+
+Wrapper này nạp `server.env`, `opencode.env`, `secrets.env` và kết nối tới `cilot-server`.
+Cổng lấy từ unit; installer mặc định `4096`, máy này `4156`. Nếu chưa có wrapper, thêm
+`--server http://127.0.0.1:<port>` vào lệnh `opencode` trong mục 10.2.
+
+### 10.5 Lưu ý
+
+- Catalog model được cache **10 phút**; sau khi đổi provider, restart `cilot-bot` để `/model`
+  thấy ngay.
+- Server dùng chung: user thường có thể chọn model premium trong `/model` và tiêu credit của
+  bạn. Nếu không muốn, cần giới hạn model theo user (hiện chưa có; có thể bổ sung).
+- Không dán key vào chat, commit, log hay shared folder.
+- Free tier của OpenCode giới hạn số tin nhắn/ngày; Go dành cho trường hợp cần dùng liên tục.
+
+## 11. Kiểm tra và xử lý sự cố
 
 ```bash
 systemctl --user status cilot-bot.service
@@ -241,7 +350,7 @@ journalctl --user -u cilot-bot.service -n 50 --no-pager
 - **User thấy agent `build`**: dừng lại, kiểm tra `STANDARD_AGENTS` và file agent; đây là lỗi
   cấu hình nghiêm trọng, không phải hành vi bình thường.
 
-## 11. Giới hạn đã biết
+## 12. Giới hạn đã biết
 
 - Bot và OpenCode dùng chung một Linux user. Cách ly là ở tầng ứng dụng/agent, không phải
   tầng kernel.

@@ -21,7 +21,7 @@ type TelegramSendMessageOptions = Parameters<SendMessageApi["sendMessage"]>[2];
 type TelegramEditMessageOptions = Parameters<EditMessageApi["editMessageText"]>[3];
 type TelegramSendRichOptions = Parameters<SendMessageApi["sendRichMessage"]>[2];
 
-export type TelegramTextFormat = "raw" | "markdown_v2";
+export type TelegramTextFormat = "raw" | "markdown_v2" | "html";
 
 interface SendBotTextParams {
   api: Pick<Api<RawApi>, "sendMessage">;
@@ -71,12 +71,29 @@ interface RenderedPartSendResult extends RenderedPartDeliveryResult {
 
 export { getTelegramRenderedPartSignature };
 
-function resolveParseMode(format: TelegramTextFormat | undefined): "MarkdownV2" | undefined {
+function resolveParseMode(format: TelegramTextFormat | undefined): "MarkdownV2" | "HTML" | undefined {
   if (format === "markdown_v2") {
     return "MarkdownV2";
   }
 
+  if (format === "html") {
+    return "HTML";
+  }
+
   return undefined;
+}
+
+/**
+ * A plain retry for an HTML send. Telegram rejects the whole message when it cannot parse
+ * the entities, so the fallback must not contain the tags or the user sees `<b>` literal.
+ * `&amp;` is decoded last so `&amp;lt;` does not become `<`.
+ */
+function htmlToPlain(text: string): string {
+  return text
+    .replace(/<[^>]*>/g, "")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
 function stripRichFormattingOptions<T extends TelegramSendMessageOptions | undefined>(
@@ -128,11 +145,14 @@ export async function sendBotText({
   options,
   format = "raw",
 }: SendBotTextParams): Promise<void> {
+  const fallbackText =
+    rawFallbackText ?? (format === "html" ? htmlToPlain(text) : undefined);
+
   await sendMessageWithMarkdownFallback({
     api,
     chatId,
     text: redactSecrets(text),
-    rawFallbackText: rawFallbackText === undefined ? undefined : redactSecrets(rawFallbackText),
+    rawFallbackText: fallbackText === undefined ? undefined : redactSecrets(fallbackText),
     options,
     parseMode: resolveParseMode(format),
   });

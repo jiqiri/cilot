@@ -12,7 +12,7 @@ interface SendMessageWithMarkdownFallbackParams {
   text: string;
   rawFallbackText?: string | undefined;
   options?: TelegramSendMessageOptions | undefined;
-  parseMode?: "Markdown" | "MarkdownV2" | undefined;
+  parseMode?: "Markdown" | "MarkdownV2" | "HTML" | undefined;
 }
 
 interface EditMessageWithMarkdownFallbackParams {
@@ -22,7 +22,7 @@ interface EditMessageWithMarkdownFallbackParams {
   text: string;
   rawFallbackText?: string | undefined;
   options?: TelegramEditMessageOptions | undefined;
-  parseMode?: "Markdown" | "MarkdownV2" | undefined;
+  parseMode?: "Markdown" | "MarkdownV2" | "HTML" | undefined;
 }
 
 const MARKDOWN_PARSE_ERROR_MARKERS = [

@@ -1,6 +1,6 @@
 # Cilot — bot source
 
-This directory contains the Cilot v1.1.1 agent source: a fork of
+This directory contains the Cilot v1.1.2 agent source: a fork of
 `@grinev/opencode-telegram-bot`, packaged and built by the installer.
 
 The source includes the image-delivery changes needed for native Telegram photo messages. The installer builds it with the checked-in `package-lock.json` and starts it in source mode through the `cilot-bot.service` user unit.
