@@ -9,9 +9,8 @@ interface AssistantRunFooterParams {
 }
 
 /**
- * Telegram has no font-size control. A quote block is the closest thing to a sub-heading:
- * clients draw it indented with a vertical bar, so the agent reads as secondary to the
- * product name without pretending to be a different type size.
+ * The brand and the run details share one line. Bold is the only hierarchy Telegram offers
+ * without adding a line, and a quote block wrapped the long detail line on narrow screens.
  */
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -36,5 +35,5 @@ export function formatAssistantRunFooter({
   const details = `${escapeHtml(agentLabel(agent))} · 🧠 ${escapeHtml(providerID)}/${escapeHtml(
     modelID,
   )} · ${DURATION_ICON} ${formatDuration(elapsedMs)}`;
-  return `🤖 <b>Cilot</b>\n<blockquote>${details}</blockquote>`;
+  return `🤖 <b>Cilot</b> · ${details}`;
 }
