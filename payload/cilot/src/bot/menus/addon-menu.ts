@@ -31,7 +31,6 @@ export const ADDONS_EDIT = `${ADDONS_CALLBACK_PREFIX}edit`;
 export const ADDONS_SECRETS = `${ADDONS_CALLBACK_PREFIX}secrets`;
 export const ADDONS_SECRET = `${ADDONS_CALLBACK_PREFIX}secret`;
 export const ADDONS_ENABLE = `${ADDONS_CALLBACK_PREFIX}enable`;
-export const ADDONS_ENABLE_AGENT = `${ADDONS_CALLBACK_PREFIX}enableagent`;
 export const ADDONS_ENABLE_CONFIRM = `${ADDONS_CALLBACK_PREFIX}enableconfirm`;
 export const ADDONS_DISABLE = `${ADDONS_CALLBACK_PREFIX}disable`;
 export const ADDONS_DISABLE_CONFIRM = `${ADDONS_CALLBACK_PREFIX}disableconfirm`;
@@ -440,44 +439,30 @@ export function buildSecretsKeyboard(
   return keyboard;
 }
 
-export function buildEnableAgentsText(addon: InstalledAddon): string {
-  return [
-    t("addons.detail.header", {
-      name: addon.manifest?.name ?? addon.id,
-      state: t("addons.detail.enable"),
-    }),
-    "",
-    t("addons.enable.agent_prompt"),
-  ].join("\n");
-}
-
-export function buildEnableAgentsKeyboard(addon: InstalledAddon): InlineKeyboard {
-  return new InlineKeyboard()
-    .text(t("addons.enable.agent.social_media"), `${ADDONS_ENABLE_AGENT}:${addon.id}:social-media`)
-    .row()
-    .text(t("addons.enable.agent.postiz_social"), `${ADDONS_ENABLE_AGENT}:${addon.id}:postiz-social`)
-    .row()
-    .text(t("addons.enable.agent.all"), `${ADDONS_ENABLE_AGENT}:${addon.id}:all`)
-    .row()
-    .text(t("addons.menu.back"), `${ADDONS_OPEN}:${addon.id}`)
-    .text(t("inline.button.cancel"), ADDONS_CANCEL);
-}
-
-export function agentList(choice: string): string[] {
-  if (choice === "all") return ["social-media", "postiz-social"];
-  if (choice === "social-media" || choice === "postiz-social") return [choice];
-  return [];
-}
-
-export function buildEnableConfirmText(addon: InstalledAddon, accounts: number): string {
+/**
+ * One confirmation, no agent question.
+ *
+ * Enabling widens every gated agent, so the screen says which ones instead of asking. The
+ * admin still decides to enable; they cannot half-answer it and end up with tools that are
+ * installed but silently denied.
+ */
+export function buildEnableConfirmText(
+  addon: InstalledAddon,
+  accounts: number,
+  agents: string[],
+): string {
   const scope =
     addon.manifest?.scope === "global"
       ? t("addons.scope.global")
       : t("addons.scope.per_user");
-  return t("addons.enable.confirm", {
+  const list =
+    agents.length > 0
+      ? t("addons.enable.agents", { agents: agents.join(", ") })
+      : t("addons.enable.agents_none");
+  return `${t("addons.enable.confirm", {
     scope,
     accounts: String(accounts),
-  });
+  })}\n${list}`;
 }
 
 export function buildDisableConfirmText(addon: InstalledAddon): string {

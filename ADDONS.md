@@ -5,7 +5,7 @@ how it is configured, who may use it, and where everything lives on disk. It is 
 the code so the contract is stable, reviewable and does not have to be reverse-engineered from
 an implementation.
 
-Status: **implemented** in **Cilot 1.1.0** with the mail add-on. §21 lists the files;
+Status: **implemented** in **Cilot 1.1.x** with the mail add-on. §21 lists the files;
 "Implementation notes" below records where the code settles a question this document left open.
 
 The examples use a mail reader, because "read my mail, but only these labels" is the case that
@@ -27,9 +27,11 @@ process per add-on — is unchanged.
 - **The bot writes `secrets.env` directly.** It writes the file atomically with mode 600; the
   `/vault` store is a different feature and is not in this path. `secretStatus()` exposes
   presence only, never a value.
-- **Enabling picks agents, not an effect.** The flow writes `"<id>_*": allow` for each chosen
-  agent. There is no per-agent `ask` switch in 1.1.0; `setAgentPermission` accepts it, but the
-  Telegram UI does not offer it.
+- **Enabling is one confirmation, not an agent picker.** The flow writes `"<id>_*": allow` into
+  every agent that declares a `permission:` block, and the confirmation names them. A question
+  with one right answer only invited a wrong one: skipping it left the tools installed but
+  silently denied. There is still no per-agent `ask` switch; `setAgentPermission` accepts it, but
+  the Telegram UI does not offer it.
 - **`--check` validates manifests.** `install.sh --check` reports each bundled add-on as ok or
   warning without changing anything, using the same validator the installer runs.
 - **`update.sh` restarts on a file change.** A version bump is not required: any difference in
@@ -498,7 +500,7 @@ boundary. The security boundary is the profile and the policy check.
 The agent permission side still matters: the standard agents (`social-media`, `postiz-social`)
 declare `"*": deny`, so an add-on tool is **not callable** by a standard account until the
 operator adds `"<id>_*": allow` to that agent. Enabling an add-on in `/addons` does exactly that
-for the agent named in the add-on's enable step, and never edits an agent that was not chosen.
+for every agent that declares a `permission:` block, and leaves agents without one untouched.
 See §9.
 
 ---
@@ -550,9 +552,9 @@ rejects a line without `=` and rejects keys outside `^[A-Z][A-Z0-9_]*$`.
   that changes the mailbox must be `readOnly: false` and is refused unless the admin set
   `allowWrite: true` in that account's profile. `mail_ack` is not in this category: it writes the
   local cursor only, never the mailbox.
-- The enable step writes `"<id>_*": allow` into the `permission` block of every agent the admin
-  chose, in `~/.config/cilot/opencode/agents/<agent>.md`. The 1.1.0 UI offers agent selection
-  only; it does not offer a per-call confirmation mode.
+- Enabling writes `"<id>_*": allow` into the `permission` block of every agent that declares one,
+  in `~/.config/cilot/opencode/agents/<agent>.md`, and the confirmation screen lists them. The UI
+  does not offer a per-agent or per-call confirmation mode.
 
 ---
 
@@ -635,13 +637,13 @@ operator would think the add-on was broken.
 ### 10.5 Enabling
 
 ```
-[ Enable ] → choose agent: social-media / postiz-social / all
-           → confirm: "The agent will be able to read <scope> for accounts with a grant."
-           → add MCP entry, add "<id>_*" permission, restart cilot-server
+[ Enable ] → confirm: "The agent will be able to read <scope> for accounts with a grant."
+                      "Agents that will be allowed: social-media, postiz-social"
+           → add MCP entry, add "<id>_*" permission to every gated agent, restart cilot-server
 ```
 
-The confirmation names the scope and the account count, so enabling a `per-user` add-on is never a
-one-tap accident.
+The confirmation names the scope, the account count and the agents, so enabling a `per-user`
+add-on is never a one-tap accident. It is still one tap: the agent list is reported, not asked.
 
 ---
 
@@ -978,7 +980,7 @@ addons.config.labels_empty
 addons.config.mode_mailbox_confirm   {account}
 addons.secret.set, addons.secret.unset, addons.secret.prompt {label}
 addons.enable.confirm       {scope} {accounts}
-addons.enable.agent_prompt
+addons.enable.agents        {agents}, addons.enable.agents_none
 addons.disable.confirm
 addons.test.running, addons.test.ok {messages}, addons.test.failed {code}
 addons.attachments.none, addons.attachments.list, addons.attachments.download

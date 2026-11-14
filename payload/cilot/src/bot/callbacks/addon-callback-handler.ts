@@ -31,6 +31,7 @@ import {
   disableAddon,
   enabledAddonIds,
   enableAddon,
+  listPermissionAgents,
   restartServer,
 } from "../../app/services/addon-registry-service.js";
 import {
@@ -57,7 +58,6 @@ import {
   ADDONS_OPEN,
   ADDONS_SECRET,
   ADDONS_SET_CONFIRM,
-  agentList,
   buildAccountKeyboard,
   buildAccountText,
   buildAccountsKeyboard,
@@ -69,8 +69,6 @@ import {
   buildDetailKeyboard,
   buildDetailText,
   buildDisableConfirmText,
-  buildEnableAgentsKeyboard,
-  buildEnableAgentsText,
   buildEnableConfirmText,
   buildFieldKeyboard,
   buildFieldText,
@@ -105,7 +103,6 @@ type AddonStage =
   | "field"
   | "secrets"
   | "secret_entry"
-  | "enable_agents"
   | "enable_confirm"
   | "disable_confirm"
   | "default_confirm"
@@ -123,7 +120,6 @@ const VALID_STAGES: readonly AddonStage[] = [
   "field",
   "secrets",
   "secret_entry",
-  "enable_agents",
   "enable_confirm",
   "disable_confirm",
   "default_confirm",
@@ -485,21 +481,6 @@ async function renderSecretEntry(
   });
 }
 
-async function renderEnableAgents(
-  ctx: Context,
-  deps: AddonsDeps,
-  messageId: number,
-  addon: InstalledAddon,
-): Promise<void> {
-  await editMenu(
-    ctx,
-    messageId,
-    buildEnableAgentsText(addon),
-    buildEnableAgentsKeyboard(addon),
-  );
-  setStage(deps, { flow: "addons", stage: "enable_agents", messageId, addonId: addon.id });
-}
-
 async function renderEnableConfirm(
   ctx: Context,
   deps: AddonsDeps,
@@ -518,7 +499,7 @@ async function renderEnableConfirm(
   await editMenu(
     ctx,
     messageId,
-    `${buildEnableConfirmText(addon, accounts)}\n\n${agents.join(", ")}`,
+    buildEnableConfirmText(addon, accounts, agents),
     buildConfirmKeyboard(`${ADDONS_ENABLE_CONFIRM}:${addon.id}`, `${ADDONS_ENABLE}:${addon.id}`),
   );
   setStage(deps, {
@@ -1009,20 +990,15 @@ export async function handleAddonsCallback(ctx: Context, deps: AddonsDeps): Prom
         return true;
       }
       await ack(ctx);
-      await renderEnableAgents(ctx, deps, messageId, addon);
-      return true;
-    }
-
-    if (verb === "enableagent") {
-      const addon = await loadAddon(ctx, parts[2] ?? "");
-      if (!addon) return true;
-      const agents = agentList(parts[3] ?? "");
-      if (agents.length === 0) {
-        await inactive(ctx);
-        return true;
-      }
-      await ack(ctx);
-      await renderEnableConfirm(ctx, deps, messageId, addon, agents);
+      // Every gated agent is widened. Asking which one is a question with a wrong answer
+      // that only shows up later as a tool the agent cannot call.
+      await renderEnableConfirm(
+        ctx,
+        deps,
+        messageId,
+        addon,
+        await listPermissionAgents(),
+      );
       return true;
     }
 
@@ -1036,11 +1012,6 @@ export async function handleAddonsCallback(ctx: Context, deps: AddonsDeps): Prom
           .catch(() => {});
         return true;
       }
-      if (agents.length === 0) {
-        await inactive(ctx);
-        return true;
-      }
-
       // The enabling admin is an ordinary account with `use`, so an add-on they turned on
       // works from their own workspace without a second trip through the grant screen.
       if (addon.manifest.scope === "per-user") {

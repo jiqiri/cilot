@@ -432,10 +432,11 @@ The contract is in [ADDONS.md](./ADDONS.md); this section is the operational sum
 - **Who configures what.** Accounts may use an add-on, run its self-test and ask an admin for a
   change. Every edit — scope, limits, credentials, grants, enabling — is done by an admin in
   `/addons`. The add-on itself has no admin concept, so it has no privilege logic to get wrong.
-- **Enabling.** Enabling writes the MCP entry and `"<id>_*": allow` into the chosen agents'
-  frontmatter, then restarts the server. Disabling removes both. Standard agents such as
-  `social-media` start from `"*": deny`, so the permission line is what makes the namespace
-  callable at all.
+- **Enabling.** Enabling writes the MCP entry and `"<id>_*": allow` into the frontmatter of every
+  agent that declares a `permission:` block, then restarts the server. The confirmation names
+  them, so the admin sees the effect without answering a question. Disabling removes both.
+  Standard agents such as `social-media` start from `"*": deny`, so the permission line is what
+  makes the namespace callable at all.
 - **What an update touches.** `update.sh` replaces code only. Config, credentials and state live
   outside the install root and are never read or written by the updater.
 

@@ -199,6 +199,27 @@ export async function listAgentNames(): Promise<string[]> {
   }
 }
 
+/**
+ * The agents that actually gate tools, i.e. the ones with a `permission:` block.
+ *
+ * Enabling an add-on widens every one of them, because a per-agent question is a step an
+ * admin can answer wrongly and then see tools silently fail. An agent without a permission
+ * block already accepts whatever OpenCode exposes, so there is nothing to edit.
+ */
+export async function listPermissionAgents(): Promise<string[]> {
+  const agents = await listAgentNames();
+  const gated: string[] = [];
+  for (const agent of agents) {
+    try {
+      const raw = await fs.readFile(path.join(config.addons.agentsDir, `${agent}.md`), "utf8");
+      if (/^permission:\s*$/m.test(raw)) gated.push(agent);
+    } catch {
+      // An unreadable agent cannot be edited; leave it out rather than fail the flow.
+    }
+  }
+  return gated;
+}
+
 function agentFile(agent: string): string {
   if (!/^[a-z0-9][a-z0-9_-]*$/i.test(agent)) {
     throw new AddonRegistryError(`Invalid agent name: ${agent}`);
