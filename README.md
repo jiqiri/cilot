@@ -172,6 +172,23 @@ workspace.
 Full instructions — credential layout, Postiz, the two servers, upgrade and uninstall — are in
 [ARCHITECTURE.md](./ARCHITECTURE.md).
 
+### Changing the bot token later
+
+The token is in `~/.config/cilot/install.env` (what a later `./install.sh` reads) **and** in the
+bot's `.env` (what `cilot-bot.service` loads). Changing one would be undone by the next install,
+so use the helper:
+
+```bash
+./set-bot-token.sh                 # hidden prompt, verifies with Telegram getMe, restarts the bot
+./set-bot-token.sh 123456789:AA... # non-interactive
+```
+
+It keeps every other line and comment in both files, writes them `600`, and never prints the
+token back. `--no-verify` skips the `getMe` call, `--no-restart` stages the change, and
+`--dry-run` prints the two paths without writing. Create a new bot with
+[@BotFather](https://t.me/BotFather) first; the old token keeps working until this script
+replaces it.
+
 ## Commands
 
 | Command | What it does |
@@ -222,6 +239,7 @@ and [USAGE.md](./USAGE.md) (Vietnamese).
 .
 ├── install.sh                  installer, check mode, service setup
 ├── update.sh                   update from the published branch
+├── set-bot-token.sh            change the bot token in install.env and the bot .env
 ├── uninstall.sh                stop and remove the services
 ├── install.env.example         credential template (copy outside the repo)
 ├── ARCHITECTURE.md             internals, deployment, security boundaries

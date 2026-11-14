@@ -208,6 +208,20 @@ File trạng thái (đều nên ở mode `600`):
 | `shared-folders.json` | Danh sách shared folder và id được cấp |
 | `opencode.env` / `.env` | Key và cấu hình nhạy cảm — không commit |
 
+### Đổi bot token sau khi cài
+
+Token nằm ở hai chỗ: `~/.config/cilot/install.env` (lần `./install.sh` sau sẽ đọc) và `.env` của
+bot (`cilot-bot.service` nạp). Sửa một chỗ thì lần cài sau sẽ ghi đè, nên dùng script:
+
+```bash
+./set-bot-token.sh                 # hỏi token (ẩn), kiểm tra getMe, restart bot
+./set-bot-token.sh 123456789:AA... # nhập thẳng
+```
+
+Script giữ nguyên comment và mọi dòng khác trong cả hai file, ghi mode `600`, không in token ra.
+`--no-verify` bỏ bước gọi Telegram, `--no-restart` chỉ ghi file, `--dry-run` chỉ in đường dẫn sẽ
+sửa. Token cũ vẫn hoạt động cho tới khi script ghi token mới.
+
 ## 10. Kiểm tra và xử lý sự cố
 
 ```bash

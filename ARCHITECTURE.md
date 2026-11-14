@@ -241,6 +241,19 @@ To put the file somewhere else entirely, name the path:
 ./install.sh --env-file /somewhere/else/settings.env
 ```
 
+To change the bot token after install, do not edit a single file by hand. The token exists in
+`install.env` **and** in the bot's `.env`; the installer rewrites the second from the first, so a
+one-sided edit is undone by the next run. `./set-bot-token.sh` updates both, keeps comments and
+other keys, verifies the token with Telegram's `getMe`, and restarts `cilot-bot.service`:
+
+```bash
+./set-bot-token.sh                 # hidden prompt
+./set-bot-token.sh 123456789:AA... # non-interactive
+```
+
+It discovers the bot `.env` from the unit's `EnvironmentFile=` line, so a non-default
+`BOT_SOURCE_DIR` still works, and it never echoes the token.
+
 `./install.sh --no-settings-file` skips writing the file on first run, for machines that supply everything through the environment.
 
 ### The /vault menu
