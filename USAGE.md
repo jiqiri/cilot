@@ -8,7 +8,8 @@ vào tài liệu, log hay commit.
 
 ## 1. Mô hình tin cậy
 
-- **Admin đầu tiên** (id đầu tiên trong `TELEGRAM_ADMIN_USER_IDS`) là người vận hành máy.
+- **Admin đầu tiên** (id đầu tiên trong `TELEGRAM_ADMIN_USER_IDS`, hoặc id duy nhất khi danh
+  sách đó để trống) là người vận hành máy.
   Khi `/access on`, admin có toàn quyền: shell, đọc cả máy, `/vault`, điều khiển server.
 - **Admin thứ hai trở đi** vẫn là admin, nhưng không dùng được `/vault`, `/access`, `/user`,
   `/share`.

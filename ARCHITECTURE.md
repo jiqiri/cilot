@@ -160,7 +160,7 @@ sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
 ## Usage
 
 1. Download this repository, or download only `install.sh`; when the local `payload/` directory is absent, the script downloads the matching repository payload automatically.
-2. Put your credentials in `install.env`, created outside the repository at `~/.config/cilot/install.env`. A fresh install writes this file for you, with placeholders and mode `600`, then stops at the first missing value before downloading Node; fill it in and run again. You can also create it first:
+2. Put your credentials in `install.env`, created outside the repository at `~/.config/cilot/install.env`. A fresh install can ask for the two required values when a terminal is attached, or write the file with placeholders and mode `600` and stop at the first missing value before downloading Node; fill it in and run again. You can also create it first:
 
 ```bash
 mkdir -p ~/.config/cilot
@@ -177,9 +177,18 @@ installs, and `sudo chown -R "$USER:" ~/.config/cilot` is the repair.
 `chmod`: it sets the settings file it reads to `0600` on every run, and warns with the exact
 `chown` when the file belongs to another account.
 
+Only two values are required. The id is also the admin when `TELEGRAM_ADMIN_USER_IDS` is not
+set, so a single-account install is not silently demoted to a standard account:
+
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
 TELEGRAM_ALLOWED_USER_ID=111111111
+```
+
+Add these for image generation (Cloudflare Workers AI), or set the same names later through
+`/vault`:
+
+```bash
 CF_WORKERS_AI_ACCOUNT=your-account-id
 CF_WORKERS_AI_TOKEN=your-api-token
 ```
@@ -208,7 +217,7 @@ OPENCODE_MODEL_ID="space-bunny-free"
 ./install.sh
 ```
 
-The script validates placeholders before writing credentials. Secrets are written with mode `600` and are not printed. It does not create a public listener; both OpenCode servers bind to `127.0.0.1`.
+The script writes the settings file before the expensive steps and validates it before downloading Node, so a missing or malformed value fails early with the file path. Secrets are written with mode `600` and are not printed; a token typed at the prompt never reaches a command line. It does not create a public listener; both OpenCode servers bind to `127.0.0.1`.
 
 ## Settings and credentials
 
@@ -224,7 +233,7 @@ Looked for in this order, first match wins:
 4. `./install.env`, if you keep it in the checkout
 5. the placeholders at the top of `install.sh`, which then fail and name the value that is missing
 
-The file is plain `KEY=value` lines and is sourced, so quotes and spaces work. The installer creates it with mode `600` after a successful first run, seeded from whatever it used, and **never overwrites an existing one**, so your edits stay yours.
+The file is plain `KEY=value` lines and is sourced, so quotes and spaces work. The installer creates it with mode `600` on the first run, seeded from whatever it used, and **never overwrites an existing one**, so your edits stay yours. Values entered at the prompt are written back into that file before the install continues.
 
 A normal update is just:
 
@@ -977,7 +986,7 @@ Each account gets its own project, session, agent, model, persona, hidden projec
    systemctl --user restart cilot-bot.service
    ```
 
-The first id is the **primary account**. It is used for startup session restore, and it adopts the sessions that already exist so nothing is lost when you add a second account. Later accounts start empty and only ever see what they create.
+The first id is the **primary account**. It is used for startup session restore, and it adopts the sessions that already exist so nothing is lost when you add a second account. Later accounts start empty and only ever see what they create. When `TELEGRAM_ADMIN_USER_IDS` is empty, that first id is also the admin, which is what makes the quick start's single id enough to control the bot.
 
 `TELEGRAM_ALLOWED_USER_ID` takes one id or a comma separated list, and `TELEGRAM_ALLOWED_USER_IDS` is equivalent. They are merged rather than one overriding the other, so an id listed in either file is permitted, and the first id overall is the primary account.
 
@@ -1023,13 +1032,12 @@ The default uninstall stops/disables the three user services and removes the gen
 
 A downloaded `install.sh` uses `PAYLOAD_ARCHIVE_URL` (overridable) to fetch the repository payload when needed.
 
-For unattended use, export the variables instead of editing the script. Environment values override the placeholders:
+For unattended use, export the variables instead of editing the script. Environment values
+override the placeholders, and only the first two are required:
 
 ```bash
 TELEGRAM_BOT_TOKEN='...' \
 TELEGRAM_ALLOWED_USER_ID='123456789' \
-CF_WORKERS_AI_ACCOUNT='...' \
-CF_WORKERS_AI_TOKEN='...' \
 ./install.sh
 ```
 

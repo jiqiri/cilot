@@ -98,7 +98,8 @@ Contract and threat model: [ADDONS.md](./ADDONS.md).
 
 ### Share a machine, not files
 
-- **Admin** — the first id in `TELEGRAM_ADMIN_USER_IDS`. Full reach only after `/access on`:
+- **Admin** — the first id in `TELEGRAM_ADMIN_USER_IDS`, or the only configured id when that
+  list is empty. Full reach only after `/access on`:
   shell-capable agents, the whole filesystem, `/vault`, server control, every project.
 - **Standard account** — confined to
   `~/.local/share/tg-workspaces/users/<telegram id>/projects`, with the approved agent set
@@ -160,15 +161,32 @@ own user, never with `sudo`: a `~/.config/cilot` owned by root makes the next ed
 world-readable, so `./install.sh` sets `install.env` to mode `600` on every run — there is no
 separate `chmod` step, and a file owned by another account is reported instead of ignored.
 
-Skipping the copy is also fine: `./install.sh` with no settings writes
-`~/.config/cilot/install.env` itself (mode `600`), then stops at the first missing value before
-downloading Node. Fill that file in and run it again.
+Skipping the copy is also fine. Run `./install.sh` and, when a terminal is attached, it asks
+for the two required values (the token without echo), writes them to
+`~/.config/cilot/install.env` with mode `600`, and continues. Without a terminal it writes the
+template instead and stops at the first missing value, before downloading Node.
+
+Only these two are required:
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
 TELEGRAM_ALLOWED_USER_ID=111111111
+```
+
+The id is also the admin unless `TELEGRAM_ADMIN_USER_IDS` names someone else. Everything else
+is optional and can be added later, either by editing the file and re-running or through
+`/vault`:
+
+```bash
+# Images (Cloudflare Workers AI)
 CF_WORKERS_AI_ACCOUNT=your-account-id
 CF_WORKERS_AI_TOKEN=your-api-token
+# Social publishing (Postiz)
+POSTIZ_MCP_URL=https://postiz.example.com/api/public/v1/mcp
+POSTIZ_MCP_TOKEN=your-bearer-token
+# Default model
+OPENCODE_MODEL_PROVIDER=opencode
+OPENCODE_MODEL_ID=space-bunny-free
 ```
 
 ```bash

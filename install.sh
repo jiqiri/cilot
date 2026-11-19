@@ -140,8 +140,11 @@ TELEGRAM_ALLOWED_USER_ID="${TELEGRAM_ALLOWED_USER_ID:-REPLACE_WITH_TELEGRAM_ALLO
 TELEGRAM_ADMIN_USER_IDS="${TELEGRAM_ADMIN_USER_IDS:-}"
 CILOT_CONFINE_ADMINS="${CILOT_CONFINE_ADMINS:-false}"
 CILOT_USER_ROOT="${CILOT_USER_ROOT:-}"
-CF_WORKERS_AI_ACCOUNT="${CF_WORKERS_AI_ACCOUNT:-REPLACE_WITH_CLOUDFLARE_ACCOUNT_ID}"
-CF_WORKERS_AI_TOKEN="${CF_WORKERS_AI_TOKEN:-REPLACE_WITH_CLOUDFLARE_API_TOKEN}"
+# Optional: images stay unavailable until these are set, either here, through /vault, or by
+# adding them later and re-running. Empty rather than a placeholder so the tool reports
+# "not configured" instead of sending the literal REPLACE_WITH_ text to Cloudflare.
+CF_WORKERS_AI_ACCOUNT="${CF_WORKERS_AI_ACCOUNT:-}"
+CF_WORKERS_AI_TOKEN="${CF_WORKERS_AI_TOKEN:-}"
 POSTIZ_MCP_URL="${POSTIZ_MCP_URL:-REPLACE_WITH_POSTIZ_MCP_URL}"
 POSTIZ_MCP_TOKEN="${POSTIZ_MCP_TOKEN:-REPLACE_WITH_POSTIZ_BEARER_TOKEN}"
 if [[ "${POSTIZ_MCP_URL-}" == *REPLACE_WITH* ]]; then
@@ -149,6 +152,12 @@ if [[ "${POSTIZ_MCP_URL-}" == *REPLACE_WITH* ]]; then
 fi
 if [[ "${POSTIZ_MCP_TOKEN-}" == *REPLACE_WITH* ]]; then
   POSTIZ_MCP_TOKEN=""
+fi
+if [[ "${CF_WORKERS_AI_ACCOUNT-}" == *REPLACE_WITH* ]]; then
+  CF_WORKERS_AI_ACCOUNT=""
+fi
+if [[ "${CF_WORKERS_AI_TOKEN-}" == *REPLACE_WITH* ]]; then
+  CF_WORKERS_AI_TOKEN=""
 fi
 OPENCODE_MODEL_PROVIDER="${OPENCODE_MODEL_PROVIDER:-opencode}"
 OPENCODE_MODEL_ID="${OPENCODE_MODEL_ID:-space-bunny-free}"
@@ -635,9 +644,113 @@ write_settings_file() {
   log "Wrote $target (mode 600) so future installs need no edits."
 }
 
+# Everything the first run cannot invent. Images, publishing and the default model are
+# optional: each one already fails with a hint from inside the bot, and /vault can store the
+# credential later without touching this file.
+ASKED_SETTING_KEYS=()
+
+print_setup_contract() {
+  log "Setup needs two values; everything else is optional and can be configured later."
+  log "  TELEGRAM_BOT_TOKEN        from @BotFather"
+  log "  TELEGRAM_ALLOWED_USER_ID  your numeric Telegram id (also the admin)"
+  log "Optional, now or later: CF_WORKERS_AI_ACCOUNT/TOKEN (images),"
+  log "  POSTIZ_MCP_URL/TOKEN (publishing), OPENCODE_MODEL_PROVIDER/ID (default model)."
+  log "Settings file: ${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}"
+}
+
+# Only prompts when a terminal is attached and the value is missing, so a piped or scripted
+# install still fails with a message instead of blocking on a read. The token is read hidden
+# and never echoed; it reaches the file through printf, not through argv, so `ps` never sees it.
+collect_required_settings() {
+  [[ -t 0 && -t 1 ]] || return 0
+
+  if [[ "${TELEGRAM_BOT_TOKEN-}" == REPLACE_WITH_* || -z "${TELEGRAM_BOT_TOKEN-}" ]]; then
+    local token
+    printf '[installer] Telegram bot token (input hidden): ' >&2
+    if IFS= read -rs token; then
+      printf '\n' >&2
+      if [[ -n "$token" ]]; then
+        TELEGRAM_BOT_TOKEN="$token"
+        ASKED_SETTING_KEYS+=(TELEGRAM_BOT_TOKEN)
+      fi
+    else
+      printf '\n' >&2
+    fi
+    unset token
+  fi
+
+  if [[ ! "${TELEGRAM_ALLOWED_USER_ID-}" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
+    local user_id
+    printf '[installer] Telegram user id (numeric, from @userinfobot): ' >&2
+    if IFS= read -r user_id && [[ "$user_id" =~ ^[0-9]+$ ]]; then
+      TELEGRAM_ALLOWED_USER_ID="$user_id"
+      ASKED_SETTING_KEYS+=(TELEGRAM_ALLOWED_USER_ID)
+    fi
+    unset user_id
+  fi
+}
+
+# Replace one assignment in an existing file without touching comments or unrelated keys.
+# The value travels through printf from shell memory, never as a command argument, so a token
+# typed at the prompt cannot show up in `ps`. The temporary file is created under umask 077
+# so it is never briefly group- or world-readable.
+replace_settings_key() {
+  local file="$1" key="$2" value="$3" line found=0
+  local tmp="$file.tmp"
+  (
+    umask 077
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" =~ ^[[:space:]]*${key}= ]]; then
+        printf '%s=%s\n' "$key" "$value"
+        found=1
+      else
+        printf '%s\n' "$line"
+      fi
+    done <"$file"
+    if [[ "$found" == "0" ]]; then
+      printf '%s=%s\n' "$key" "$value"
+    fi
+  ) >"$tmp"
+  mv "$tmp" "$file"
+  chmod 600 "$file"
+}
+
+# The file is never rewritten when it already exists, so values typed at the prompt are
+# written back one key at a time. This keeps an install that was interrupted by a missing
+# token from needing a manual edit on the second run.
+persist_asked_settings() {
+  [[ ${#ASKED_SETTING_KEYS[@]} -gt 0 ]] || return 0
+  # With no file at resolution time, write_settings_file has just seeded one from these very
+  # values; rewriting would be redundant.
+  [[ -n "$INSTALL_ENV_FILE" ]] || return 0
+  local file="$INSTALL_ENV_FILE" key
+  for key in "${ASKED_SETTING_KEYS[@]}"; do
+    replace_settings_key "$file" "$key" "${!key}"
+  done
+  ASKED_SETTING_KEYS=()
+}
+
+# One id is enough for the single-account install the quick start describes. If only a list
+# was given, its first entry becomes the singular primary id; if no admin list was given, that
+# same id is the admin, so an unset variable does not silently demote the only account to
+# standard. An explicit TELEGRAM_ADMIN_USER_IDS always wins.
+resolve_primary_ids() {
+  if [[ "${TELEGRAM_ALLOWED_USER_ID-}" == REPLACE_WITH_* || -z "${TELEGRAM_ALLOWED_USER_ID-}" ]]; then
+    if [[ -n "${TELEGRAM_ALLOWED_USER_IDS//[[:space:]]/}" ]]; then
+      TELEGRAM_ALLOWED_USER_ID="${TELEGRAM_ALLOWED_USER_IDS%%,*}"
+    fi
+  fi
+
+  local primary="${TELEGRAM_ALLOWED_USER_ID%%,*}"
+  primary="${primary//[[:space:]]/}"
+  if [[ -z "${TELEGRAM_ADMIN_USER_IDS//[[:space:]]/}" && "$primary" =~ ^[0-9]+$ ]]; then
+    TELEGRAM_ADMIN_USER_IDS="$primary"
+  fi
+}
+
 validate_placeholders() {
   local name value
-  for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID CF_WORKERS_AI_ACCOUNT CF_WORKERS_AI_TOKEN; do
+  for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID; do
     value="${!name}"
     if [[ "$value" == REPLACE_WITH_* ]]; then
       die "$name is still the placeholder in ${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}. Edit that file and replace it, or export a real value for this run. See README.md 'Settings and credentials'."
@@ -1568,11 +1681,16 @@ main() {
 
   refuse_root
   ensure_bootstrap_tools
-  # Settings first, then the expensive steps. On a machine with no settings file this writes
-  # the template and stops at the first missing value, so the operator gets one concrete path
-  # to edit instead of a failure that leaves ~/.config/cilot absent. It also keeps a bad id or
-  # an empty token from being discovered after Node has been downloaded and packages installed.
+  # Settings first, then the expensive steps. On a machine with no settings file this asks for
+  # the two required values when a terminal is present, writes the template, and stops at the
+  # first missing value, so the operator gets one concrete path to edit instead of a failure
+  # that leaves ~/.config/cilot absent. It also keeps a bad id or an empty token from being
+  # discovered after Node has been downloaded and packages installed.
+  print_setup_contract
+  collect_required_settings
+  resolve_primary_ids
   write_settings_file
+  persist_asked_settings
   validate_placeholders
   install_nodejs
   require_command npm
@@ -1587,6 +1705,9 @@ main() {
   register_enabled_addons
   write_systemd_units
   start_services
+  if [[ -z "${CF_WORKERS_AI_ACCOUNT:-}" || -z "${CF_WORKERS_AI_TOKEN:-}" ]]; then
+    log "Images are not configured; add CF_WORKERS_AI_ACCOUNT/TOKEN later or use /vault."
+  fi
   log "Installed OpenCode, the Cilot agent, the Cloudflare image tool, and user services."
   log "Main OpenCode: $OPENCODE_MAIN_URL"
   log "Cilot OpenCode: $CILOT_URL"
