@@ -160,7 +160,7 @@ sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
 ## Usage
 
 1. Download this repository, or download only `install.sh`; when the local `payload/` directory is absent, the script downloads the matching repository payload automatically.
-2. Put your credentials in `install.env`, created outside the repository at `~/.config/cilot/install.env`. A fresh install can ask for the two required values when a terminal is attached, or write the file with placeholders and mode `600` and stop at the first missing value before downloading Node; fill it in and run again. You can also create it first:
+2. Put your credentials in `install.env`, created outside the repository at `~/.config/cilot/install.env`. A fresh install can ask for the two required values when a terminal is attached, or write the file with placeholders and mode `600` and stop at the first missing value before downloading Node; fill it in and run again. The token is read without echo, then the screen and scrollback are cleared and the requirement list reprinted, so it cannot be read from the terminal afterwards. You can also create it first:
 
 ```bash
 mkdir -p ~/.config/cilot

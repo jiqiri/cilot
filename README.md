@@ -163,8 +163,10 @@ separate `chmod` step, and a file owned by another account is reported instead o
 
 Skipping the copy is also fine. Run `./install.sh` and, when a terminal is attached, it asks
 for the two required values (the token without echo), writes them to
-`~/.config/cilot/install.env` with mode `600`, and continues. Without a terminal it writes the
-template instead and stops at the first missing value, before downloading Node.
+`~/.config/cilot/install.env` with mode `600`, and continues. After the token is entered it
+clears the screen and the scrollback and reprints the requirement list, so the value is not
+left in view or one page-up away. Without a terminal it writes the template instead and stops
+at the first missing value, before downloading Node.
 
 Only these two are required:
 

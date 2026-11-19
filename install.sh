@@ -667,14 +667,23 @@ collect_required_settings() {
   if [[ "${TELEGRAM_BOT_TOKEN-}" == REPLACE_WITH_* || -z "${TELEGRAM_BOT_TOKEN-}" ]]; then
     local token
     printf '[installer] Telegram bot token (input hidden): ' >&2
+    # `read -s` turns echo off, but a paste can reach the screen before that applies, and the
+    # terminal keeps it in scrollback. Clear the screen and the scrollback, then reprint the
+    # essentials, so the token is not left anywhere the operator (or someone behind them) can
+    # page back to. Nothing above is worth more than the token staying private.
     if IFS= read -rs token; then
-      printf '\n' >&2
       if [[ -n "$token" ]]; then
+        printf '\033[2J\033[3J\033[H' >&2
+        printf '[installer] Bot token received (hidden).\n' >&2
+        printf '[installer] Required: TELEGRAM_BOT_TOKEN (saved), TELEGRAM_ALLOWED_USER_ID.\n' >&2
+        printf '[installer] Settings file: %s\n' "${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}" >&2
         TELEGRAM_BOT_TOKEN="$token"
         ASKED_SETTING_KEYS+=(TELEGRAM_BOT_TOKEN)
+      else
+        printf '\r\033[2K[installer] No token entered.\n' >&2
       fi
     else
-      printf '\n' >&2
+      printf '\r\033[2K\n' >&2
     fi
     unset token
   fi
