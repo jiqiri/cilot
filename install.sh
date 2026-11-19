@@ -95,6 +95,16 @@ fi
 if [[ -n "$INSTALL_ENV_FILE" ]]; then
   [[ -r "$INSTALL_ENV_FILE" ]] || die "INSTALL_ENV_FILE is not readable: $INSTALL_ENV_FILE"
 
+  # The file holds the bot token, and `cp install.env.example` leaves it 0644. Anyone who
+  # can read the token can drive the bot, so the mode is fixed here instead of trusting a
+  # manual chmod that a quick start cannot guarantee. A failure means the file belongs to
+  # another account: it is readable now, but the next edit or rewrite will not be, so name
+  # the owner and the repair while the cause is still obvious.
+  if ! chmod 600 "$INSTALL_ENV_FILE" 2>/dev/null; then
+    log "WARNING: cannot set mode 600 on $INSTALL_ENV_FILE; it is not owned by $(id -un)."
+    log "WARNING: repair it with: sudo chown $(id -un): $INSTALL_ENV_FILE && chmod 600 $INSTALL_ENV_FILE"
+  fi
+
   # Sourcing a file overwrites whatever the caller exported, which would silently make the
   # file beat the environment. The documented order is environment first, so snapshot what
   # was exported and put it back afterwards. The file then acts as a set of defaults.

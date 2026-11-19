@@ -173,6 +173,10 @@ path as a command and reports `Permission denied`; the fallback above avoids tha
 worse: root-owned files under `~/.config/cilot` cannot be edited or overwritten by later
 installs, and `sudo chown -R "$USER:" ~/.config/cilot` is the repair.
 
+`cp` preserves the example's `0644`, so the installer does not rely on the operator to run
+`chmod`: it sets the settings file it reads to `0600` on every run, and warns with the exact
+`chown` when the file belongs to another account.
+
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
 TELEGRAM_ALLOWED_USER_ID=111111111

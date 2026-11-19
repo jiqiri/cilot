@@ -156,7 +156,9 @@ cp install.env.example ~/.config/cilot/install.env
 
 `$EDITOR` is often unset on a fresh machine; the fallback is `nano`. Run every step as your
 own user, never with `sudo`: a `~/.config/cilot` owned by root makes the next edit fail with
-`Permission denied`. If that already happened, `sudo chown -R "$USER:" ~/.config/cilot`.
+`Permission denied` (repair with `sudo chown -R "$USER:" ~/.config/cilot`). The copy starts
+world-readable, so `./install.sh` sets `install.env` to mode `600` on every run — there is no
+separate `chmod` step, and a file owned by another account is reported instead of ignored.
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
