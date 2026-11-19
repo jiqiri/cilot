@@ -151,8 +151,12 @@ Put credentials outside the repository:
 ```bash
 mkdir -p ~/.config/cilot
 cp install.env.example ~/.config/cilot/install.env
-$EDITOR ~/.config/cilot/install.env
+"${EDITOR:-nano}" ~/.config/cilot/install.env
 ```
+
+`$EDITOR` is often unset on a fresh machine; the fallback is `nano`. Run every step as your
+own user, never with `sudo`: a `~/.config/cilot` owned by root makes the next edit fail with
+`Permission denied`. If that already happened, `sudo chown -R "$USER:" ~/.config/cilot`.
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...

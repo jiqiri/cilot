@@ -165,8 +165,13 @@ sudo apt-get install -y curl tar ca-certificates openssl build-essential python3
 ```bash
 mkdir -p ~/.config/cilot
 cp install.env.example ~/.config/cilot/install.env
-$EDITOR ~/.config/cilot/install.env
+"${EDITOR:-nano}" ~/.config/cilot/install.env
 ```
+
+Run these as your own user, not through `sudo`. If `$EDITOR` is empty, the shell treats the
+path as a command and reports `Permission denied`; the fallback above avoids that. `sudo` is
+worse: root-owned files under `~/.config/cilot` cannot be edited or overwritten by later
+installs, and `sudo chown -R "$USER:" ~/.config/cilot` is the repair.
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
