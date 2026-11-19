@@ -160,6 +160,10 @@ own user, never with `sudo`: a `~/.config/cilot` owned by root makes the next ed
 world-readable, so `./install.sh` sets `install.env` to mode `600` on every run — there is no
 separate `chmod` step, and a file owned by another account is reported instead of ignored.
 
+Skipping the copy is also fine: `./install.sh` with no settings writes
+`~/.config/cilot/install.env` itself (mode `600`), then stops at the first missing value before
+downloading Node. Fill that file in and run it again.
+
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
 TELEGRAM_ALLOWED_USER_ID=111111111

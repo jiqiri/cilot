@@ -640,9 +640,9 @@ validate_placeholders() {
   for name in TELEGRAM_BOT_TOKEN TELEGRAM_ALLOWED_USER_ID CF_WORKERS_AI_ACCOUNT CF_WORKERS_AI_TOKEN; do
     value="${!name}"
     if [[ "$value" == REPLACE_WITH_* ]]; then
-      die "$name is not set. Put it in ${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}, or export it for this run. See README.md 'Settings and credentials'."
+      die "$name is still the placeholder in ${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}. Edit that file and replace it, or export a real value for this run. See README.md 'Settings and credentials'."
     fi
-    [[ -n "$value" ]] || die "$name cannot be empty."
+    [[ -n "$value" ]] || die "$name cannot be empty. Put it in ${INSTALL_ENV_FILE:-$DEFAULT_ENV_FILE}, or export it for this run."
   done
   # Either variable takes one id or a comma separated list. Accepting a list in the
   # original variable is the point: putting several ids in TELEGRAM_ALLOWED_USER_ID is the
@@ -1568,11 +1568,15 @@ main() {
 
   refuse_root
   ensure_bootstrap_tools
+  # Settings first, then the expensive steps. On a machine with no settings file this writes
+  # the template and stops at the first missing value, so the operator gets one concrete path
+  # to edit instead of a failure that leaves ~/.config/cilot absent. It also keeps a bad id or
+  # an empty token from being discovered after Node has been downloaded and packages installed.
+  write_settings_file
+  validate_placeholders
   install_nodejs
   require_command npm
   ensure_build_toolchain
-  validate_placeholders
-  write_settings_file
   check_platform
   install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
   install_opencode_binary "$CILOT_VERSION" "$CILOT_BIN_DIR/opencode"
