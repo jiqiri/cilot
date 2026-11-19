@@ -1161,7 +1161,7 @@ install_postiz_agent() {
   [[ -d "$src" ]] || return 0
   mkdir -p "$telegram_root/agents" "$telegram_root/skills/postiz-guidance"
   cp "$src/AGENTS.md" "$telegram_root/AGENTS.md"
-  cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/agents/social-media.md"
+  cp "$src/agents/postiz-social.md" "$telegram_root/agents/postiz-social.md"
   # The restricted social-media agent. Its deny-by-default permission block is enforced by
   # OpenCode, so a standard account cannot reach a shell or a directory outside its
   # workspace even if the prompt is ignored.
@@ -1172,7 +1172,8 @@ install_postiz_agent() {
   # files behind would only mislead the next reader of the config directory.
   rm -f "$telegram_root/tools/postiz_upload_image.ts" "$telegram_root/tools/postiz_check_post.ts"
   rmdir "$telegram_root/tools" 2>/dev/null || true
-  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
+  chmod 644 "$telegram_root/AGENTS.md" "$telegram_root/agents/postiz-social.md" \
+    "$telegram_root/agents/social-media.md" "$telegram_root/skills/postiz-guidance/SKILL.md"
 }
 
 install_image_plugin() {
