@@ -350,6 +350,11 @@ journalctl --user -u cilot-bot.service -n 50 --no-pager
   chọn lại `/projects`.
 - **User thấy agent `build`**: dừng lại, kiểm tra `STANDARD_AGENTS` và file agent; đây là lỗi
   cấu hình nghiêm trọng, không phải hành vi bình thường.
+- **`opencode` báo `opencode-pty protocol mismatch: daemon=9, client=7`**: daemon PTY của bản
+  cũ vẫn chạy sau khi binary được thay. `./install.sh` đã dừng daemon trước khi cài, nhưng nếu
+  gặp lại trên máy cũ thì chạy:
+  `pkill -f opencode-pty; rm -rf ~/.local/state/opencode/pty; opencode service restart`.
+  Khởi động lại máy cũng xử lý được.
 
 ## 12. Giới hạn đã biết
 

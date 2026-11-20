@@ -803,6 +803,57 @@ check_platform() {
   systemctl --user show-environment >/dev/null 2>&1 || die "A user systemd session is required. Log in and enable lingering for your user first."
 }
 
+# The CLI keeps a detached opencode-pty daemon alive so terminals survive a service
+# restart. That daemon speaks a versioned protocol, so one left behind by an older
+# release makes the new service fail at boot with "opencode-pty protocol mismatch".
+# Stop the managed service and any registered PTY daemon before the binary changes.
+stop_previous_cli_runtime() {
+  local destination="$1" state_dir reg pid pids=() alive pid_file
+  state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/opencode/pty"
+  [[ -d "$state_dir" ]] || return 0
+  log "Stopping the running OpenCode CLI before replacing $destination"
+  if [[ -x "$destination" ]]; then
+    "$destination" service stop >/dev/null 2>&1 || true
+  fi
+  # Older builds can leave the managed service behind even after `service stop`, and that
+  # service would respawn its own PTY daemon. Stop the pid it recorded as well.
+  reg="${state_dir%/pty}/service.json"
+  if [[ -f "$reg" ]]; then
+    pid="$(grep -o '"pid"[[:space:]]*:[[:space:]]*[0-9][0-9]*' "$reg" | head -n 1 | grep -o '[0-9][0-9]*$' || true)"
+    if [[ -n "$pid" && -r "/proc/$pid/comm" ]] && grep -qx 'opencode' "/proc/$pid/comm"; then
+      kill "$pid" 2>/dev/null || true
+      pids+=("$pid")
+    fi
+  fi
+  for reg in "$state_dir"/*/service.json; do
+    [[ -f "$reg" ]] || continue
+    pid="$(grep -o '"pid"[[:space:]]*:[[:space:]]*[0-9][0-9]*' "$reg" | head -n 1 | grep -o '[0-9][0-9]*$' || true)"
+    [[ -n "$pid" ]] || continue
+    pid_file="/proc/$pid/comm"
+    [[ -r "$pid_file" ]] || continue
+    grep -qx 'opencode-pty' "$pid_file" || continue
+    kill "$pid" 2>/dev/null || true
+    pids+=("$pid")
+  done
+  # A daemon can outlive its registration, so also match the runtime directory it was
+  # spawned with. The directory is per install, so this cannot touch Cilot's own daemon.
+  if command -v pkill >/dev/null 2>&1; then
+    pkill -f -- "--runtime-dir $state_dir/" 2>/dev/null || true
+  fi
+  for _ in 1 2 3 4 5 6 7 8 9 10; do
+    alive=0
+    for pid in ${pids[@]+"${pids[@]}"}; do
+      kill -0 "$pid" 2>/dev/null && alive=1
+    done
+    if ((alive == 0)); then break; fi
+    sleep 0.2
+  done
+  for pid in ${pids[@]+"${pids[@]}"}; do
+    kill -9 "$pid" 2>/dev/null || true
+  done
+  rm -rf "$state_dir"
+}
+
 install_opencode_binary() {
   local version="$1" destination="$2" url tmp asset_arch asset_suffix=""
   mkdir -p "$(dirname "$destination")"
@@ -810,6 +861,7 @@ install_opencode_binary() {
     log "OpenCode $version already installed at $destination"
     return
   fi
+  stop_previous_cli_runtime "$destination"
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/opencode-install.XXXXXX")"
   asset_arch="$(uname -m)"
   [[ "$asset_arch" == "aarch64" ]] && asset_arch="arm64"

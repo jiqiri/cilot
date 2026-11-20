@@ -401,6 +401,12 @@ By default:
 ~/.config/systemd/user/cilot-bot.service
 ```
 
+The CLI keeps a detached `opencode-pty` daemon so terminals survive a service restart. The
+daemon speaks a versioned protocol, so before replacing `~/.opencode/bin/opencode` the
+installer stops the previous CLI's managed service and any daemon registered under
+`~/.local/state/opencode/pty`. Without that step an upgrade from a different release fails
+with `opencode-pty protocol mismatch`.
+
 The generated Cloudflare credentials file is:
 
 ```text
