@@ -194,6 +194,13 @@ export const de: I18nDictionary = {
   "projects.selected":
     "✅ Projekt ausgewählt: {project}\n\n📋 Sitzung wurde zurückgesetzt. Nutze /sessions oder /new für dieses Projekt.",
   "projects.select_error": "🔴 Projekt konnte nicht ausgewählt werden.",
+  "projects.button.create": "➕ Projekt erstellen",
+  "projects.create.prompt": "Sende einen Namen für den neuen Projektordner.\n\nEr wird erstellt in:\n{path}\n\nVerwende Buchstaben, Ziffern, Punkt, Bindestrich und Unterstrich, beginnend mit einem Buchstaben oder einer Ziffer.",
+  "projects.create.invalid": "Ungültiger Name. Verwende Buchstaben, Ziffern, Punkt, Bindestrich und Unterstrich und beginne mit einem Buchstaben oder einer Ziffer.",
+  "projects.create.exists": "Ein Ordner mit dem Namen \"{name}\" existiert bereits.",
+  "projects.create.created": "✅ Projekt erstellt: {name}",
+  "projects.create.error": "🔴 Der Projektordner konnte nicht erstellt werden.",
+  "projects.create.not_permitted": "⛔ Nur ein Administrator mit vollem Zugriff kann Projekte erstellen.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

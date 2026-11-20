@@ -188,10 +188,17 @@ export const vi: I18nDictionary = {
   "projects.selected":
     "✅ Đã chọn dự án: {project}\n\n📋 Phiên đã được đặt lại. Dùng /sessions hoặc /new cho dự án này.",
   "projects.select_error": "🔴 Không chọn được dự án.",
-  "projects.button.hide": "🗑 ẫ độ án",
-  "projects.hide.choose": "Chọn đe ẫ ẫ địa đệ ẫ ản khỏi. Thao tác này chỉ ẽ gỡ khỏi khỏi độ, không xóa phiên hay tái đượ nào.",
-  "projects.hide.hidden": "Đã ẫ độ án: {path}",
-  "projects.hide.undone": "Đã ẫ ẫ độ án từ đặ",
+  "projects.button.create": "➕ Tạo dự án",
+  "projects.create.prompt": "Gửi tên thư mục cho dự án mới.\n\nThư mục sẽ được tạo trong:\n{path}\n\nChỉ dùng chữ, số, dấu chấm, gạch ngang và gạch dưới, bắt đầu bằng chữ hoặc số.",
+  "projects.create.invalid": "Tên không hợp lệ. Chỉ dùng chữ, số, dấu chấm, gạch ngang và gạch dưới, bắt đầu bằng chữ hoặc số.",
+  "projects.create.exists": "Đã tồn tại thư mục tên \"{name}\".",
+  "projects.create.created": "✅ Đã tạo dự án: {name}",
+  "projects.create.error": "🔴 Không tạo được thư mục dự án.",
+  "projects.create.not_permitted": "⛔ Chỉ quản trị viên có toàn quyền mới tạo được dự án.",
+  "projects.button.hide": "🗑 Ẩn dự án",
+  "projects.hide.choose": "Chọn dự án cần ẩn. Thao tác này chỉ ẩn khỏi danh sách, không xóa phiên hay tệp nào.",
+  "projects.hide.hidden": "Đã ẩn dự án: {path}",
+  "projects.hide.undone": "Dự án đã được ẩn từ trước",
   "projects.hide.cancel": "↩️ Hủy",
 
   "sessions.project_not_selected":

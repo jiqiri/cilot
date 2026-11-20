@@ -194,6 +194,13 @@ export const ko: I18nDictionary = {
   "projects.selected":
     "✅ 프로젝트 선택됨: {project}\n\n📋 세션이 초기화되었습니다. 이 프로젝트에서 /sessions 또는 /new를 사용해 주세요.",
   "projects.select_error": "🔴 프로젝트 선택에 실패했습니다.",
+  "projects.button.create": "➕ 프로젝트 만들기",
+  "projects.create.prompt": "새 프로젝트 폴더의 이름을 보내세요.\n\n다음 위치에 생성됩니다:\n{path}\n\n문자, 숫자, 점, 하이픈, 밑줄만 사용하고 문자나 숫자로 시작하세요.",
+  "projects.create.invalid": "잘못된 이름입니다. 문자, 숫자, 점, 하이픈, 밑줄만 사용하고 문자나 숫자로 시작하세요.",
+  "projects.create.exists": "\"{name}\"이라는 폴더가 이미 있습니다.",
+  "projects.create.created": "✅ 프로젝트 생성됨: {name}",
+  "projects.create.error": "🔴 프로젝트 폴더를 만들 수 없습니다.",
+  "projects.create.not_permitted": "⛔ 전체 권한이 있는 관리자만 프로젝트를 만들 수 있습니다.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

@@ -186,6 +186,13 @@ export const ar: I18nDictionary = {
   "projects.selected":
     "✅ تم اختيار المشروع: {project}\n\n📋 تمت إعادة ضبط الجلسة الحالية. استخدم /sessions لاختيار جلسة أو /new لبدء جلسة جديدة.",
   "projects.select_error": "🔴 تعذر اختيار المشروع.",
+  "projects.button.create": "➕ إنشاء مشروع",
+  "projects.create.prompt": "أرسل اسم مجلد المشروع الجديد.\n\nسيتم إنشاؤه في:\n{path}\n\nاستخدم الحروف والأرقام والنقطة والشرطة والشرطة السفلية، وابدأ بحرف أو رقم.",
+  "projects.create.invalid": "اسم غير صالح. استخدم الحروف والأرقام والنقطة والشرطة والشرطة السفلية، وابدأ بحرف أو رقم.",
+  "projects.create.exists": "يوجد مجلد باسم \"{name}\" بالفعل.",
+  "projects.create.created": "✅ تم إنشاء المشروع: {name}",
+  "projects.create.error": "🔴 تعذر إنشاء مجلد المشروع.",
+  "projects.create.not_permitted": "⛔ يمكن للمشرف ذي الصلاحية الكاملة فقط إنشاء المشاريع.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

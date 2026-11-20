@@ -58,6 +58,19 @@ worktree: <CILOT_USER_ROOT>/<telegram id>/projects
 Project này được tạo khi cần và hiện trong `/projects`, nên dùng được `/new` ngay cả khi
 OpenCode chưa từng thấy thư mục đó. Khi `/access off`, admin cũng chỉ thấy project này.
 
+### Tạo project mới từ `/projects`
+
+Admin đang bật `/access on` thấy thêm nút **➕ Tạo dự án** dưới danh sách project. Bấm nút,
+gửi tên thư mục, bot tạo thư mục dưới `<CILOT_USER_ROOT>/<telegram id>/projects` rồi chuyển
+ngay sang project đó.
+
+- Chỉ admin đang bật `/access on` thấy nút; user thường và admin đang off không có.
+- Tên hợp lệ: chữ, số, dấu chấm, gạch ngang, gạch dưới, bắt đầu bằng chữ hoặc số, tối đa 64
+  ký tự. Tên chứa `/` hay `..` bị từ chối.
+- Thư mục được tạo trong workspace của chính tài khoản đang dùng, nên không mở rộng quyền
+  truy cập. Trùng tên thì bot báo đã tồn tại, không ghi đè.
+- Tên hiện trong danh sách `/projects` chỉ là tên thư mục, không kèm đường dẫn đầy đủ.
+
 ## 3. Bảng quyền
 
 | Khả năng | Admin chính, `on` | Admin chính, `off` | Admin khác | User thường |
@@ -70,6 +83,7 @@ OpenCode chưa từng thấy thư mục đó. Khi `/access off`, admin cũng ch�
 | `/access` | có | có | không | không |
 | `/stop`, `/start` server | có | không | có (`on`) | không |
 | Xem project/session người khác | có | không | có (`on`) | không |
+| Tạo project mới từ `/projects` | có | không | có (`on`) | không |
 | Shared folder được cấp | có | có | có | có |
 
 `/access off` không chặn user thường. Việc chặn một tài khoản nằm ở `/user`.

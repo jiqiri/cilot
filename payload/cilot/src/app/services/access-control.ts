@@ -159,6 +159,17 @@ export function isConfinedAdmin(userId: number | null | undefined): boolean {
 }
 
 /**
+ * Whether this account may create a new project folder from the bot.
+ *
+ * Same reach as `/open`: creating a folder is a filesystem write, so it is limited to an
+ * admin with `/access on`, and a confined admin does not get it even while elevated.
+ * Standard accounts create nothing; they only ever use the workspace made for them.
+ */
+export function canCreateProject(userId: number | null | undefined): boolean {
+  return isElevatedUser(userId) && !config.telegram.confineAdmins;
+}
+
+/**
  * Whether this user may run a given OpenCode agent.
  *
  * Checked before the agent name reaches a prompt, so a standard user cannot reach `build`

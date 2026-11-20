@@ -193,6 +193,13 @@ export const id: I18nDictionary = {
   "projects.selected":
     "✅ Proyek dipilih: {project}\n\n📋 Sesi direset. Gunakan /sessions atau /new untuk proyek ini.",
   "projects.select_error": "🔴 Gagal memilih proyek.",
+  "projects.button.create": "➕ Buat proyek",
+  "projects.create.prompt": "Kirim nama untuk folder proyek baru.\n\nFolder akan dibuat di:\n{path}\n\nGunakan huruf, angka, titik, tanda hubung, dan garis bawah, dimulai dengan huruf atau angka.",
+  "projects.create.invalid": "Nama tidak valid. Gunakan huruf, angka, titik, tanda hubung, dan garis bawah, dan mulai dengan huruf atau angka.",
+  "projects.create.exists": "Folder bernama \"{name}\" sudah ada.",
+  "projects.create.created": "✅ Proyek dibuat: {name}",
+  "projects.create.error": "🔴 Tidak dapat membuat folder proyek.",
+  "projects.create.not_permitted": "⛔ Hanya admin dengan akses penuh yang dapat membuat proyek.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

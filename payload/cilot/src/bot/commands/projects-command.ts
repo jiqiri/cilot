@@ -1,6 +1,7 @@
 import type { CommandContext, Context } from "grammy";
 import type { AppContainer } from "../../app/bootstrap/app-container.js";
 import { getProjects } from "../../app/services/project-service.js";
+import { canCreateProject } from "../../app/services/access-control.js";
 import { isForegroundBusy } from "../../app/services/run-control-service.js";
 import { syncSessionDirectoryCache } from "../../app/services/session-cache-service.js";
 import { t } from "../../i18n/index.js";
@@ -26,13 +27,14 @@ export async function projectsCommand(
 
     await syncSessionDirectoryCache();
     const projects = await getProjects();
+    const canCreate = canCreateProject(ctx.from?.id);
 
-    if (projects.length === 0) {
+    if (projects.length === 0 && !canCreate) {
       await ctx.reply(t("projects.empty"));
       return;
     }
 
-    const { text, keyboard } = await buildProjectsMenuView(projects, 0);
+    const { text, keyboard } = await buildProjectsMenuView(projects, 0, canCreate);
 
     await replyWithInlineMenu(ctx, {
       menuKind: "project",

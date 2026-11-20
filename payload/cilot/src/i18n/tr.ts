@@ -188,6 +188,13 @@ export const tr: I18nDictionary = {
   "projects.selected":
     "✅ Proje seçildi: {project}\n\n📋 Oturum sıfırlandı. Bu proje için /sessions veya /new kullanın.",
   "projects.select_error": "🔴 Proje seçilemedi.",
+  "projects.button.create": "➕ Proje oluştur",
+  "projects.create.prompt": "Yeni proje klasörü için bir ad gönderin.\n\nŞurada oluşturulacak:\n{path}\n\nHarf, rakam, nokta, tire ve alt çizgi kullanın ve harf ya da rakamla başlayın.",
+  "projects.create.invalid": "Geçersiz ad. Harf, rakam, nokta, tire ve alt çizgi kullanın ve harf ya da rakamla başlayın.",
+  "projects.create.exists": "\"{name}\" adlı bir klasör zaten var.",
+  "projects.create.created": "✅ Proje oluşturuldu: {name}",
+  "projects.create.error": "🔴 Proje klasörü oluşturulamadı.",
+  "projects.create.not_permitted": "⛔ Yalnızca tam erişimli bir yönetici proje oluşturabilir.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

@@ -11,6 +11,8 @@ export const PROJECT_PAGE_CALLBACK_PREFIX = "projects:page:";
 export const PROJECT_HIDE_CALLBACK = "projects:hide";
 export const PROJECT_HIDE_CANCEL_CALLBACK = "projects:hide_cancel";
 export const PROJECT_HIDE_CONFIRM_PREFIX = "projects:hide_confirm:";
+export const PROJECT_CREATE_CALLBACK = "projects:create";
+export const PROJECT_CREATE_CANCEL_CALLBACK = "projects:create_cancel";
 
 export function projectHideConfirmCallback(worktree: string): string {
   return `${PROJECT_HIDE_CONFIRM_PREFIX}${encodeURIComponent(worktree)}`;
@@ -57,8 +59,11 @@ export function getProjectFolderName(worktree: string): string {
 }
 
 export function buildProjectButtonLabel(index: number, worktree: string): string {
-  const folderName = getProjectFolderName(worktree);
-  return `${index + 1}. ${folderName} [${worktree}]`;
+  return `${index + 1}. ${getProjectFolderName(worktree)}`;
+}
+
+export function buildProjectCreateCancelKeyboard(): InlineKeyboard {
+  return new InlineKeyboard().text(t("inline.button.cancel"), PROJECT_CREATE_CANCEL_CALLBACK);
 }
 
 export function parseProjectPageCallback(data: string): number | null {
@@ -139,6 +144,7 @@ async function getActiveProjectWorktree(): Promise<string | null> {
 async function buildProjectsKeyboard(
   projects: ProjectInfo[],
   page: number,
+  canCreate: boolean,
 ): Promise<InlineKeyboard> {
   const keyboard = new InlineKeyboard();
   const currentProject = getCurrentProject();
@@ -179,12 +185,20 @@ async function buildProjectsKeyboard(
     }
   }
 
+  if (canCreate) {
+    if (keyboard.inline_keyboard.length > 0) {
+      keyboard.row();
+    }
+    keyboard.text(t("projects.button.create"), PROJECT_CREATE_CALLBACK);
+  }
+
   return keyboard;
 }
 
 export async function buildProjectsMenuView(
   projects: ProjectInfo[],
   page: number,
+  canCreate: boolean = false,
 ): Promise<{ text: string; keyboard: InlineKeyboard }> {
   const currentProject = getCurrentProject();
   const pageSize = config.bot.projectsListLimit;
@@ -197,6 +211,6 @@ export async function buildProjectsMenuView(
 
   return {
     text: buildProjectsMenuText(currentProjectName, normalizedPage, totalPages),
-    keyboard: await buildProjectsKeyboard(projects, normalizedPage),
+    keyboard: await buildProjectsKeyboard(projects, normalizedPage, canCreate),
   };
 }

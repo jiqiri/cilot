@@ -170,6 +170,43 @@ export async function ensurePersonalProject(
   };
 }
 
+const PROJECT_FOLDER_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+const PROJECT_FOLDER_NAME_MAX_LENGTH = 64;
+
+/**
+ * Whether a typed name is safe to use as a project folder.
+ *
+ * One path segment, no separators and no `.`/`..`, so a name can never point outside the
+ * account's workspace no matter how it is joined.
+ */
+export function isValidProjectFolderName(name: string): boolean {
+  return (
+    name.length > 0 &&
+    name.length <= PROJECT_FOLDER_NAME_MAX_LENGTH &&
+    name !== "." &&
+    name !== ".." &&
+    PROJECT_FOLDER_NAME_PATTERN.test(name)
+  );
+}
+
+/**
+ * Absolute path of a new project folder under the account's own workspace.
+ *
+ * The name is re-validated by the containment check rather than trusted: the caller is
+ * expected to have called {@link isValidProjectFolderName}, but a name that somehow escapes
+ * the workspace throws instead of creating a folder elsewhere on the machine.
+ */
+export function projectFolderPath(userId: number, name: string): string {
+  const base = path.resolve(userProjectsRoot(userId));
+  const target = path.resolve(base, name);
+
+  if (target === base || !target.startsWith(base + path.sep)) {
+    throw new Error(`Project folder escapes the workspace: ${name}`);
+  }
+
+  return target;
+}
+
 /**
  * Projects the bot knows about before the server does: the account's personal workspace and
  * the folders the primary admin shared with it. Both are authorized by the same path check

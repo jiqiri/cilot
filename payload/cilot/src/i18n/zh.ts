@@ -173,6 +173,13 @@ export const zh: I18nDictionary = {
   "projects.selected":
     "✅ 已选择项目：{project}\n\n📋 会话已重置。请在此项目中使用 /sessions 或 /new。",
   "projects.select_error": "🔴 选择项目失败。",
+  "projects.button.create": "➕ 创建项目",
+  "projects.create.prompt": "发送新项目文件夹的名称。\n\n它将创建在：\n{path}\n\n只能使用字母、数字、点、连字符和下划线，并以字母或数字开头。",
+  "projects.create.invalid": "名称无效。请使用字母、数字、点、连字符和下划线，并以字母或数字开头。",
+  "projects.create.exists": "名为“{name}”的文件夹已存在。",
+  "projects.create.created": "✅ 项目已创建：{name}",
+  "projects.create.error": "🔴 无法创建项目文件夹。",
+  "projects.create.not_permitted": "⛔ 只有拥有完全权限的管理员才能创建项目。",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

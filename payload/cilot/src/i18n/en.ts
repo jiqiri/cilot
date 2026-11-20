@@ -183,6 +183,16 @@ export const en = {
   "projects.selected":
     "✅ Project selected: {project}\n\n📋 Session was reset. Use /sessions or /new for this project.",
   "projects.select_error": "🔴 Failed to select project.",
+  "projects.button.create": "➕ Create project",
+  "projects.create.prompt":
+    "Send a name for the new project folder.\n\nIt will be created in:\n{path}\n\nUse letters, digits, dot, dash and underscore, starting with a letter or digit.",
+  "projects.create.invalid":
+    "Invalid name. Use letters, digits, dot, dash and underscore, and start with a letter or digit.",
+  "projects.create.exists": "A folder named \"{name}\" already exists.",
+  "projects.create.created": "✅ Project created: {name}",
+  "projects.create.error": "🔴 Could not create the project folder.",
+  "projects.create.not_permitted":
+    "⛔ Only an administrator with full access can create projects.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

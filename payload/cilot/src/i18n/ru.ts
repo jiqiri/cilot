@@ -185,6 +185,13 @@ export const ru: I18nDictionary = {
   "projects.selected":
     "✅ Проект выбран: {project}\n\n📋 Сессия сброшена. Используйте /sessions или /new для работы с этим проектом.",
   "projects.select_error": "🔴 Ошибка при выборе проекта.",
+  "projects.button.create": "➕ Создать проект",
+  "projects.create.prompt": "Отправьте имя папки нового проекта.\n\nОна будет создана в:\n{path}\n\nИспользуйте буквы, цифры, точку, дефис и подчёркивание, начиная с буквы или цифры.",
+  "projects.create.invalid": "Недопустимое имя. Используйте буквы, цифры, точку, дефис и подчёркивание и начинайте с буквы или цифры.",
+  "projects.create.exists": "Папка с именем \"{name}\" уже существует.",
+  "projects.create.created": "✅ Проект создан: {name}",
+  "projects.create.error": "🔴 Не удалось создать папку проекта.",
+  "projects.create.not_permitted": "⛔ Создавать проекты может только администратор с полным доступом.",
   "projects.button.hide": "🗑 Hide a project",
   "projects.hide.choose": "Pick the project to hide. Hiding only removes it from this list; no session or file is deleted.",
   "projects.hide.hidden": "Hidden: {path}",

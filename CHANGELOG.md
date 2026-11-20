@@ -7,6 +7,17 @@
   attachments. IMAP auth is an app password over TLS for 1.1.0. Spike S0 (one MCP process per
   workspace) passed on 2026-11-12; no code is implemented yet.
 
+## 1.1.4 — create a project from the bot
+
+- `/projects` shows the folder name only, without the full path, so each button stays
+  readable in a narrow chat.
+- An admin with `/access on` gets a **➕ Create project** button under the list. The typed
+  name is validated, the folder is created inside the account's own workspace, and the bot
+  switches to it immediately. Standard accounts never see the button.
+- The installer keeps an existing OpenCode CLI instead of replacing it, and stops the old CLI
+  runtime (including its PTY daemon) only when it installs a binary of its own.
+- `uninstall.sh --purge` removes only what Cilot created, tracked with ownership markers.
+
 ## 1.0.0 — the name is now the deployment
 
 Every identifier an operator sees or types is `cilot`. No compatibility aliases, no in-place
