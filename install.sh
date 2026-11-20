@@ -227,11 +227,19 @@ OPENCODE_MAIN_STATE_DIR="${OPENCODE_MAIN_STATE_DIR:-$HOME/.local/state/opencode}
 CILOT_STATE_DIR="${CILOT_STATE_DIR:-$HOME/.local/state/cilot/opencode}"
 OPENCODE_MAIN_CACHE_DIR="${OPENCODE_MAIN_CACHE_DIR:-$HOME/.cache/opencode}"
 CILOT_CACHE_DIR="${CILOT_CACHE_DIR:-$HOME/.cache/cilot/opencode}"
+# Records what this installer created in the owner's paths, so uninstall.sh can remove only
+# what Cilot put there. An existing CLI, its sessions and its config are left alone.
+OPENCODE_MAIN_OWNED_MARKER="$INSTALL_ROOT/opencode-main-owned"
+OPENCODE_MAIN_PACKAGE_MARKER="$INSTALL_ROOT/opencode-main-package-created"
 USER_SYSTEMD_DIR="${USER_SYSTEMD_DIR:-$HOME/.config/systemd/user}"
 BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
 OPENCODE_MAIN_URL="${OPENCODE_MAIN_URL:-http://127.0.0.1:5100}"
 CILOT_URL="${CILOT_URL:-http://127.0.0.1:4096}"
+# Pinned only for a fresh install. If the owner already has a CLI at
+# $OPENCODE_MAIN_BIN_DIR/opencode, the installer keeps that version instead of replacing it,
+# because downgrading a working CLI is worse than running a different release than we ship.
 OPENCODE_MAIN_VERSION="2.0.11"
+OPENCODE_MAIN_INSTALLED_VERSION="$OPENCODE_MAIN_VERSION"
 # The Telegram server runs the 2.x API: the bot's V2 adapter talks to it, and the three
 # tools that used to be files in `opencode/tools/` are served by the bot's own MCP server.
 CILOT_VERSION="2.2.5"
@@ -854,6 +862,10 @@ stop_previous_cli_runtime() {
   rm -rf "$state_dir"
 }
 
+opencode_version_of() {
+  "$1" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true
+}
+
 install_opencode_binary() {
   local version="$1" destination="$2" url tmp asset_arch asset_suffix=""
   mkdir -p "$(dirname "$destination")"
@@ -861,7 +873,6 @@ install_opencode_binary() {
     log "OpenCode $version already installed at $destination"
     return
   fi
-  stop_previous_cli_runtime "$destination"
   tmp="$(mktemp -d "${TMPDIR:-/tmp}/opencode-install.XXXXXX")"
   asset_arch="$(uname -m)"
   [[ "$asset_arch" == "aarch64" ]] && asset_arch="arm64"
@@ -890,6 +901,38 @@ install_opencode_binary() {
   install -m 0755 "$tmp/opencode" "$destination"
   rm -rf "$tmp"
   "$destination" --version | grep -q "$version" || die "Downloaded OpenCode version check failed."
+}
+
+# The owner's terminal CLI is not ours to downgrade. Replacing a working 2.3.2 with the
+# pinned 2.0.11 also left the newer PTY daemon behind, and the new service then failed with
+# a protocol mismatch. Only install the pin when no CLI exists yet (or the existing one
+# cannot report a version), and only then clear the runtime of whatever came before.
+install_main_opencode() {
+  local destination="$OPENCODE_MAIN_BIN_DIR/opencode" current="" owned=""
+  if [[ -x "$destination" ]]; then
+    current="$(opencode_version_of "$destination")"
+    if [[ -n "$current" ]]; then
+      OPENCODE_MAIN_INSTALLED_VERSION="$current"
+      if [[ -f "$OPENCODE_MAIN_OWNED_MARKER" ]]; then
+        owned="$(cat "$OPENCODE_MAIN_OWNED_MARKER" 2>/dev/null || true)"
+        if [[ "$owned" != "$current" ]]; then
+          # The owner replaced the binary after we installed it; it is theirs now.
+          rm -f "$OPENCODE_MAIN_OWNED_MARKER"
+        fi
+      fi
+      if [[ "$current" == "$OPENCODE_MAIN_VERSION" ]]; then
+        log "OpenCode $current already installed at $destination"
+      else
+        log "Keeping the existing OpenCode $current at $destination; not replacing it with $OPENCODE_MAIN_VERSION"
+      fi
+      return 0
+    fi
+  fi
+  stop_previous_cli_runtime "$destination"
+  install_opencode_binary "$OPENCODE_MAIN_VERSION" "$destination"
+  OPENCODE_MAIN_INSTALLED_VERSION="$OPENCODE_MAIN_VERSION"
+  mkdir -p "$INSTALL_ROOT"
+  printf '%s\n' "$OPENCODE_MAIN_VERSION" >"$OPENCODE_MAIN_OWNED_MARKER"
 }
 
 # A private repository answers 404 on github.com/OWNER/REPO/archive/... before it looks at
@@ -1245,11 +1288,20 @@ install_image_plugin() {
   mkdir -p "$OPENCODE_MAIN_CONFIG_DIR" "$CILOT_CONFIG_DIR/opencode"
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/package.json" ]]; then
     printf '%s\n' '{"private":true,"type":"module"}' >"$OPENCODE_MAIN_CONFIG_DIR/package.json"
+    # We created this file, so uninstall may remove the dependency tree that goes with it.
+    mkdir -p "$INSTALL_ROOT"
+    : >"$OPENCODE_MAIN_PACKAGE_MARKER"
   fi
   if [[ ! -f "$CILOT_CONFIG_DIR/opencode/package.json" ]]; then
     printf '%s\n' '{"private":true,"type":"module"}' >"$CILOT_CONFIG_DIR/opencode/package.json"
   fi
-  npm install --prefix "$OPENCODE_MAIN_CONFIG_DIR" --no-audit --no-fund --save-exact @opencode/plugin@2.0.11 >/dev/null
+  # Match the plugin package to the CLI that will load it. If that release has no npm
+  # package (an unreleased local build, for example), fall back to the installer's pin
+  # rather than failing the whole install.
+  npm install --prefix "$OPENCODE_MAIN_CONFIG_DIR" --no-audit --no-fund --save-exact \
+    "@opencode/plugin@$OPENCODE_MAIN_INSTALLED_VERSION" >/dev/null 2>&1 \
+    || npm install --prefix "$OPENCODE_MAIN_CONFIG_DIR" --no-audit --no-fund --save-exact \
+      "@opencode/plugin@$OPENCODE_MAIN_VERSION" >/dev/null
   if [[ ! -f "$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" && ! -f "$OPENCODE_MAIN_CONFIG_DIR/opencode.json" ]]; then
     cat >"$OPENCODE_MAIN_CONFIG_DIR/opencode.jsonc" <<'EOF'
 {
@@ -1646,7 +1698,18 @@ redact_mcp_token_in_configs() {
 
 write_systemd_units() {
   mkdir -p "$USER_SYSTEMD_DIR"
+  # opencode.service is the one unit that may predate Cilot. Keep a copy of anything we did
+  # not write before taking it over, so a custom ExecStart or environment is recoverable.
+  # A unit from an older installer has no marker but does point at our environment file, and
+  # that one is safe to replace in place.
+  if [[ -f "$USER_SYSTEMD_DIR/opencode.service" ]] \
+    && ! grep -q '^# Managed by the Cilot installer$' "$USER_SYSTEMD_DIR/opencode.service" \
+    && ! grep -qF "EnvironmentFile=$INSTALL_ROOT/opencode-main.env" "$USER_SYSTEMD_DIR/opencode.service"; then
+    cp -p "$USER_SYSTEMD_DIR/opencode.service" "$USER_SYSTEMD_DIR/opencode.service.before-cilot"
+    log "Existing opencode.service saved as $USER_SYSTEMD_DIR/opencode.service.before-cilot"
+  fi
   cat >"$USER_SYSTEMD_DIR/opencode.service" <<EOF
+# Managed by the Cilot installer
 [Unit]
 Description=OpenCode V2 server
 After=network-online.target
@@ -1758,7 +1821,7 @@ main() {
   require_command npm
   ensure_build_toolchain
   check_platform
-  install_opencode_binary "$OPENCODE_MAIN_VERSION" "$OPENCODE_MAIN_BIN_DIR/opencode"
+  install_main_opencode
   install_opencode_binary "$CILOT_VERSION" "$CILOT_BIN_DIR/opencode"
   copy_payload
   install_addons

@@ -7,7 +7,7 @@ describes what the agent does rather than how it is built.
 
 A Linux user-level installer for:
 
-- OpenCode V2 (`2.0.11`) on `127.0.0.1:5100`
+- OpenCode V2 (`2.0.11` on a fresh install; an existing CLI is kept) on `127.0.0.1:5100`
 - An isolated OpenCode `2.2.5` server for the Cilot agent on `127.0.0.1:4096`
 - The Cilot agent source (`payload/cilot`), built with npm
 - The Telegram tools (`image_generate`, `postiz_check_post`, `postiz_upload_image`) served
@@ -647,7 +647,7 @@ cilot-server.service      opencode 2.2.5 on 127.0.0.1:4096
   ▼
 LLM provider
 
-owner's own interactive use → opencode.service   opencode 2.0.11 on 127.0.0.1:5100
+owner's own interactive use → opencode.service   opencode on 127.0.0.1:5100
 ```
 
 Three user-level systemd services under one Linux user. No containers.
@@ -655,8 +655,10 @@ Three user-level systemd services under one Linux user. No containers.
 ## Why two OpenCode servers
 
 Both run the 2.x API, but they are separate installations with separate binaries, config
-trees and ports: 2.0.11 serves the owner's own interactive work, and the bot never talks to
-it.
+trees and ports: the CLI on `127.0.0.1:5100` serves the owner's own interactive work, and
+the bot never talks to it. A fresh install puts `2.0.11` there; if the owner already had a
+CLI at `~/.opencode/bin/opencode`, the installer keeps that version and only matches the
+Cloudflare plugin package to it.
 
 The bot used to require `1.18.32` because it called the root-level endpoints (`/session`,
 `/project`, `/event`, …), which 2.x replaced with `/api/*`, and because 2.x has no `tool`
@@ -1034,7 +1036,7 @@ The stack includes an uninstaller:
 ./uninstall.sh
 ```
 
-The default uninstall stops/disables the three user services and removes the generated service files and managed bot/runtime files, but preserves OpenCode data, configuration, and other user files. Review the script before using `--purge`; `--purge` also removes the managed OpenCode/bot configuration and data directories.
+The default uninstall stops/disables the three user services and removes the generated service files and managed bot/runtime files, but preserves OpenCode data, configuration, and other user files. Review the script before using `--purge`; `--purge` also removes the managed OpenCode/bot configuration and data directories. It only deletes the owner's main CLI binary, `~/.config/opencode/package.json` and `node_modules` when the installer created them and their version is unchanged, and it never removes the main CLI's sessions, state or cache. An `opencode.service` that predated Cilot is restored instead of deleted.
 
 A downloaded `install.sh` uses `PAYLOAD_ARCHIVE_URL` (overridable) to fetch the repository payload when needed.
 
@@ -1052,6 +1054,7 @@ TELEGRAM_ALLOWED_USER_ID='123456789' \
 `./uninstall.sh --dry-run` prints every path first. The default run stops and disables the
 three user services and removes the install root, then keeps OpenCode data and add-on
 configuration so a reinstall does not silently drop a mailbox. `--purge` also removes the
-managed configuration and data, and `--purge-addons` names and removes
+managed configuration and data, while keeping an OpenCode CLI, sessions and config that were
+not created by Cilot, and `--purge-addons` names and removes
 `~/.config/cilot/addons/` and `~/.local/state/cilot/addons/` (with `--purge` this is implied),
 along with the add-on MCP entries.

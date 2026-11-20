@@ -9,11 +9,8 @@ OPENCODE_MAIN_BIN_DIR="${OPENCODE_MAIN_BIN_DIR:-$HOME/.opencode/bin}"
 CILOT_BIN_DIR="${CILOT_BIN_DIR:-$INSTALL_ROOT/bin}"
 OPENCODE_MAIN_CONFIG_DIR="${OPENCODE_MAIN_CONFIG_DIR:-$HOME/.config/opencode}"
 CILOT_CONFIG_DIR="${CILOT_CONFIG_DIR:-$HOME/.config/cilot}"
-OPENCODE_MAIN_DATA_DIR="${OPENCODE_MAIN_DATA_DIR:-$HOME/.local/share/opencode}"
 CILOT_DATA_DIR="${CILOT_DATA_DIR:-$HOME/.local/share/cilot/opencode}"
-OPENCODE_MAIN_STATE_DIR="${OPENCODE_MAIN_STATE_DIR:-$HOME/.local/state/opencode}"
 CILOT_STATE_DIR="${CILOT_STATE_DIR:-$HOME/.local/state/cilot/opencode}"
-OPENCODE_MAIN_CACHE_DIR="${OPENCODE_MAIN_CACHE_DIR:-$HOME/.cache/opencode}"
 CILOT_CACHE_DIR="${CILOT_CACHE_DIR:-$HOME/.cache/cilot/opencode}"
 USER_SYSTEMD_DIR="${USER_SYSTEMD_DIR:-$HOME/.config/systemd/user}"
 BOT_SOURCE_DIR="${BOT_SOURCE_DIR:-$INSTALL_ROOT/bot}"
@@ -21,6 +18,14 @@ ADDON_DIR="${ADDON_DIR:-$INSTALL_ROOT/addons}"
 ADDON_CONFIG_DIR="${ADDON_CONFIG_DIR:-$CILOT_CONFIG_DIR/addons}"
 ADDON_STATE_ROOT="${ADDON_STATE_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/cilot/addons}"
 CILOT_OPENCODE_CONFIG="${CILOT_OPENCODE_CONFIG:-$CILOT_CONFIG_DIR/opencode/opencode.jsonc}"
+# Ownership markers written by install.sh. INSTALL_ROOT is removed below, so read them now.
+OPENCODE_MAIN_OWNED_MARKER="$INSTALL_ROOT/opencode-main-owned"
+OPENCODE_MAIN_PACKAGE_MARKER="$INSTALL_ROOT/opencode-main-package-created"
+main_owned_version="$(cat "$OPENCODE_MAIN_OWNED_MARKER" 2>/dev/null || true)"
+main_package_owned=0
+if [[ -f "$OPENCODE_MAIN_PACKAGE_MARKER" ]]; then
+  main_package_owned=1
+fi
 
 DRY_RUN=0
 PURGE=0
@@ -33,7 +38,8 @@ Usage: ./uninstall.sh [options]
 
 Options:
   --dry-run       Print actions without changing anything
-  --purge         Also remove managed OpenCode/bot configuration and data
+  --purge         Also remove Cilot's OpenCode/bot configuration and data. A CLI, sessions
+                  or config that existed before Cilot, or was replaced afterwards, is kept.
   --purge-addons  Also remove add-on configuration and state, including the credentials
                   of every account that was granted an add-on
   --yes           Do not ask for confirmation
@@ -51,6 +57,9 @@ run() {
   else
     "$@"
   fi
+}
+opencode_version_of() {
+  "$1" --version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n 1 || true
 }
 remove_path() {
   local path="$1"
@@ -85,7 +94,9 @@ if (( ! DRY_RUN && ! ASSUME_YES )); then
   [[ "$answer" == [yY] ]] || { log 'Cancelled.'; exit 0; }
 fi
 
+systemd_ok=0
 if command -v systemctl >/dev/null 2>&1 && systemctl --user show-environment >/dev/null 2>&1; then
+  systemd_ok=1
   log 'Stopping and disabling user services'
   run systemctl --user disable --now "${units[@]}" || true
 else
@@ -95,8 +106,21 @@ fi
 for unit in "${units[@]}"; do
   remove_path "$USER_SYSTEMD_DIR/$unit"
 done
+
+# install.sh backs up an opencode.service that predates Cilot. Put it back instead of
+# silently deleting the owner's own 5100 server.
+restored_opencode_unit=0
+if [[ -f "$USER_SYSTEMD_DIR/opencode.service.before-cilot" ]]; then
+  log 'Restoring the opencode.service that existed before Cilot'
+  run mv -- "$USER_SYSTEMD_DIR/opencode.service.before-cilot" "$USER_SYSTEMD_DIR/opencode.service"
+  restored_opencode_unit=1
+fi
+
 run systemctl --user daemon-reload || true
 run systemctl --user reset-failed "${units[@]}" || true
+if (( restored_opencode_unit && systemd_ok )); then
+  run systemctl --user enable --now opencode.service || true
+fi
 
 # Runtime files created by install.sh.
 for file in \
@@ -159,23 +183,31 @@ fi
 # with an existing OpenCode installation.
 if (( PURGE )); then
   log 'Removing managed binaries, configuration, and data'
-  remove_path "$OPENCODE_MAIN_BIN_DIR/opencode"
+  if [[ -n "$main_owned_version" && -x "$OPENCODE_MAIN_BIN_DIR/opencode" ]] \
+    && [[ "$(opencode_version_of "$OPENCODE_MAIN_BIN_DIR/opencode")" == "$main_owned_version" ]]; then
+    remove_path "$OPENCODE_MAIN_BIN_DIR/opencode"
+  else
+    log "Keeping $OPENCODE_MAIN_BIN_DIR/opencode: it was not installed by Cilot or its version changed."
+  fi
   remove_path "$CILOT_BIN_DIR/opencode"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/plugins/cloudflare-image"
   remove_path "$OPENCODE_MAIN_CONFIG_DIR/skills/cf-image-guidance"
   remove_path "$CILOT_CONFIG_DIR/opencode/tools/image_generate.ts"
   remove_path "$CILOT_CONFIG_DIR/opencode/skills/cf-image-guidance"
-  remove_path "$OPENCODE_MAIN_CONFIG_DIR/package.json"
-  remove_path "$OPENCODE_MAIN_CONFIG_DIR/package-lock.json"
-  remove_path "$OPENCODE_MAIN_CONFIG_DIR/node_modules"
+  if (( main_package_owned )); then
+    remove_path "$OPENCODE_MAIN_CONFIG_DIR/package.json"
+    remove_path "$OPENCODE_MAIN_CONFIG_DIR/package-lock.json"
+    remove_path "$OPENCODE_MAIN_CONFIG_DIR/node_modules"
+  else
+    log "Keeping $OPENCODE_MAIN_CONFIG_DIR/package.json and node_modules: they existed before Cilot."
+  fi
   remove_path "$CILOT_CONFIG_DIR/opencode/package.json"
   remove_path "$CILOT_CONFIG_DIR/opencode/package-lock.json"
   remove_path "$CILOT_CONFIG_DIR/opencode/node_modules"
-  remove_path "$OPENCODE_MAIN_DATA_DIR"
+  # The main CLI's sessions, state and cache belong to the owner's own use of OpenCode,
+  # not to Cilot, so they are never removed.
   remove_path "$CILOT_DATA_DIR"
-  remove_path "$OPENCODE_MAIN_STATE_DIR"
   remove_path "$CILOT_STATE_DIR"
-  remove_path "$OPENCODE_MAIN_CACHE_DIR"
   remove_path "$CILOT_CACHE_DIR"
 else
   log 'Preserving OpenCode binaries, configuration, and data. Use --purge to remove them.'

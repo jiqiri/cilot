@@ -131,7 +131,8 @@ OpenCode server (127.0.0.1:4096)     runs the agent, owns tool permissions
 ```
 
 A second, separate OpenCode server on `127.0.0.1:5100` belongs to the operator and is not
-reachable from Telegram. The two servers do not share configuration, which is why an agent
+reachable from Telegram. If you already run the `opencode` CLI on the machine, the installer
+keeps your installed version instead of replacing it. The two servers do not share configuration, which is why an agent
 granted to a standard account cannot borrow the operator's tools.
 
 ## Quick start
