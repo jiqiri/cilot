@@ -24,6 +24,7 @@ export interface UserSettings {
   ttsMode?: "off" | "all" | "auto" | undefined;
   compactOutputMode?: boolean | undefined;
   deleteCompactProgressOnFinish?: boolean | undefined;
+  showToolDetails?: boolean | undefined;
   showThinkingContent?: boolean | undefined;
   showAssistantRunFooter?: boolean | undefined;
   pinnedDashboardEnabled?: boolean | undefined;
@@ -60,6 +61,7 @@ export const PER_USER_SETTING_KEYS: readonly PerUserSettingKey[] = [
   "ttsMode",
   "compactOutputMode",
   "deleteCompactProgressOnFinish",
+  "showToolDetails",
   "showThinkingContent",
   "showAssistantRunFooter",
   "pinnedDashboardEnabled",

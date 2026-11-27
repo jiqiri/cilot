@@ -323,6 +323,15 @@ export function setDeleteCompactProgressOnFinish(enabled: boolean): void {
   void persist();
 }
 
+export function getShowToolDetails(): boolean {
+  return activeSlice().showToolDetails ?? true;
+}
+
+export function setShowToolDetails(enabled: boolean): void {
+  activeSlice().showToolDetails = enabled;
+  void persist();
+}
+
 export function getShowThinkingContent(): boolean {
   return activeSlice().showThinkingContent ?? true;
 }
@@ -583,6 +592,7 @@ function applyInitialSettingsPreset(preset: Record<string, unknown>): void {
     "ttsMode",
     "compactOutputMode",
     "deleteCompactProgressOnFinish",
+    "showToolDetails",
     "showThinkingContent",
     "showAssistantRunFooter",
     "pinnedDashboardEnabled",
@@ -619,7 +629,7 @@ function applyInitialSettingsPreset(preset: Record<string, unknown>): void {
         activeSlice().responseStreamingMode = value as ResponseStreamingMode;
       }
     } else {
-      // Boolean settings: compactOutputMode, deleteCompactProgressOnFinish, showThinkingContent, showAssistantRunFooter, pinnedDashboardEnabled, sendDiffFileAttachments, promptQueueEnabled
+      // Boolean settings: compactOutputMode, deleteCompactProgressOnFinish, showToolDetails, showThinkingContent, showAssistantRunFooter, pinnedDashboardEnabled, sendDiffFileAttachments, promptQueueEnabled
       if (typeof value !== "boolean") {
         throw new Error(
           `INITIAL_SETTINGS_PRESET: "${key}" must be a boolean.`,
@@ -633,6 +643,10 @@ function applyInitialSettingsPreset(preset: Record<string, unknown>): void {
         case "deleteCompactProgressOnFinish":
           if (activeSlice().deleteCompactProgressOnFinish === undefined)
             activeSlice().deleteCompactProgressOnFinish = value;
+          break;
+        case "showToolDetails":
+          if (activeSlice().showToolDetails === undefined)
+            activeSlice().showToolDetails = value;
           break;
         case "showThinkingContent":
           if (activeSlice().showThinkingContent === undefined)

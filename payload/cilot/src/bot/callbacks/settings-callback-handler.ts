@@ -11,6 +11,7 @@ import {
   getPinnedDashboardEnabled,
   getShowAssistantRunFooter,
   getShowThinkingContent,
+  getShowToolDetails,
   getTtsMode,
   setCompactOutputMode,
   setDeleteCompactProgressOnFinish,
@@ -20,6 +21,7 @@ import {
   setSendDiffFileAttachments,
   setShowAssistantRunFooter,
   setShowThinkingContent,
+  setShowToolDetails,
   setTtsMode,
   type ResponseStreamingMode,
   type TtsMode,
@@ -42,6 +44,7 @@ import {
   SETTINGS_PROMPT_QUEUE_CALLBACK,
   SETTINGS_RESPONSE_STREAMING_CALLBACK,
   SETTINGS_THINKING_CONTENT_CALLBACK,
+  SETTINGS_TOOL_DETAILS_CALLBACK,
   SETTINGS_TTS_CALLBACK,
   SETTINGS_PERSONA_CALLBACK,
 } from "../menus/settings-menu.js";
@@ -111,6 +114,16 @@ export async function handleSettingsCallback(
 
     if (callbackData === SETTINGS_DELETE_PROGRESS_ON_FINISH_CALLBACK) {
       setDeleteCompactProgressOnFinish(!getDeleteCompactProgressOnFinish());
+      const { text, keyboard } = buildSettingsMenuView();
+      await ctx.answerCallbackQuery({ text: t("settings.saved") });
+      await ctx.editMessageText(text, {
+        reply_markup: appendInlineMenuCancelButton(keyboard, "settings"),
+      });
+      return true;
+    }
+
+    if (callbackData === SETTINGS_TOOL_DETAILS_CALLBACK) {
+      setShowToolDetails(!getShowToolDetails());
       const { text, keyboard } = buildSettingsMenuView();
       await ctx.answerCallbackQuery({ text: t("settings.saved") });
       await ctx.editMessageText(text, {

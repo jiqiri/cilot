@@ -166,6 +166,7 @@ export const id: I18nDictionary = {
 
   "settings.menu.title": "⚙️ Pengaturan bot\nKetuk pengaturan untuk mengubah nilainya:",
   "settings.compact_output.label": "Mode output ringkas",
+  "settings.tool_details.label": "Detail tool",
   "settings.delete_progress_on_finish.label": "Hapus progres saat selesai",
   "settings.thinking_content.label": "Tampilkan proses berpikir",
   "settings.response_streaming.label": "Streaming balasan",

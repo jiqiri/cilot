@@ -160,6 +160,7 @@ export const tr: I18nDictionary = {
 
   "settings.menu.title": "⚙️ Bot ayarları\nDeğerini değiştirmek için bir ayara dokunun:",
   "settings.compact_output.label": "Kompakt çıktı modu",
+  "settings.tool_details.label": "Araç ayrıntıları",
   "settings.delete_progress_on_finish.label": "Bitince ilerlemeyi sil",
   "settings.thinking_content.label": "Düşünme içeriği",
   "settings.response_streaming.label": "Yanıt akışı",

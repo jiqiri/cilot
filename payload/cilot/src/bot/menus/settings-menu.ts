@@ -8,6 +8,7 @@ import {
   getPinnedDashboardEnabled,
   getShowAssistantRunFooter,
   getShowThinkingContent,
+  getShowToolDetails,
   getTtsMode,
   type ResponseStreamingMode,
   type TtsMode,
@@ -18,6 +19,7 @@ export const SETTINGS_CALLBACK_PREFIX = "settings:";
 export const SETTINGS_PERSONA_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}persona`;
 export const SETTINGS_COMPACT_OUTPUT_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}compact_output`;
 export const SETTINGS_DELETE_PROGRESS_ON_FINISH_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}delete_progress_on_finish`;
+export const SETTINGS_TOOL_DETAILS_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}tool_details`;
 export const SETTINGS_THINKING_CONTENT_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}thinking_content`;
 export const SETTINGS_RESPONSE_STREAMING_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}response_streaming`;
 export const SETTINGS_DIFF_FILES_CALLBACK = `${SETTINGS_CALLBACK_PREFIX}diff_files`;
@@ -51,6 +53,7 @@ export function formatResponseStreamingModeValue(mode: ResponseStreamingMode): s
 export function buildSettingsMenuView(): { text: string; keyboard: InlineKeyboard } {
   const compactOutputMode = getCompactOutputMode();
   const deleteCompactProgressOnFinish = getDeleteCompactProgressOnFinish();
+  const showToolDetails = getShowToolDetails();
   const showThinkingContent = getShowThinkingContent();
   const responseStreamingMode = getResponseStreamingMode();
   const sendDiffFileAttachments = getSendDiffFileAttachments();
@@ -82,6 +85,11 @@ export function buildSettingsMenuView(): { text: string; keyboard: InlineKeyboar
   }
 
   keyboard
+    .row()
+    .text(
+      `${t("settings.tool_details.label")}: ${formatBooleanSettingValue(showToolDetails)}`,
+      SETTINGS_TOOL_DETAILS_CALLBACK,
+    )
     .row()
     .text(
       `${t("settings.response_streaming.label")}: ${formatResponseStreamingModeValue(responseStreamingMode)}`,

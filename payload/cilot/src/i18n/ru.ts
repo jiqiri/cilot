@@ -157,6 +157,7 @@ export const ru: I18nDictionary = {
 
   "settings.menu.title": "⚙️ Настройки бота\nНажмите на параметр, чтобы переключить его значение:",
   "settings.compact_output.label": "Компактный вывод",
+  "settings.tool_details.label": "Детали инструментов",
   "settings.delete_progress_on_finish.label": "Удалять прогресс по завершении",
   "settings.thinking_content.label": "Содержимое thinking",
   "settings.response_streaming.label": "Стриминг ответа",

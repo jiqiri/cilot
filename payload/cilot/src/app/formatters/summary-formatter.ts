@@ -4,7 +4,7 @@ import { config } from "../../config.js";
 import { isRecord } from "../../utils/type-guards.js";
 import { logger } from "../../utils/logger.js";
 import { t } from "../../i18n/index.js";
-import { getCurrentProject } from "../stores/settings-store.js";
+import { getCurrentProject, getShowToolDetails } from "../stores/settings-store.js";
 
 function truncateWithEllipsis(text: string, maxLength: number): string {
   if (text.length <= maxLength) {
@@ -202,6 +202,10 @@ export function formatToolInfo(toolInfo: ToolInfo): string | null {
   logger.debug(
     `[Formatter] formatToolInfo: tool=${tool}, hasMetadata=${!!toolInfo.metadata}, hasFilediff=${!!toolInfo.metadata?.filediff}`,
   );
+
+  if (!getShowToolDetails()) {
+    return `${getToolIcon(tool)} ${tool}`;
+  }
 
   if (tool === "todowrite" && toolInfo.metadata?.todos) {
     const todos = (Array.isArray(toolInfo.metadata.todos) ? toolInfo.metadata.todos : [])

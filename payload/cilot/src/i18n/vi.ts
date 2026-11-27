@@ -160,6 +160,7 @@ export const vi: I18nDictionary = {
 
   "settings.menu.title": "⚙️ Cài đặt bot\nBấm vào một mục để đổi giá trị:",
   "settings.compact_output.label": "Chế độ kết quả gọn",
+  "settings.tool_details.label": "Chi tiết tool",
   "settings.delete_progress_on_finish.label": "Xoá tiến trình khi hoàn tất",
   "settings.thinking_content.label": "Hiện nội dung suy nghĩ",
   "settings.response_streaming.label": "Truyền câu trả lời",
