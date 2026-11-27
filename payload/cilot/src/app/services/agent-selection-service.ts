@@ -9,6 +9,22 @@ import { logger } from "../../utils/logger.js";
 import type { AgentInfo } from "../types/agent.js";
 
 /**
+ * Keep the agents this account may select. The picker and the selection callback share
+ * one rule, so a standard account never sees Build just to have the click rejected.
+ */
+export function selectableAgentsForUser(
+  agents: AgentInfo[],
+  userId: number | null | undefined,
+): AgentInfo[] {
+  return agents.filter(
+    (agent) =>
+      !agent.hidden &&
+      (agent.mode === "primary" || agent.mode === "all") &&
+      canUseAgent(userId, agent.name),
+  );
+}
+
+/**
  * Get list of available agents from OpenCode API
  * @returns Array of available agents (filtered by mode and hidden flag)
  */
@@ -28,10 +44,10 @@ export async function getAvailableAgents(): Promise<AgentInfo[]> {
       return [];
     }
 
-    // Filter out hidden agents and subagents (only show primary and all)
-    const filtered = agents.filter(
-      (agent) => !agent.hidden && (agent.mode === "primary" || agent.mode === "all"),
-    );
+    // Filter out hidden agents and subagents (only show primary and all), and drop the
+    // ones this account is not allowed to select. The callback checks again, but leaving
+    // Build in a standard account's picker only to reject the click is a confusing UI.
+    const filtered = selectableAgentsForUser(agents, getActiveSettingsUser());
 
     logger.debug(`[AgentManager] Fetched ${filtered.length} available agents`);
     return filtered;
