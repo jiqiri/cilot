@@ -63,6 +63,7 @@ function getToolDetails(tool: string, input?: { [key: string]: unknown }): strin
       if (typeof filePath === "string") return normalizePathForDisplay(filePath);
       break;
     case "bash":
+    case "shell":
       if (typeof input.command === "string") return input.command;
       break;
     case "grep":
@@ -101,6 +102,7 @@ function getToolIcon(tool: string): string {
     case "apply_patch":
       return "🩹";
     case "bash":
+    case "shell":
       return "💻";
     case "glob":
       return "📁";
@@ -215,7 +217,10 @@ export function formatToolInfo(toolInfo: ToolInfo): string | null {
     return `${toolIcon} ${tool} (${todos.length})\n\n${todosList}`;
   }
 
-  let details = title || getToolDetails(tool, input);
+  // V1 carried a human-readable title, while V2 has none and older adapters filled it with
+  // the tool name. Printing that next to the tool name is what produced "read read"; treat
+  // a title equal to the tool as absent and fall back to the input.
+  let details = title && title !== tool ? title : getToolDetails(tool, input);
   const toolIcon = getToolIcon(tool);
 
   let description = "";
@@ -223,7 +228,7 @@ export function formatToolInfo(toolInfo: ToolInfo): string | null {
     description = `${input.description}\n`;
   }
 
-  if (tool === "bash" && input && typeof input.command === "string") {
+  if ((tool === "bash" || tool === "shell") && input && typeof input.command === "string") {
     details = truncateWithEllipsis(input.command, config.bot.bashToolDisplayMaxLength);
   }
 

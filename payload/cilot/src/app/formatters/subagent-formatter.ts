@@ -34,6 +34,7 @@ function shouldPreferInputDetails(tool: string, input?: { [key: string]: unknown
     case "apply_patch":
       return typeof input.path === "string" || typeof input.filePath === "string";
     case "bash":
+    case "shell":
       return typeof input.command === "string";
     case "grep":
     case "glob":

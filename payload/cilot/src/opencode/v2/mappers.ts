@@ -265,7 +265,6 @@ function mapToolState(part: V2ToolContent, fallbackStart: number): Record<string
   const start = part.time?.created ?? fallbackStart;
   const end = part.time?.completed ?? part.time?.ran ?? start;
   const input = state.input ?? {};
-  const name = normalizeToolName(part.name);
 
   if (state.status === "completed") {
     const attachments = collectToolAttachments(state.content);
@@ -273,7 +272,6 @@ function mapToolState(part: V2ToolContent, fallbackStart: number): Record<string
       status: "completed",
       input,
       output: toolOutput(state.content),
-      title: name,
       metadata: state.metadata ?? {},
       ...(attachments ? { attachments } : {}),
       time: { start, end },
@@ -293,7 +291,6 @@ function mapToolState(part: V2ToolContent, fallbackStart: number): Record<string
   return {
     status: "running",
     input,
-    title: name,
     metadata: state.metadata ?? {},
     time: { start },
   };

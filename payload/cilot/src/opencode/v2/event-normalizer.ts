@@ -380,10 +380,9 @@ export class V2EventNormalizer {
     state: Record<string, unknown>,
   ): V1EventLike {
     // A tool served by the local MCP server arrives prefixed with the server name. The bot
-    // keys behaviour off the V1 name, so both the part and its title are rewritten here,
-    // which is the single place every tool event passes through.
+    // keys behaviour off the V1 name, so the part is rewritten here, which is the single
+    // place every tool event passes through.
     const name = normalizeToolName(tool);
-    const normalizedState = typeof state.title === "string" ? { ...state, title: name } : state;
 
     return this.emit("message.part.updated", {
       sessionID,
@@ -395,7 +394,7 @@ export class V2EventNormalizer {
         type: "tool",
         callID,
         tool: name,
-        state: normalizedState,
+        state,
       },
     });
   }
@@ -419,7 +418,6 @@ export class V2EventNormalizer {
       this.toolPart(sessionID, messageID, callID, tool, {
         status: "running",
         input: {},
-        title: tool,
         time: { start: createdAt },
       }),
     ];
@@ -444,7 +442,6 @@ export class V2EventNormalizer {
       this.toolPart(sessionID, messageID, callID, tool, {
         status: "running",
         input,
-        title: tool,
         time: { start: createdAt },
       }),
     ];
@@ -479,7 +476,6 @@ export class V2EventNormalizer {
         status: "completed",
         input: this.toolInputs.get(callID) ?? {},
         output,
-        title: tool,
         metadata: asRecord(data.metadata) ?? {},
         ...(attachments ? { attachments } : {}),
         time: { start: createdAt, end: createdAt },
